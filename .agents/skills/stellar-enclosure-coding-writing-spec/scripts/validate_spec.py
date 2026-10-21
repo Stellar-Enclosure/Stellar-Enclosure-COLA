@@ -1,0 +1,1407 @@
+#!/usr/bin/env python3
+"""Validate an EGON coding Spec's structure, metadata, links, and coverage."""
+
+from __future__ import annotations
+
+import argparse
+import re
+from pathlib import Path
+
+FILENAME_RE = re.compile(
+    r"^(?P<minute>\d{4}-\d{2}-\d{2}-\d{2}-\d{2})-"
+    r"(?P<abstract>[a-z0-9]+(?:-[a-z0-9]+)*)\.md$"
+)
+TITLE_RE = re.compile(r"\A#\s+\S.+$", re.MULTILINE)
+DATE_TIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2}) \S+$")
+VALID_STATUSES = {"Draft", "Review", "Accepted", "Implemented", "Superseded", "Rejected"}
+VALID_COMPLEXITIES = {"Simple", "Complex"}
+CHANGE_SURFACE_DISPOSITIONS = {"Affected", "Context-only", "Unchanged", "Not applicable"}
+CURRENT_TEMPLATE_VERSION = 9
+SUPPORTED_TEMPLATE_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9}
+ARCHETYPE_CLEANUP_DISPOSITIONS = {"Required", "Complete", "Not applicable"}
+ARCHETYPE_CLEANUP_ACTIONS = {
+    "Delete", "Replace", "Real business", "Infrastructure", "Applied history", "Blocked"
+}
+ARCHETYPE_CLEANUP_HEADING = "### 2.5 Archetype example cleanup"
+ARCHETYPE_CLEANUP_TABLE = (
+    "| Example ID | Exact paths/symbols | Origin evidence | Action | "
+    "Real-business requirement / infrastructure purpose | "
+    "Incoming references/config/data handling | Acceptance evidence |"
+)
+MANUAL_CHECK_IDS = (
+    "MC-ARCH-001",
+    "MC-REUSE-001",
+    "MC-DEP-001",
+    "MC-NAME-001",
+    "MC-VALID-001",
+    "MC-MODEL-001",
+    "MC-CONVERT-001",
+    "MC-LOG-001",
+    "MC-BEAN-001",
+    "MC-UTIL-001",
+    "MC-JSON-001",
+    "MC-TIME-001",
+    "MC-CONFIG-001",
+    "MC-PATTERN-001",
+    "MC-SCOPE-001",
+    "MC-TEST-001",
+    "MC-BLOCKER-001",
+)
+API_GATE_IDS = tuple(f"API-GATE-{number:03d}" for number in range(1, 10))
+API_STYLES = {
+    "REST Query",
+    "REST Command",
+    "GraphQL Query",
+    "GraphQL Mutation",
+    "GraphQL Subscription",
+}
+REQUIRED_FIELDS = [
+    "Document",
+    "Status",
+    "Type",
+    "Created",
+    "Updated",
+    "Owner",
+    "Repository",
+    "Scope",
+    "Source Requirement",
+    "Baseline Revision",
+    "Amends",
+    "Supersedes",
+    "Depends On",
+    "Related Specs",
+    "Related Plans",
+]
+RELATION_FIELDS = ["Amends", "Supersedes", "Depends On", "Related Specs", "Related Plans"]
+REQUIRED_HEADINGS = [
+    "## 1. Summary",
+    "## 2. Background and Current State",
+    "## 3. Goals and Non-goals",
+    "## 4. Requirements and Acceptance Criteria",
+    "## 5. Constraints, Assumptions, and Decisions",
+    "## 6. Project Technology Context",
+    "## 7. Architecture Design",
+    "## 8. Package Structure and Code File Tree",
+    "## 9. Interface Definitions",
+    "## 11. Database Design",
+    "## 12. Frontend Page Design",
+    "## 13. Design Patterns and Architecture Principles",
+    "## 14. Test Design",
+    "## 15. Non-functional and Cross-cutting Design",
+    "## 16. Compatibility, Migration, Rollout, and Rollback",
+    "## 17. Alternatives and Decisions",
+    "## 18. Risks and Open Questions",
+    "## 19. Traceability Matrix",
+    "## 20. Review and Acceptance",
+]
+REQUIRED_HEADING_ALTERNATIVES = [
+    (
+        "## 10. POJO and Data Model Design",
+        "## 10. Entity and Domain Model Design",
+    ),
+]
+PLACEHOLDER_PATTERNS = [
+    re.compile(r"\b(?:TBD|TODO|FIXME|XXX)\b", re.IGNORECASE),
+    re.compile(
+        r"<\s*(?:specification title|decision owner|repository|modules?|bounded context|"
+        r"user request|issue|ticket|brief|commit|path|symbol|fill|owner|command)[^>]*>",
+        re.IGNORECASE,
+    ),
+    re.compile(r"YYYY-MM-DD(?:-HH-MM)?"),
+    re.compile(r"\bABSTRACT\b"),
+]
+VERDICTS = {
+    "PASS — Ready for user review",
+    "BLOCKED — User decision required",
+    "REVISE — Internal inconsistency found",
+}
+CONTRACT_ID_RE = re.compile(r"\b(?:API|RPC|EVENT|MESSAGE|JOB|CLI|INTERNAL)-\d{3}\b")
+USE_CASE_ID_RE = re.compile(r"\bUC-\d{3}\b")
+ACTOR_ID_RE = re.compile(r"\bACTOR-\d{3}\b")
+CONTRACT_DETAIL_HEADING_RE = re.compile(
+    r"(?m)^####\s+(?:9\.2\.\d+\s+)?(?P<id>(?:API|RPC|EVENT|MESSAGE|JOB|CLI|INTERNAL)-\d{3})\b"
+)
+JSONC_BLOCK_RE = re.compile(r"```jsonc\s*\n(?P<body>.*?)```", re.IGNORECASE | re.DOTALL)
+MERMAID_BLOCK_RE = re.compile(r"```mermaid\s*\n(?P<body>.*?)```", re.IGNORECASE | re.DOTALL)
+HTTP_METHOD_RE = re.compile(r"\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b")
+HTTP_ROUTE_RE = re.compile(r"(?<![A-Za-z0-9_])/(?:[A-Za-z0-9_{}.:?=&*\-]+/?)*")
+TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*(?:\.[A-Za-z_][A-Za-z0-9_$]*)?$")
+TABLE_DETAIL_HEADING_RE = re.compile(
+    r"(?m)^####\s+(?:11\.2\.\d+\s+)?`?(?P<name>[A-Za-z_][A-Za-z0-9_$]*(?:\.[A-Za-z_][A-Za-z0-9_$]*)?)`?\b"
+)
+REQUIRED_CONTRACT_SUBHEADINGS_V2 = [
+    "##### Identity and purpose",
+    "##### Request parameters",
+    "##### Success response",
+    "##### Error responses",
+    "##### Interface logic for frontend and consumers",
+    "##### Compatibility and verification",
+]
+REQUIRED_CONTRACT_SUBHEADINGS_V3 = [
+    "##### Necessity and interaction-cost decision",
+    *REQUIRED_CONTRACT_SUBHEADINGS_V2,
+]
+REQUIRED_API_CONTRACT_SUBHEADINGS_V7 = [
+    "##### Necessity and interaction-cost decision",
+    "##### API style and CQE semantics",
+    "##### Identity and purpose",
+    "##### Request parameters",
+    "##### Success response",
+    "##### Error responses",
+    "##### Interface logic for frontend and consumers",
+    "##### Documentation contract",
+    "##### Compatibility and verification",
+]
+REQUIRED_TABLE_SUBHEADINGS = [
+    "##### Purpose, ownership, and lifecycle",
+    "##### Complete column design",
+    "##### Keys, relationships, and constraints",
+    "##### Index inventory and per-index justification",
+    "##### Access patterns and SQL shape",
+    "##### Migration and historical-data handling",
+    "##### Transaction, consistency, and recovery",
+]
+
+
+def clean(value: str) -> str:
+    return value.strip().strip("`").strip()
+
+
+def parse_header_table(text: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for line in text.splitlines():
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 2:
+            continue
+        key, value = cells
+        if key in {"Field", "---"} or set(key) == {"-"}:
+            continue
+        if key and key not in fields:
+            fields[key] = value
+    return fields
+
+
+def section(text: str, heading: str) -> str:
+    start = text.find(heading)
+    if start < 0:
+        return ""
+    body_start = start + len(heading)
+    next_heading = re.search(r"(?m)^##\s+\d+\.", text[body_start:])
+    end = body_start + next_heading.start() if next_heading else len(text)
+    return text[body_start:end]
+
+
+def heading_body(text: str, heading: str) -> str:
+    """Return one Markdown heading body up to the next same-or-higher heading."""
+    start = text.find(heading)
+    if start < 0:
+        return ""
+    level_match = re.match(r"^(#+)\s", heading)
+    if not level_match:
+        return ""
+    level = len(level_match.group(1))
+    body_start = start + len(heading)
+    next_heading = re.search(rf"(?m)^#{{1,{level}}}\s+", text[body_start:])
+    end = body_start + next_heading.start() if next_heading else len(text)
+    return text[body_start:end]
+
+
+def markdown_table_data_row_count(text: str, first_header_cell: str) -> int:
+    """Count data rows in the first Markdown table with the requested first header."""
+    return len(markdown_table_rows(text, first_header_cell))
+
+
+def markdown_table_rows(text: str, first_header_cell: str) -> list[list[str]]:
+    """Return data rows from the first Markdown table with the requested first header."""
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not cells or clean(cells[0]) != first_header_cell:
+            continue
+        separator_index = index + 1
+        if separator_index >= len(lines) or not lines[separator_index].lstrip().startswith("|"):
+            return []
+        rows: list[list[str]] = []
+        for row in lines[separator_index + 1:]:
+            if not row.lstrip().startswith("|"):
+                break
+            row_cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
+            if row_cells and any(cell for cell in row_cells):
+                rows.append(row_cells)
+        return rows
+    return []
+
+
+def chapter_references(value: str) -> set[int]:
+    """Extract design chapter numbers from section-sign references."""
+    return {int(number) for number in re.findall(r"§\s*(\d{1,2})\b", value)}
+
+
+def validate_archetype_cleanup(text: str, fields: dict[str, str], status: str) -> list[str]:
+    """Validate the v8 cleanup decision/handoff, not the state of application files."""
+    errors: list[str] = []
+    disposition = clean(fields.get("Archetype Cleanup", ""))
+    if disposition not in ARCHETYPE_CLEANUP_DISPOSITIONS:
+        errors.append("Archetype Cleanup must be Required, Complete or Not applicable")
+
+    background = section(text, "## 2. Background and Current State")
+    if ARCHETYPE_CLEANUP_HEADING not in background:
+        errors.append(f"Template Version 8 is missing required subsection: {ARCHETYPE_CLEANUP_HEADING}")
+        return errors
+    body = heading_body(background, ARCHETYPE_CLEANUP_HEADING)
+
+    def value(label: str) -> str:
+        match = re.search(rf"(?m)^{re.escape(label)}:\s*(.+)$", body)
+        return clean(match.group(1)) if match else ""
+
+    def concrete(evidence: str) -> bool:
+        return clean(evidence).casefold() not in {
+            "", "none", "n/a", "na", "unknown", "later", "reference"
+        } and not any(pattern.search(evidence) for pattern in PLACEHOLDER_PATTERNS)
+
+    if value("Cleanup disposition") != disposition:
+        errors.append("Archetype Cleanup header must match Cleanup disposition in §2.5")
+    rows = markdown_table_rows(body, "Example ID")
+    if disposition == "Not applicable":
+        if not concrete(value("Reason")):
+            errors.append("Not applicable archetype cleanup requires concrete Reason evidence")
+        if rows:
+            errors.append("Not applicable archetype cleanup cannot carry an example inventory")
+        return errors
+    if disposition not in {"Required", "Complete"}:
+        return errors
+
+    for label in ("Target project", "Origin evidence", "Scan evidence"):
+        if not concrete(value(label)):
+            errors.append(f"Archetype cleanup requires concrete {label} in §2.5")
+    if value("Scan scope") != "All target modules":
+        errors.append("Archetype cleanup Scan scope must be All target modules, not feature-local")
+
+    if disposition == "Complete" and not concrete(value("Residual evidence")):
+        errors.append("Complete archetype cleanup requires fresh Residual evidence")
+    if disposition == "Required":
+        if ARCHETYPE_CLEANUP_TABLE not in body or not rows:
+            errors.append("Required archetype cleanup needs the canonical seven-column example inventory")
+        change_rows = markdown_table_rows(section(text, "## 3. Goals and Non-goals"), "Area/layer")
+        cleanup_affected = any(
+            len(row) >= 6
+            and re.search(r"archetype|example|sample|示例|样例|脚手架", row[0], re.IGNORECASE)
+            and clean(row[1]) == "Affected"
+            and {8, 14} <= chapter_references(row[5])
+            for row in change_rows
+        )
+        if not cleanup_affected:
+            errors.append("Required archetype cleanup must be Affected in §3.3 with §8 and §14")
+    elif rows and ARCHETYPE_CLEANUP_TABLE not in body:
+        errors.append("Archetype cleanup inventory requires the canonical seven-column table")
+
+    requirement_text = section(text, "## 4. Requirements and Acceptance Criteria")
+    traceability = section(text, "## 19. Traceability Matrix")
+    requirements = set(re.findall(r"\bREQ-\d{3}\b", requirement_text))
+    traced = set(re.findall(r"\bREQ-\d{3}\b", traceability))
+    use_cases = set(USE_CASE_ID_RE.findall(requirement_text))
+    seen: set[str] = set()
+    actions: list[str] = []
+    for number, row in enumerate(rows, start=1):
+        if len(row) != 7:
+            errors.append(f"Archetype cleanup row {number} requires seven columns; found {len(row)}")
+            continue
+        example_id, paths, origin, action, purpose, references, acceptance = map(clean, row)
+        actions.append(action)
+        if not re.fullmatch(r"EXAMPLE-\d{3}", example_id) or example_id in seen:
+            errors.append(f"Archetype cleanup row {number} needs a unique EXAMPLE-NNN ID: {example_id}")
+        seen.add(example_id)
+        if not all(concrete(cell) for cell in (paths, origin, purpose, references, acceptance)):
+            errors.append(f"{example_id} requires concrete paths, origin, purpose, handling and acceptance evidence")
+        if action not in ARCHETYPE_CLEANUP_ACTIONS:
+            errors.append(f"{example_id} has invalid cleanup action: {action}; reference-only retention is prohibited")
+            continue
+        if action in {"Delete", "Replace", "Real business"}:
+            req_ids = set(re.findall(r"\bREQ-\d{3}\b", purpose))
+            if not req_ids or not req_ids <= requirements or not req_ids <= traced:
+                errors.append(f"{example_id} needs requirements defined in §4 and traced in §19")
+        if action == "Real business":
+            uc_ids = set(USE_CASE_ID_RE.findall(purpose))
+            if not uc_ids or not uc_ids <= use_cases:
+                errors.append(f"{example_id} Real business requires an evidenced UC-NNN in §4")
+        if action == "Applied history" and (
+            ".sql" not in paths.lower()
+            or not re.search(r"\bapplied\b|已应用", origin + " " + references, re.IGNORECASE)
+        ):
+            errors.append(f"{example_id} Applied history is limited to evidenced applied SQL files")
+        if action in {"Delete", "Replace"}:
+            if "*" in paths or "?" in paths:
+                errors.append(f"{example_id} deletion/replacement paths must be exact, not wildcard-only")
+            for chapter, heading in (
+                (8, "## 8. Package Structure and Code File Tree"), (14, "## 14. Test Design")
+            ):
+                if example_id not in section(text, heading):
+                    errors.append(f"{example_id} Delete/Replace must map to exact changes/tests in §{chapter}")
+        if action == "Blocked" and (
+            status in {"Review", "Accepted", "Implemented"}
+            or "PASS — Ready for user review" in text
+        ):
+            errors.append(f"{example_id} Blocked cleanup cannot use a PASS/review-ready verdict")
+
+    pending = {"Delete", "Replace", "Blocked"}
+    if disposition == "Required" and not pending.intersection(actions):
+        errors.append("Required archetype cleanup needs at least one Delete, Replace or Blocked action")
+    if disposition == "Complete" and pending.intersection(actions):
+        errors.append("Complete archetype cleanup cannot contain Delete, Replace or Blocked actions")
+    return errors
+
+
+def validate_change_surface(text: str, fields: dict[str, str]) -> tuple[list[str], set[int]]:
+    """Validate Template Version 4 change-surface breadth and chapter alignment."""
+    errors: list[str] = []
+    goals = section(text, "## 3. Goals and Non-goals")
+    heading = "### 3.3 Change Surface and Design Depth"
+    if heading not in goals:
+        return [f"Template Version 4 is missing required subsection: {heading}"], set()
+
+    body = heading_body(goals, heading)
+    if "| Area/layer | Disposition | Exact repository evidence |" not in body:
+        errors.append("Change surface requires the canonical area/disposition/evidence table")
+
+    rows = markdown_table_rows(body, "Area/layer")
+    if not rows:
+        errors.append("Change surface requires at least one classified area")
+
+    affected_chapters: set[int] = set()
+    for row_number, row in enumerate(rows, start=1):
+        if len(row) < 6:
+            errors.append(
+                f"Change-surface row {row_number} requires six columns; found {len(row)}"
+            )
+            continue
+        area, disposition, evidence, behavior, treatment, chapters = [clean(cell) for cell in row[:6]]
+        if not area:
+            errors.append(f"Change-surface row {row_number} is missing its area/layer")
+        if disposition not in CHANGE_SURFACE_DISPOSITIONS:
+            errors.append(
+                f"Change-surface row {row_number} has invalid disposition '{disposition}'; "
+                f"expected one of: {', '.join(sorted(CHANGE_SURFACE_DISPOSITIONS))}"
+            )
+        for label, value in (
+            ("repository evidence", evidence),
+            ("changed or preserved behavior/contract", behavior),
+            ("required Spec treatment", treatment),
+            ("chapter references", chapters),
+        ):
+            if not value:
+                errors.append(f"Change-surface row {row_number} is missing {label}")
+        row_chapters = chapter_references(chapters)
+        invalid_chapters = {chapter for chapter in row_chapters if chapter < 7 or chapter > 18}
+        if invalid_chapters:
+            errors.append(
+                f"Change-surface row {row_number} references chapters outside §7-§18: "
+                f"{', '.join(str(item) for item in sorted(invalid_chapters))}"
+            )
+        if disposition == "Affected":
+            if not row_chapters:
+                errors.append(
+                    f"Change-surface row {row_number} is Affected but names no §7-§18 chapter"
+                )
+            affected_chapters.update(row_chapters)
+
+    if not affected_chapters:
+        errors.append("Change surface requires at least one Affected area and design chapter")
+
+    header_chapters = chapter_references(clean(fields.get("Affected Chapters", "")))
+    if header_chapters != affected_chapters:
+        errors.append(
+            "Affected Chapters header must exactly match chapters from Affected change-surface rows: "
+            f"header={sorted(header_chapters)}, matrix={sorted(affected_chapters)}"
+        )
+    return errors, affected_chapters
+
+
+TIME_CONTRACT_TABLE = (
+    "| Time ID | Fields/symbols | Semantics | Java/runtime type | Storage policy | "
+    "Wire policy | Business zone source | Display zone source | Boundary / DST rules | "
+    "Precision / Clock | Compatibility | Verification |"
+)
+TIME_POLICIES = {
+    "Occurred instant": ({"UTC instant", "Legacy UTC"}, {"UTC Z"}, {"Instant", "OffsetDateTime"}),
+    "Pure date": ({"Pure date"}, {"Pure date"}, {"LocalDate"}),
+    "Local time": ({"Local time"}, {"Local", "Local + zone"}, {"LocalTime"}),
+    "Zoned schedule": ({"Local + zone"}, {"Local + zone"}, {"LocalDateTime", "LocalTime", "ZonedDateTime"}),
+    "Duration": ({"Duration"}, {"Duration"}, {"Duration"}),
+}
+
+
+def validate_time_contract(text: str, heading: str) -> list[str]:
+    """Check declared time policies; actual mapping/calendar behavior remains a Manual Check."""
+    if heading not in text:
+        return [f"Missing required time subsection: {heading}"]
+    body = heading_body(text, heading)
+    errors: list[str] = []
+    dispositions = re.findall(r"(?m)^Time contract:[ \t]*(.*)$", body)
+    if len(dispositions) != 1:
+        return ["Time contract requires exactly one applicability declaration"]
+    value = clean(dispositions[0])
+    rows = markdown_table_rows(body, "Time ID")
+    if value not in {"Required", "Not applicable"}:
+        return ["Time contract must be Required or Not applicable"]
+    if value == "Not applicable":
+        reason = re.search(r"(?m)^Reason:\s*(.+)$", body)
+        if not reason or not time_evidence(reason.group(1)):
+            errors.append("Not applicable time contract requires concrete Reason evidence")
+        if rows:
+            errors.append("Not applicable time contract cannot contain TIME rows")
+        return errors
+    if TIME_CONTRACT_TABLE not in body or not rows:
+        errors.append("Required time contract needs the canonical twelve-column table and TIME rows")
+    seen: set[str] = set()
+    for row in rows:
+        if len(row) != 12:
+            errors.append("Time contract row requires exactly twelve columns")
+            continue
+        cells = [clean(cell) for cell in row]
+        time_id, symbols, semantics, runtime_type, storage, wire = cells[:6]
+        if not re.fullmatch(r"TIME-\d{3}", time_id) or time_id in seen:
+            errors.append(f"Time contract requires unique TIME-NNN IDs: {time_id}")
+        seen.add(time_id)
+        if not all(time_evidence(cell) for cell in cells):
+            errors.append(f"{time_id} requires concrete field and boundary evidence in every cell")
+        if semantics not in TIME_POLICIES:
+            errors.append(f"{time_id} has invalid time semantics: {semantics}")
+            continue
+        allowed_storage, allowed_wire, allowed_types = TIME_POLICIES[semantics]
+        if storage not in allowed_storage | {"Not persisted"}:
+            errors.append(f"{time_id} storage policy conflicts with {semantics}: {storage}")
+        if wire not in allowed_wire | {"Internal"}:
+            errors.append(f"{time_id} wire policy conflicts with {semantics}: {wire}")
+        java_types = set(re.findall(r"\b(?:Instant|OffsetDateTime|LocalDate|LocalDateTime|LocalTime|ZonedDateTime|Duration)\b", runtime_type))
+        permitted_types = allowed_types | ({"LocalDateTime"} if storage == "Legacy UTC" else set())
+        if java_types - permitted_types:
+            errors.append(f"{time_id} Java type conflicts with time semantics/storage: {runtime_type}")
+        business_zone = cells[6]
+        if re.search(r"systemDefault|TimeZone\.getDefault|server default|JVM default|OS default|database default|browser|服务器默认|浏览器|系统默认", business_zone, re.IGNORECASE):
+            errors.append(f"{time_id} business zone must be explicit, not a server/browser default")
+        if semantics == "Zoned schedule" and business_zone.startswith("Not applicable"):
+            errors.append(f"{time_id} Zoned schedule requires a region-zone source")
+        if storage == "Legacy UTC":
+            compatibility = cells[10]
+            if not re.search(r"UTC", compatibility, re.IGNORECASE) or not re.search(r"conver|mapping|转换|映射", compatibility, re.IGNORECASE):
+                errors.append(f"{time_id} Legacy UTC requires UTC interpretation and conversion evidence")
+        if not re.search(r"\bTEST-\d{3}\b", cells[11]):
+            errors.append(f"{time_id} requires concrete TEST-NNN verification")
+        if heading.startswith("### 4.") and not re.search(r"\bStep\s+\d+\b", cells[11]):
+            errors.append(f"{time_id} Plan verification requires an owning Step N")
+    time_check = next((row for row in markdown_table_rows(text, "Check ID") if row and clean(row[0]) == "MC-TIME-001"), None)
+    if time_check and len(time_check) > 2 and (clean(time_check[1]) == "Not applicable" or clean(time_check[2]) == "N/A"):
+        errors.append("Required time contract cannot mark MC-TIME-001 Not applicable/N/A")
+    return errors
+
+
+def time_evidence(value: str) -> bool:
+    """Allow explained non-applicability, but reject bare placeholders or missing evidence."""
+    value = clean(value)
+    if value in {"", "N/A", "None", "Unknown", "TBD", "-"} or re.fullmatch(r"<[^>]+>", value):
+        return False
+    if value.startswith("Not applicable"):
+        reason = re.fullmatch(r"Not applicable:[ \t]*(.+)", value)
+        return bool(reason and time_evidence(reason.group(1)))
+    return True
+
+
+def validate_manual_checks(text: str, pass_verdict: bool) -> list[str]:
+    """Validate the blocking Manual Check table and its final-verdict consistency."""
+    errors: list[str] = []
+    review = section(text, "## 20. Review and Acceptance")
+    heading = "### 20.5 Blocking Manual Check"
+    if heading not in review:
+        return [f"Template Version 5+ is missing required subsection: {heading}"]
+
+    body = heading_body(review, heading)
+    if "| Check ID | Applicability | Status | Evidence | Finding | Required action/exception |" not in body:
+        errors.append("Blocking Manual Check requires the canonical six-column table")
+    rows = markdown_table_rows(body, "Check ID")
+    rows_by_id: dict[str, list[str]] = {}
+    for row_number, row in enumerate(rows, start=1):
+        if len(row) < 6:
+            errors.append(f"Manual Check row {row_number} requires six columns; found {len(row)}")
+            continue
+        check_id, applicability, status, evidence, finding, action = [clean(cell) for cell in row[:6]]
+        if check_id in rows_by_id:
+            errors.append(f"Duplicate Manual Check ID: {check_id}")
+            continue
+        rows_by_id[check_id] = [applicability, status, evidence, finding, action]
+
+    expected = set(MANUAL_CHECK_IDS)
+    actual = set(rows_by_id)
+    for check_id in sorted(expected - actual):
+        errors.append(f"Missing blocking Manual Check ID: {check_id}")
+    for check_id in sorted(actual - expected):
+        errors.append(f"Unknown blocking Manual Check ID: {check_id}")
+
+    unresolved: list[str] = []
+    for check_id in MANUAL_CHECK_IDS:
+        row = rows_by_id.get(check_id)
+        if not row:
+            continue
+        applicability, status, evidence, finding, action = row
+        if applicability not in {"Applicable", "Not applicable"}:
+            errors.append(
+                f"{check_id} Applicability must be Applicable or Not applicable: {applicability}"
+            )
+        if applicability == "Applicable" and status not in {"PASS", "FAIL", "BLOCKED"}:
+            errors.append(f"{check_id} applicable status must be PASS, FAIL, or BLOCKED: {status}")
+        if applicability == "Not applicable" and status != "N/A":
+            errors.append(f"{check_id} not-applicable status must be N/A: {status}")
+        for label, value in (("Evidence", evidence), ("Finding", finding)):
+            if not value or value.lower() in {"none", "n/a", "unknown", "tbd", "todo"}:
+                errors.append(f"{check_id} requires concrete {label.lower()}")
+        if status in {"FAIL", "BLOCKED"}:
+            unresolved.append(check_id)
+            if not action or action.lower() in {"none", "n/a", "unknown", "tbd", "todo"}:
+                errors.append(f"{check_id} {status} requires an exact action/owner")
+
+    blocker_status = rows_by_id.get("MC-BLOCKER-001", ["", "", "", "", ""])[1]
+    unresolved_without_summary = [item for item in unresolved if item != "MC-BLOCKER-001"]
+    if unresolved_without_summary and blocker_status not in {"FAIL", "BLOCKED"}:
+        errors.append(
+            "MC-BLOCKER-001 must be FAIL or BLOCKED while other Manual Checks are unresolved"
+        )
+    if not unresolved_without_summary and blocker_status not in {"PASS", ""}:
+        errors.append("MC-BLOCKER-001 must be PASS when all other Manual Checks are closed")
+    if pass_verdict:
+        nonpassing = [
+            check_id
+            for check_id, row in rows_by_id.items()
+            if row[1] not in {"PASS", "N/A"}
+        ]
+        if nonpassing:
+            errors.append(
+                "PASS verdict requires every Manual Check to be PASS or evidence-backed N/A: "
+                + ", ".join(sorted(nonpassing))
+            )
+    return errors
+
+
+def validate_ordered_subheadings(owner: str, text: str, headings: list[str]) -> list[str]:
+    errors: list[str] = []
+    positions: list[int] = []
+    for heading in headings:
+        position = text.find(heading)
+        if position < 0:
+            errors.append(f"{owner} is missing required subsection: {heading}")
+        positions.append(position)
+    present_positions = [position for position in positions if position >= 0]
+    if present_positions != sorted(present_positions):
+        errors.append(f"{owner} required subsections are not in the mandated order")
+    return errors
+
+
+def validate_commented_jsonc(contract_id: str, block: str) -> list[str]:
+    errors: list[str] = []
+    for line_number, line in enumerate(block.splitlines(), start=1):
+        if not re.match(r'^\s*"[^"]+"\s*:', line):
+            continue
+        if not re.search(r'(?:,|\{|\[|\}|\]|"|\d|true|false|null)\s*//\s*\S', line, re.IGNORECASE):
+            errors.append(
+                f"{contract_id} jsonc field lacks a line-end meaning comment "
+                f"(block line {line_number}): {line.strip()}"
+            )
+    return errors
+
+
+def markdown_inventory_names(text: str, header: str) -> set[str]:
+    names: set[str] = set()
+    for line in text.splitlines():
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not cells:
+            continue
+        name = clean(cells[0])
+        if name == header or not TABLE_NAME_RE.fullmatch(name):
+            continue
+        names.add(name)
+    return names
+
+
+def concrete_api_gate_value(value: str) -> bool:
+    """Return whether an API-gate evidence/finding cell contains a real review statement."""
+    normalized = clean(value).lower()
+    return bool(normalized) and normalized not in {
+        "none",
+        "n/a",
+        "unknown",
+        "tbd",
+        "todo",
+        "pass",
+    } and "<" not in normalized
+
+
+def validate_api_contracts_v7(interfaces: str, pass_verdict: bool = True) -> list[str]:
+    """Validate Template Version 7 external API governance and blocking gates."""
+    # Existing Version 7 Specs retain their historical CQRS labels.
+    interfaces = interfaces.replace("CQRS", "CQE")
+    errors: list[str] = []
+    inventory_heading = "### 9.1 Interface Inventory"
+    detail_heading = "### 9.2 Per-interface Detailed Contracts"
+    inventory_body = heading_body(interfaces, inventory_heading)
+    inventory_rows = markdown_table_rows(inventory_body, "ID")
+    api_rows: dict[str, list[str]] = {}
+    for row_number, row in enumerate(inventory_rows, start=1):
+        if not row:
+            continue
+        contract_id = clean(row[0])
+        if not re.fullmatch(r"API-\d{3}", contract_id):
+            continue
+        if len(row) < 15:
+            errors.append(
+                f"Template Version 7 API inventory row {row_number} requires fifteen columns; "
+                f"found {len(row)}"
+            )
+            continue
+        api_rows[contract_id] = [clean(cell) for cell in row[:15]]
+
+    if not api_rows:
+        return errors
+
+    required_global_headings = [
+        "### 9.0 API protocol and documentation governance",
+        inventory_heading,
+        detail_heading,
+        "### 9.3 OpenAPI 3 and springdoc annotation plan",
+        "### 9.4 API contract generation and blocking gate",
+    ]
+    errors.extend(validate_ordered_subheadings("Chapter 9 external API design", interfaces, required_global_headings))
+
+    expected_inventory_header = (
+        "| ID | Change/necessity verdict | Name/purpose | Kind | API style/CQE role | "
+        "Consumer | Owner | Method + URL / GraphQL field / symbol / topic | "
+        "Operation ID/schema source | Input | Output | Auth/tenant | Error model | "
+        "Idempotency/version | Requirements |"
+    )
+    if expected_inventory_header not in inventory_body:
+        errors.append("Template Version 7 external API inventory requires the canonical fifteen-column table")
+
+    rest_ids: set[str] = set()
+    graphql_ids: set[str] = set()
+    for contract_id, row in api_rows.items():
+        style = row[4]
+        identity = row[7]
+        documentation_source = row[8]
+        if style not in API_STYLES:
+            errors.append(
+                f"{contract_id} API style/CQE role must be one of: "
+                + ", ".join(sorted(API_STYLES))
+            )
+        elif style.startswith("REST "):
+            rest_ids.add(contract_id)
+        else:
+            graphql_ids.add(contract_id)
+            expected_root = style.removeprefix("GraphQL ")
+            if not re.search(rf"\b{re.escape(expected_root)}\.[A-Za-z_][A-Za-z0-9_]*\b", identity):
+                errors.append(
+                    f"{contract_id} GraphQL inventory identity must include exact "
+                    f"{expected_root}.field in addition to the transport route"
+                )
+        if not documentation_source or documentation_source.lower() in {"none", "n/a", "unknown"}:
+            errors.append(f"{contract_id} requires an operationId or GraphQL schema/operation source")
+
+    governance = heading_body(interfaces, "### 9.0 API protocol and documentation governance")
+    if "| Concern | Decision/evidence |" not in governance:
+        errors.append("External API governance requires the canonical concern/decision table")
+    governance_rows = markdown_table_rows(governance, "Concern")
+    governance_by_name = {clean(row[0]): clean(row[1]) for row in governance_rows if len(row) >= 2}
+    governance_concerns = [
+        "Protocol selection",
+        "CQE application level",
+        "REST source of truth",
+        "GraphQL source of truth",
+        "Springdoc/OpenAPI compatibility",
+        "Legacy Swagger/Springfox status",
+        "Security and documentation exposure",
+        "Contract publication and drift gate",
+    ]
+    for concern in governance_concerns:
+        value = governance_by_name.get(concern, "")
+        if not concrete_api_gate_value(value):
+            errors.append(f"External API governance lacks a concrete decision/evidence row: {concern}")
+
+    detail_body = heading_body(interfaces, detail_heading)
+    detail_matches = list(CONTRACT_DETAIL_HEADING_RE.finditer(detail_body))
+    detail_contracts: dict[str, str] = {}
+    for index, match in enumerate(detail_matches):
+        contract_id = match.group("id")
+        end = detail_matches[index + 1].start() if index + 1 < len(detail_matches) else len(detail_body)
+        detail_contracts[contract_id] = detail_body[match.start():end]
+
+    style_rows = [
+        "Protocol style",
+        "CQE role",
+        "Resource/task semantics",
+        "Read/write and side effects",
+        "Consistency and idempotency",
+        "Why this style",
+    ]
+    documentation_rows = [
+        "Documentation authority",
+        "REST OpenAPI operation / GraphQL SDL operation",
+        "Annotation/mapping ownership",
+        "Generated schema elements",
+        "Compatibility and drift proof",
+    ]
+    for contract_id, inventory_row in api_rows.items():
+        contract_text = detail_contracts.get(contract_id, "")
+        if not contract_text:
+            continue
+        style_body = heading_body(contract_text, "##### API style and CQE semantics")
+        if "| Concern | Decision/evidence |" not in style_body:
+            errors.append(f"{contract_id} API style/CQE subsection lacks the canonical table")
+        style_decisions = {
+            clean(row[0]): clean(row[1])
+            for row in markdown_table_rows(style_body, "Concern")
+            if len(row) >= 2
+        }
+        for row_name in style_rows:
+            if not concrete_api_gate_value(style_decisions.get(row_name, "")):
+                errors.append(f"{contract_id} API style/CQE subsection lacks decision row: {row_name}")
+        if inventory_row[4] not in style_body:
+            errors.append(
+                f"{contract_id} detail API style/CQE decision does not match inventory: {inventory_row[4]}"
+            )
+
+        documentation = heading_body(contract_text, "##### Documentation contract")
+        if "| Concern | Decision/evidence |" not in documentation:
+            errors.append(f"{contract_id} documentation subsection lacks the canonical table")
+        documentation_decisions = {
+            clean(row[0]): clean(row[1])
+            for row in markdown_table_rows(documentation, "Concern")
+            if len(row) >= 2
+        }
+        for row_name in documentation_rows:
+            if not concrete_api_gate_value(documentation_decisions.get(row_name, "")):
+                errors.append(f"{contract_id} documentation subsection lacks decision row: {row_name}")
+
+        if contract_id in rest_ids:
+            if "operationId" not in documentation:
+                errors.append(f"{contract_id} REST documentation contract lacks an explicit operationId")
+            if "@Operation" not in documentation and "Contract-first" not in documentation:
+                errors.append(
+                    f"{contract_id} REST documentation contract must define OpenAPI 3 annotations "
+                    "or an evidence-backed Contract-first authority"
+                )
+            if "Generated OAS effect" not in documentation:
+                errors.append(f"{contract_id} REST documentation contract lacks generated OAS effects")
+        if contract_id in graphql_ids:
+            identity = heading_body(contract_text, "##### Identity and purpose")
+            request = heading_body(contract_text, "##### Request parameters")
+            expected_root = inventory_row[4].removeprefix("GraphQL ")
+            if not re.search(rf"\b{re.escape(expected_root)}\.[A-Za-z_][A-Za-z0-9_]*\b", identity):
+                errors.append(f"{contract_id} GraphQL identity lacks its exact {expected_root}.field")
+            if "```graphql" not in request:
+                errors.append(f"{contract_id} GraphQL request contract lacks SDL/operation GraphQL content")
+            for required_term in ("SDL", "Consumer operation", "Spring mapping"):
+                if required_term not in documentation:
+                    errors.append(
+                        f"{contract_id} GraphQL documentation contract lacks required artifact/mapping: "
+                        f"{required_term}"
+                    )
+
+    openapi_plan = heading_body(interfaces, "### 9.3 OpenAPI 3 and springdoc annotation plan")
+    openapi_header = (
+        "| Target | Required annotation/configuration | Exact values/source | "
+        "Generated OAS effect | Verification |"
+    )
+    if openapi_header not in openapi_plan:
+        errors.append("Chapter 9.3 requires the canonical OpenAPI/springdoc plan table")
+    if rest_ids and "@Operation" not in openapi_plan and "Contract-first" not in openapi_plan:
+        errors.append("REST API design requires operation-level OpenAPI annotations or Contract-first evidence")
+    if not rest_ids and graphql_ids and not ("N/A" in openapi_plan and "SDL" in openapi_plan):
+        errors.append("GraphQL-only design must mark OpenAPI annotations N/A with SDL evidence")
+
+    gate_body = heading_body(interfaces, "### 9.4 API contract generation and blocking gate")
+    expected_gate_header = (
+        "| Gate ID | Applicability | Status | Evidence | Finding | Required action/exception |"
+    )
+    if expected_gate_header not in gate_body:
+        errors.append("Chapter 9.4 requires the canonical six-column API blocking-gate table")
+    gate_rows = markdown_table_rows(gate_body, "Gate ID")
+    gates: dict[str, list[str]] = {}
+    for row_number, row in enumerate(gate_rows, start=1):
+        if len(row) < 6:
+            errors.append(f"API gate row {row_number} requires six columns; found {len(row)}")
+            continue
+        gate_id, applicability, gate_status, evidence, finding, action = [
+            clean(cell) for cell in row[:6]
+        ]
+        if gate_id in gates:
+            errors.append(f"Duplicate API gate ID: {gate_id}")
+            continue
+        gates[gate_id] = [applicability, gate_status, evidence, finding, action]
+
+    expected_gates = set(API_GATE_IDS)
+    for gate_id in sorted(expected_gates - set(gates)):
+        errors.append(f"Missing blocking API gate ID: {gate_id}")
+    for gate_id in sorted(set(gates) - expected_gates):
+        errors.append(f"Unknown blocking API gate ID: {gate_id}")
+
+    for gate_id in API_GATE_IDS:
+        row = gates.get(gate_id)
+        if not row:
+            continue
+        applicability, gate_status, evidence, finding, _ = row
+        if applicability == "Applicable" and gate_status not in {"PASS", "FAIL", "BLOCKED"}:
+            errors.append(
+                f"{gate_id} applicable API gate must be PASS, FAIL, or BLOCKED: {gate_status}"
+            )
+        elif applicability == "Not applicable" and gate_status != "N/A":
+            errors.append(f"{gate_id} not-applicable API gate must be N/A: {gate_status}")
+        elif applicability not in {"Applicable", "Not applicable"}:
+            errors.append(
+                f"{gate_id} Applicability must be Applicable or Not applicable: {applicability}"
+            )
+        for label, value in (("evidence", evidence), ("finding", finding)):
+            if not concrete_api_gate_value(value):
+                errors.append(f"{gate_id} requires concrete {label}")
+        if pass_verdict and gate_status not in {"PASS", "N/A"}:
+            errors.append(
+                f"PASS verdict requires {gate_id} to be PASS or evidence-backed N/A: {gate_status}"
+            )
+
+    protocol_gate_expectations = {
+        "API-GATE-003": bool(rest_ids),
+        "API-GATE-004": bool(graphql_ids),
+        "API-GATE-007": bool(rest_ids),
+    }
+    for gate_id, applicable in protocol_gate_expectations.items():
+        row = gates.get(gate_id)
+        if not row:
+            continue
+        expected_applicability = "Applicable" if applicable else "Not applicable"
+        expected_statuses = {"PASS", "FAIL", "BLOCKED"} if applicable else {"N/A"}
+        if row[0] != expected_applicability or row[1] not in expected_statuses:
+            errors.append(
+                f"{gate_id} protocol applicability must be {expected_applicability} / "
+                f"{','.join(sorted(expected_statuses))} "
+                f"for the API inventory; found {row[0]} / {row[1]}"
+            )
+    return errors
+
+
+def validate_v2_content(
+    text: str,
+    fields: dict[str, str],
+    status: str,
+    template_version: int = CURRENT_TEMPLATE_VERSION,
+) -> list[str]:
+    text = text.replace("CQRS", "CQE")
+    errors: list[str] = []
+    complexity = clean(fields.get("Complexity", ""))
+    drivers = clean(fields.get("Complexity Drivers", ""))
+
+    if complexity not in VALID_COMPLEXITIES:
+        errors.append(f"Template Version {template_version} requires Complexity to be Simple or Complex")
+    if not drivers:
+        errors.append(f"Template Version {template_version} requires a non-empty Complexity Drivers field")
+    elif complexity == "Complex" and drivers.lower() == "none":
+        errors.append("A Complex Spec must name material Complexity Drivers")
+
+    affected_chapters: set[int] = set()
+    if template_version >= 8:
+        errors.extend(validate_archetype_cleanup(text, fields, status))
+    if template_version >= 9:
+        errors.extend(validate_time_contract(text, "### 6.3 Time semantics and conversion contract"))
+    if template_version >= 4:
+        change_surface_errors, affected_chapters = validate_change_surface(text, fields)
+        errors.extend(change_surface_errors)
+
+    if template_version >= 6:
+        technology = section(text, "## 6. Project Technology Context")
+        literal_heading = "### 6.2 User-mandated Java rule compliance"
+        if literal_heading not in technology:
+            errors.append(f"Template Version {template_version} is missing required subsection: {literal_heading}")
+        else:
+            literal_body = heading_body(technology, literal_heading)
+            expected_header = (
+                "| Literal rule | Affected? | Repository evidence | Exact design decision | "
+                "Files/types/interfaces | Validation/test evidence | Status/blocker |"
+            )
+            if expected_header not in literal_body:
+                errors.append("User-mandated Java rule compliance requires the canonical seven-column table")
+            rows = markdown_table_rows(literal_body, "Literal rule")
+            actual_rules = [clean(row[0]) for row in rows if row]
+            expected_rules = [f"Rule {number}" for number in (1, 2, 3, 4, 5, 6, 7, 9, 10, 11)]
+            if actual_rules != expected_rules:
+                errors.append(
+                    "User-mandated Java rule rows must preserve exact order 1,2,3,4,5,6,7,9,10,11: "
+                    f"{actual_rules}"
+                )
+            for row_number, row in enumerate(rows, start=1):
+                if len(row) < 7:
+                    errors.append(
+                        f"User-mandated Java rule row {row_number} requires seven columns; found {len(row)}"
+                    )
+
+    required_v2_headings = [
+        "### 4.2 Use-case analysis",
+        "### 7.1 System Architecture Design",
+        "### 7.2 High-Level Design",
+        "### 7.3 Detailed Design",
+    ]
+    if template_version < 4 or 9 in affected_chapters:
+        required_v2_headings.extend(
+            ["### 9.1 Interface Inventory", "### 9.2 Per-interface Detailed Contracts"]
+        )
+    if template_version < 4 or 11 in affected_chapters:
+        required_v2_headings.extend(
+            [
+                "### 11.1 Table Inventory",
+                "### 11.2 Per-table Detailed Design",
+                "### 11.3 Entity-relationship diagram",
+            ]
+        )
+    if template_version >= 3:
+        required_v2_headings.insert(1, "### 7.0 Minimum-design baseline and element-necessity audit")
+    for heading in required_v2_headings:
+        if heading not in text:
+            errors.append(f"Template Version {template_version} is missing required subsection: {heading}")
+
+    architecture = section(text, "## 7. Architecture Design")
+
+    minimum_design = heading_body(architecture, "### 7.0 Minimum-design baseline and element-necessity audit")
+    if template_version >= 3 and "### 7.0 Minimum-design baseline and element-necessity audit" in architecture:
+        if "| Proposed element | Change | Requirements |" not in minimum_design:
+            errors.append("Minimum-design baseline requires the element-necessity audit table")
+        if "| Path | Network calls | Client states |" not in minimum_design:
+            errors.append("Minimum-design baseline requires the interaction-cost comparison table")
+
+    requirements = section(text, "## 4. Requirements and Acceptance Criteria")
+    use_case_analysis = heading_body(requirements, "### 4.2 Use-case analysis")
+    use_case_ids = sorted(set(USE_CASE_ID_RE.findall(use_case_analysis)))
+    actor_ids = sorted(set(ACTOR_ID_RE.findall(use_case_analysis)))
+    use_case_mermaid = [
+        match.group("body").lstrip()
+        for match in MERMAID_BLOCK_RE.finditer(use_case_analysis)
+        if match.group("body").lstrip().startswith("flowchart")
+    ]
+    has_use_case_table = "| ID | Use case/goal |" in use_case_analysis
+    if "### 4.2 Use-case analysis" in requirements:
+        if not use_case_ids:
+            errors.append("Use-case analysis requires at least one stable UC-NNN ID")
+        if not actor_ids:
+            errors.append("Use-case analysis requires at least one evidenced ACTOR-NNN ID")
+        if not has_use_case_table and not use_case_mermaid:
+            errors.append(
+                "Use-case analysis requires either the complete use-case table or a Mermaid flowchart view"
+            )
+        traceability = section(text, "## 19. Traceability Matrix")
+        for use_case_id in use_case_ids:
+            if use_case_id not in traceability:
+                errors.append(f"Use case absent from traceability matrix: {use_case_id}")
+
+    if complexity == "Complex":
+        required_complex_headings = [
+            "### 2.4 Evidence and current-chain map",
+            "### 4.1 Scenario matrix",
+            "#### 7.2.2 High-level decision and quality matrix",
+            "#### 7.3.6 Conclusion evidence chain",
+        ]
+        for heading in required_complex_headings:
+            if heading not in text:
+                errors.append(f"A Complex Spec is missing required analysis subsection: {heading}")
+
+        complex_depth_checks = [
+            ("### 2.4 Evidence and current-chain map", "Entry/trigger", 2, "evidence/current-chain rows"),
+            ("### 4.1 Scenario matrix", "Scenario", 3, "materially distinct scenario rows"),
+            (
+                "#### 7.2.2 High-level decision and quality matrix",
+                "Concern/use case",
+                3,
+                "quality/constraint rows",
+            ),
+            ("#### 7.3.6 Conclusion evidence chain", "Conclusion", 2, "conclusion evidence chains"),
+        ]
+        for heading, first_cell, minimum, label in complex_depth_checks:
+            body = heading_body(text, heading)
+            count = markdown_table_data_row_count(body, first_cell)
+            has_depth_exception = bool(re.search(r"(?m)^Depth exception:\s+\S", body))
+            if heading in text and count < minimum and not has_depth_exception:
+                errors.append(
+                    f"A Complex Spec requires at least {minimum} {label}; found {count}. "
+                    "Use 'Depth exception:' with repository evidence only when fewer real items exist"
+                )
+
+        mermaid_blocks = [match.group("body").lstrip() for match in MERMAID_BLOCK_RE.finditer(architecture)]
+        flowchart_count = sum(block.startswith("flowchart") for block in mermaid_blocks)
+        sequence_count = sum(block.startswith("sequenceDiagram") for block in mermaid_blocks)
+        if flowchart_count < 2:
+            errors.append("A Complex Spec requires separate Mermaid architecture and critical-flow flowcharts")
+        if sequence_count < 1:
+            errors.append("A Complex Spec requires a Mermaid sequenceDiagram swimlane view")
+
+    interfaces = (
+        section(text, "## 9. Interface Definitions")
+        if template_version < 4 or 9 in affected_chapters
+        else ""
+    )
+    if template_version >= 7 and interfaces:
+        errors.extend(
+            validate_api_contracts_v7(
+                interfaces,
+                pass_verdict="PASS — Ready for user review" in text,
+            )
+        )
+    detail_start = interfaces.find("### 9.2 Per-interface Detailed Contracts")
+    inventory_text = interfaces[:detail_start] if detail_start >= 0 else interfaces
+    detail_text = interfaces[detail_start:] if detail_start >= 0 else ""
+    inventory_ids = set(CONTRACT_ID_RE.findall(inventory_text))
+    detail_matches = list(CONTRACT_DETAIL_HEADING_RE.finditer(detail_text))
+    detail_ids = [match.group("id") for match in detail_matches]
+
+    for contract_id in sorted(inventory_ids):
+        count = detail_ids.count(contract_id)
+        if count != 1:
+            errors.append(
+                f"Interface inventory ID {contract_id} must have exactly one detailed heading; found {count}"
+            )
+    for contract_id in sorted(set(detail_ids) - inventory_ids):
+        errors.append(f"Detailed contract {contract_id} is absent from the interface inventory")
+
+    for line in inventory_text.splitlines():
+        api_ids = re.findall(r"\bAPI-\d{3}\b", line)
+        if not api_ids:
+            continue
+        methods = HTTP_METHOD_RE.findall(line)
+        routes = HTTP_ROUTE_RE.findall(line)
+        if len(api_ids) != 1 or len(methods) != 1 or len(routes) != 1:
+            errors.append(
+                "Each HTTP interface inventory row must contain exactly one API ID, one Method, "
+                f"and one URL; found ids={api_ids}, methods={methods}, urls={routes}"
+            )
+
+    for index, match in enumerate(detail_matches):
+        contract_id = match.group("id")
+        end = detail_matches[index + 1].start() if index + 1 < len(detail_matches) else len(detail_text)
+        contract_text = detail_text[match.start():end]
+        if template_version >= 7 and contract_id.startswith("API-"):
+            required_contract_subheadings = REQUIRED_API_CONTRACT_SUBHEADINGS_V7
+        else:
+            required_contract_subheadings = (
+                REQUIRED_CONTRACT_SUBHEADINGS_V3
+                if template_version >= 3
+                else REQUIRED_CONTRACT_SUBHEADINGS_V2
+            )
+        errors.extend(validate_ordered_subheadings(contract_id, contract_text, required_contract_subheadings))
+        for heading in required_contract_subheadings:
+            body = heading_body(contract_text, heading)
+            if heading in contract_text and len(re.sub(r"\s+", " ", body).strip()) < 40:
+                errors.append(f"{contract_id} subsection is too shallow: {heading}")
+        necessity = heading_body(contract_text, "##### Necessity and interaction-cost decision")
+        if template_version >= 3 and "##### Necessity and interaction-cost decision" in contract_text:
+            if "| Concern | Decision |" not in necessity:
+                errors.append(f"{contract_id} necessity subsection lacks the concern/decision table")
+            necessity_rows = [
+                "Change classification",
+                "Independent consumer goal",
+                "Parameter ownership and derivation",
+                "Direct/no-new-interface alternative",
+                "Caller use of result",
+                "Round trips and failure points",
+                "Verdict",
+            ]
+            for row in necessity_rows:
+                if row not in necessity:
+                    errors.append(f"{contract_id} necessity subsection lacks decision row: {row}")
+        jsonc_blocks = [item.group("body") for item in JSONC_BLOCK_RE.finditer(contract_text)]
+        if contract_id.startswith("API-"):
+            if not re.search(r"\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+/\S+", contract_text):
+                errors.append(f"{contract_id} detailed contract lacks an HTTP method and URL")
+            identity = heading_body(contract_text, "##### Identity and purpose")
+            request = heading_body(contract_text, "##### Request parameters")
+            success = heading_body(contract_text, "##### Success response")
+            failure = heading_body(contract_text, "##### Error responses")
+            logic = heading_body(contract_text, "##### Interface logic for frontend and consumers")
+            compatibility = heading_body(contract_text, "##### Compatibility and verification")
+            if "##### Identity and purpose" in contract_text and "| Concern | Definition |" not in identity:
+                errors.append(f"{contract_id} identity subsection lacks the required concern/definition table")
+            if "##### Request parameters" in contract_text and "| Name | Location |" not in request and not re.search(
+                r"(?im)^\s*None\b", request
+            ):
+                errors.append(
+                    f"{contract_id} request subsection needs the complete parameter table or an explicit None"
+                )
+            if "##### Success response" in contract_text and not JSONC_BLOCK_RE.search(success) and not re.search(
+                r"\b(?:No Content|Non-JSON response)\b", success, re.IGNORECASE
+            ):
+                errors.append(
+                    f"{contract_id} success subsection needs a complete jsonc body, explicit No Content, "
+                    "or an evidence-backed Non-JSON response"
+                )
+            if "##### Error responses" in contract_text and not JSONC_BLOCK_RE.search(failure) and not re.search(
+                r"\bNon-JSON error\b", failure, re.IGNORECASE
+            ):
+                errors.append(f"{contract_id} error subsection needs the actual jsonc error wrapper")
+            logic_steps = len(re.findall(r"(?m)^\s*\d+\.\s+\S", logic))
+            if "##### Interface logic for frontend and consumers" in contract_text and logic_steps < 7:
+                errors.append(
+                    f"{contract_id} consumer logic must cover the seven ordered behavior categories; "
+                    f"found {logic_steps} numbered steps"
+                )
+            if "##### Compatibility and verification" in contract_text and len(
+                re.sub(r"\s+", " ", compatibility).strip()
+            ) < 80:
+                errors.append(f"{contract_id} compatibility and verification subsection is too shallow")
+        for block in jsonc_blocks:
+            errors.extend(validate_commented_jsonc(contract_id, block))
+            if status in {"Review", "Accepted", "Implemented", "Superseded"} and "..." in block:
+                errors.append(f"{contract_id} jsonc payload cannot contain an abbreviated ellipsis at Status {status}")
+
+    database = (
+        section(text, "## 11. Database Design")
+        if template_version < 4 or 11 in affected_chapters
+        else ""
+    )
+    table_detail_start = database.find("### 11.2 Per-table Detailed Design")
+    table_inventory = database[:table_detail_start] if table_detail_start >= 0 else database
+    table_detail = database[table_detail_start:] if table_detail_start >= 0 else ""
+    inventory_tables = markdown_inventory_names(table_inventory, "Table")
+    detail_tables = [match.group("name") for match in TABLE_DETAIL_HEADING_RE.finditer(table_detail)]
+    for table_name in sorted(inventory_tables):
+        count = detail_tables.count(table_name)
+        if count != 1:
+            errors.append(
+                f"Database inventory table {table_name} must have exactly one detailed heading; found {count}"
+            )
+    for table_name in sorted(set(detail_tables) - inventory_tables):
+        errors.append(f"Detailed database table {table_name} is absent from the table inventory")
+
+    er_design = heading_body(database, "### 11.3 Entity-relationship diagram")
+    er_blocks = [
+        match.group("body").lstrip()
+        for match in MERMAID_BLOCK_RE.finditer(er_design)
+        if match.group("body").lstrip().startswith("erDiagram")
+    ]
+    relational_model_unchanged = bool(
+        re.search(r"(?im)^Relational model change:\s*No\b", er_design)
+    )
+    if inventory_tables and not relational_model_unchanged:
+        if not er_blocks:
+            errors.append("Relational table inventory requires a Mermaid erDiagram in §11.3")
+        else:
+            for table_name in sorted(inventory_tables):
+                candidates = {table_name, table_name.split(".")[-1]}
+                covered = any(
+                    re.search(
+                        rf"(?<![A-Za-z0-9_$]){re.escape(candidate)}(?![A-Za-z0-9_$])",
+                        er_design,
+                        re.IGNORECASE,
+                    )
+                    for candidate in candidates
+                )
+                if not covered:
+                    errors.append(
+                        f"Entity-relationship design does not cover inventory table: {table_name}"
+                    )
+            if not any(re.search(r"\sPK(?:\s|\")", block) for block in er_blocks):
+                errors.append("Mermaid erDiagram must show material primary-key attributes")
+
+    table_matches = list(TABLE_DETAIL_HEADING_RE.finditer(table_detail))
+    for index, match in enumerate(table_matches):
+        table_name = match.group("name")
+        end = table_matches[index + 1].start() if index + 1 < len(table_matches) else len(table_detail)
+        table_text = table_detail[match.start():end]
+        errors.extend(validate_ordered_subheadings(table_name, table_text, REQUIRED_TABLE_SUBHEADINGS))
+        column_design = heading_body(table_text, "##### Complete column design")
+        index_design = heading_body(table_text, "##### Index inventory and per-index justification")
+        access_patterns = heading_body(table_text, "##### Access patterns and SQL shape")
+        if "##### Complete column design" in table_text and "| Column | Native type |" not in column_design:
+            errors.append(f"{table_name} complete column design lacks the required native-type table")
+        if "##### Index inventory and per-index justification" in table_text and "| Index | Type/unique |" not in index_design:
+            errors.append(f"{table_name} index design lacks the required per-index justification table")
+        if "##### Access patterns and SQL shape" in table_text and "| Operation | Caller |" not in access_patterns:
+            errors.append(f"{table_name} access design lacks the required operation/caller table")
+        for heading in REQUIRED_TABLE_SUBHEADINGS:
+            body = heading_body(table_text, heading)
+            if heading in table_text and len(re.sub(r"\s+", " ", body).strip()) < 40:
+                errors.append(f"{table_name} subsection is too shallow: {heading}")
+
+    return errors
+
+
+def validate_relation_links(path: Path, field: str, value: str) -> list[str]:
+    errors: list[str] = []
+    normalized = clean(value)
+    if normalized.lower() == "none":
+        return errors
+
+    links = re.findall(r"\[[^\]]+\]\(([^)]+)\)", value)
+    if not links:
+        return [f"{field} must be None or contain at least one relative Markdown link"]
+
+    for link in links:
+        target = link.strip().split("#", 1)[0]
+        if not target:
+            errors.append(f"{field} contains an anchor-only link; link the predecessor document explicitly")
+            continue
+        if re.match(r"^[a-z][a-z0-9+.-]*://", target, re.IGNORECASE) or Path(target).is_absolute():
+            errors.append(f"{field} link must be repository-relative: {link}")
+            continue
+        resolved = (path.parent / target).resolve()
+        if not resolved.is_file():
+            errors.append(f"{field} link does not exist: {resolved}")
+
+    if field in {"Amends", "Supersedes", "Depends On"}:
+        has_section_reference = "§" in value or any("#" in link for link in links)
+        if not has_section_reference:
+            errors.append(f"{field} must identify exact predecessor sections or anchors")
+    return errors
+
+
+def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if not path.is_file():
+        return [f"File does not exist: {path}"], warnings
+
+    text = path.read_text(encoding="utf-8").replace("CQRS", "CQE")
+    filename_match = FILENAME_RE.fullmatch(path.name)
+    if not filename_match:
+        errors.append("Filename must match YYYY-MM-DD-HH-MM-lowercase-kebab-abstract.md")
+
+    if not TITLE_RE.search(text):
+        errors.append("The first line must be a non-empty level-1 Markdown title")
+
+    fields = parse_header_table(text)
+    for field in REQUIRED_FIELDS:
+        if field not in fields or not clean(fields[field]):
+            errors.append(f"Missing required header field: {field}")
+
+    document = fields.get("Document", "")
+    if document and path.name not in document:
+        errors.append(f"Document header must name the current file: {path.name}")
+
+    status = clean(fields.get("Status", ""))
+    if status and status not in VALID_STATUSES:
+        errors.append(f"Invalid Status '{status}'. Expected one of: {', '.join(sorted(VALID_STATUSES))}")
+
+    parsed_template_version = 0
+    template_version = clean(fields.get("Template Version", ""))
+    if template_version:
+        if not template_version.isdigit():
+            errors.append(f"Template Version must be an integer: {template_version}")
+        elif int(template_version) not in SUPPORTED_TEMPLATE_VERSIONS:
+            errors.append(
+                f"Unsupported Template Version {template_version}; supported: "
+                f"{', '.join(str(item) for item in sorted(SUPPORTED_TEMPLATE_VERSIONS))}"
+            )
+        else:
+            parsed_template_version = int(template_version)
+            versioned_fields = ["Complexity", "Complexity Drivers"]
+            if parsed_template_version >= 4:
+                versioned_fields.extend(["Change Surface", "Affected Chapters"])
+            if parsed_template_version >= 8:
+                versioned_fields.append("Archetype Cleanup")
+            for field in versioned_fields:
+                if field not in fields or not clean(fields[field]):
+                    errors.append(f"Template Version {parsed_template_version} requires header field: {field}")
+            errors.extend(validate_v2_content(text, fields, status, parsed_template_version))
+
+    parsed_dates: dict[str, re.Match[str]] = {}
+    for field in ("Created", "Updated"):
+        value = clean(fields.get(field, ""))
+        match = DATE_TIME_RE.fullmatch(value)
+        if value and not match:
+            errors.append(f"{field} must use YYYY-MM-DD HH:mm ZONE: {value}")
+        elif match:
+            parsed_dates[field] = match
+
+    if filename_match and "Created" in parsed_dates:
+        created = parsed_dates["Created"]
+        expected = f"{created.group(1)}-{created.group(2)}-{created.group(3)}"
+        if filename_match.group("minute") != expected:
+            errors.append(
+                "Filename timestamp must match the Created header minute: "
+                f"filename={filename_match.group('minute')}, created={expected}"
+            )
+
+    for heading in REQUIRED_HEADINGS:
+        if heading not in text:
+            errors.append(f"Missing required section: {heading}")
+
+    for alternatives in REQUIRED_HEADING_ALTERNATIVES:
+        if not any(heading in text for heading in alternatives):
+            errors.append(f"Missing required section: one of {', '.join(alternatives)}")
+
+    requirements = sorted(set(re.findall(r"\bREQ-\d{3}\b", text)))
+    if not requirements:
+        errors.append("No REQ-NNN requirement IDs found")
+
+    test_ids = sorted(set(re.findall(r"\bTEST-\d{3}\b", text)))
+    if not test_ids:
+        warnings.append("No TEST-NNN IDs found; test design may be untraceable")
+
+    for field in RELATION_FIELDS:
+        value = fields.get(field, "")
+        if value:
+            errors.extend(validate_relation_links(path, field, value))
+
+    if status in {"Review", "Accepted", "Implemented", "Superseded"}:
+        for pattern in PLACEHOLDER_PATTERNS:
+            match = pattern.search(text)
+            if match:
+                errors.append(f"Status {status} cannot contain unresolved placeholder: {match.group(0)}")
+
+        decisions = section(text, "## 5. Constraints, Assumptions, and Decisions")
+        if re.search(r"(?im)^\|[^\n]+\|[^\n]+\|[^\n]+\|[^\n]+\|[^\n]+\|\s*Open\s*\|$", decisions):
+            errors.append(f"Status {status} cannot contain an open major decision")
+
+    present_verdicts = {verdict for verdict in VERDICTS if verdict in text}
+    if len(present_verdicts) != 1:
+        errors.append("Document must contain exactly one allowed final verdict")
+    elif status == "Draft" and "PASS — Ready for user review" in present_verdicts:
+        warnings.append("Draft status uses a PASS verdict; verify that no major decision remains")
+    elif status in {"Review", "Accepted"} and "BLOCKED — User decision required" in present_verdicts:
+        errors.append(f"Status {status} cannot use the BLOCKED verdict")
+
+    if parsed_template_version >= 5:
+        errors.extend(
+            validate_manual_checks(
+                text,
+                pass_verdict="PASS — Ready for user review" in present_verdicts,
+            )
+        )
+
+    traceability = section(text, "## 19. Traceability Matrix")
+    for requirement in requirements:
+        if requirement not in traceability:
+            errors.append(f"Requirement absent from traceability matrix: {requirement}")
+
+    if strict and warnings:
+        errors.extend(f"STRICT: {warning}" for warning in warnings)
+        warnings = []
+    return errors, warnings
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate an EGON coding Spec Markdown file")
+    parser.add_argument("spec", type=Path, help="Path to YYYY-MM-DD-HH-MM-abstract.md")
+    parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")
+    args = parser.parse_args()
+
+    errors, warnings = validate(args.spec.resolve(), args.strict)
+    for warning in warnings:
+        print(f"WARN: {warning}")
+    for error in errors:
+        print(f"ERROR: {error}")
+
+    if errors:
+        print(f"FAIL: {len(errors)} error(s)")
+        return 1
+    print("PASS: EGON coding Spec structure, metadata, links, and traceability are valid")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

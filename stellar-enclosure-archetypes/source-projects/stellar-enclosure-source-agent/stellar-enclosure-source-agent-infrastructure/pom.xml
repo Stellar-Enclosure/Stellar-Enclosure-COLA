@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project child.project.url.inherit.append.path="false" xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>top.egon.internal.archetype.source</groupId>
+        <artifactId>stellar-enclosure-source-agent</artifactId>
+        <version>${stellar-enclosure.version}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>stellar-enclosure-source-agent-infrastructure</artifactId>
+    <packaging>jar</packaging>
+    <name>stellar-enclosure-source-agent-infrastructure</name>
+    <dependencies>
+        <!-- The cache starter keeps Redisson provided, so the host owns the client. -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>top.egon.internal.archetype.source</groupId>
+            <artifactId>stellar-enclosure-source-agent-domain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>top.egon</groupId>
+            <artifactId>stellar-enclosure-component-agent-flow-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>top.egon</groupId>
+            <artifactId>stellar-enclosure-component-rag-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>top.egon</groupId>
+            <artifactId>stellar-enclosure-component-transactional-outbox-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pgvector-store</artifactId>
+        </dependency>
+        <!-- 知识域的嵌入模型与 pgvector 存储都由本模块装配（Spec B §7.1.2），因此 OpenAI-compatible 客户端在此。 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <!-- Flyway 10 起数据库支持按方言拆包；缺这个插件时 PostgreSQL 迁移在启动期报 Unsupported Database。 -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-mcp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.linpeilie</groupId>
+            <artifactId>mapstruct-plus-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- 仓储测试的内存数据库；test 作用域，运行期仍只连 PostgreSQL。 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

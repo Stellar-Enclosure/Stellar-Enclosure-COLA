@@ -1,0 +1,166 @@
+spring:
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  sql:
+    init:
+      mode: never
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+dubbo:
+  application:
+    qos-enable: false
+  registry:
+    address: N/A
+  protocol:
+    name: injvm
+    port: -1
+
+egon:
+  cola:
+    component:
+      cache:
+        enabled: false
+        node-id: ""
+        key-prefix: egon:cola:cache:v2:${spring.application.name}
+        tenant-mdc-key: tenantId
+        second-evict-delay: PT5S
+        redis:
+          topic: "egon:cola:cache:event"
+        l1:
+          max-size: 10000
+        ttl:
+          l1-expire: PT5M
+          l1-jitter: PT2M
+          l2-expire: PT1H
+          l2-jitter: PT20M
+          null-expire: PT60S
+        batch:
+          max-keys: 1000
+        lock:
+          wait-time: PT0.5S
+          lease-time: PT10S
+      mybatis-plus:
+        enabled: true
+        tenant-id:
+          mdc-key: tenantId
+          ignored-tables: []
+        audit:
+          user-id-mdc-key: userId
+        pagination:
+          enabled: true
+          max-page-size: 500
+          overflow: false
+        batch:
+          default-size: 1000
+          max-chunk-size: 1000
+          max-collection-size: 10000
+        block-attack:
+          enabled: true
+        optimistic-locker:
+          enabled: true
+        dynamic-table-name:
+          enabled: false
+          tables: {}
+        illegal-sql:
+          enabled: false
+        ddl:
+          enabled: true
+          lock-timeout: PT30S
+          statement-timeout: PT300S
+          topology-ready-timeout: PT60S
+        local-write-guard:
+          enabled: true
+          allowed-root-statements: {}
+        sharding:
+          enabled: true
+          mode: SHARDING
+          config-style: STRATEGY
+          transaction-default-type: LOCAL
+          data-sources:
+            - name: master_data
+              logical-name: master_data
+              role: PRIMARY
+              driver-class-name: org.postgresql.Driver
+              jdbc-url: jdbc:postgresql://localhost:5432/organization_open_test_master_data
+              username: test
+              password: test
+            - name: shard_0
+              logical-name: shard_0
+              role: PRIMARY
+              driver-class-name: org.postgresql.Driver
+              jdbc-url: jdbc:postgresql://localhost:5432/organization_open_test_shard_0
+              username: test
+              password: test
+            - name: shard_1
+              logical-name: shard_1
+              role: PRIMARY
+              driver-class-name: org.postgresql.Driver
+              jdbc-url: jdbc:postgresql://localhost:5432/organization_open_test_shard_1
+              username: test
+              password: test
+          tables:
+            users:
+              type: SINGLE
+              data-source: master_data
+            roles:
+              type: SINGLE
+              data-source: master_data
+            permissions:
+              type: SINGLE
+              data-source: master_data
+            user_roles:
+              type: SINGLE
+              data-source: master_data
+            role_permissions:
+              type: SINGLE
+              data-source: master_data
+            grades:
+              type: SINGLE
+              data-source: master_data
+            school_classes:
+              type: STANDARD_TENANT_ID
+              sharding-column: tenant_id
+            school_class_users:
+              type: STANDARD_TENANT_ID
+              sharding-column: tenant_id
+      id:
+        enabled: true
+        machine-id: 0
+        max-clock-backward: PT0.005S
+      dtp:
+        enabled: false
+        report:
+          enabled: false
+
+organization:
+  integrations:
+    evaluation:
+      enabled: false
+      grpc-target: localhost:50051
+      grpc-deadline: PT1S
+    redis:
+      enabled: false
+    rabbit:
+      enabled: false
+  cache:
+    user-ttl: PT10M
+    grade-ttl: PT30M
+    school-class-ttl: PT10M
+  command:
+    idempotency-ttl: PT24H
+
+app:
+
+logging:
+  level:

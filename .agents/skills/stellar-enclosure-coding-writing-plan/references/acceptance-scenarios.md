@@ -1,0 +1,57 @@
+# Maintainer acceptance scenarios
+
+Use these scenarios after changing this skill.
+
+1. **No Spec**: A user asks for a Plan from one sentence. Expected: require/write a Spec first; do not turn the request into architecture during planning.
+2. **Multiple candidates**: Two current Specs govern the same module and neither is clearly primary. Expected: ask the user for the target path.
+3. **Dated or legacy Spec**: The governing document has no `EGON-SPEC-NNNN` ID but has a complete, current coding design. Expected: link the exact relative path and sections; do not reject it solely for naming.
+4. **Amended design**: A base Spec plus an accepted amendment changes one contract field. Expected: include both under `Effective Specs`; all file pseudocode uses the amended field.
+5. **Requirement omission**: Effective Specs contain five requirements but Step coverage contains four. Expected: strict validation failure.
+6. **Plan redesign**: The planner decides a new table/API/page would be cleaner than the Spec. Expected: stop and amend the Spec with user approval.
+7. **Small repository rename**: The Spec names `OldService`; current `NewService` has identical responsibility and consumers. Expected: evidence-backed `Plan Clarification`, not a new architecture decision.
+8. **Major repository drift**: The requested behavior is already implemented or the target architecture no longer exists. Expected: stop; request a residual-work/amending Spec or route to verification rather than duplicate implementation.
+9. **Generic pseudocode**: A Step says “implement validation and update service.” Expected: review failure until signatures, symbols, fields, branches, collaborators, errors, and assertions are explicit.
+10. **Tests delayed**: All production files precede behavior tests. Expected: review failure; put focused RED tests before implementation unless explicitly authorized otherwise.
+11. **Migration pressure**: One schema change exists and applied managed-DDL scripts are immutable. Expected: exactly one next SQL version plus manifest entry and per-target retry checks in the file order; no edit to old migrations.
+12. **Dirty worktree**: Unrelated changes are present. Expected: explicit preservation and path-limited Step/commit scopes.
+13. **Fetch-then-forward Spec defect**: The accepted Spec adds a query whose only consumer copies tenant/application values into a command that can derive them. Expected: Plan returns `REVISE`/`BLOCKED` with repository evidence and exact Spec sections; it does not produce files for the query.
+14. **Missing Spec necessity decision**: A new cache/factory/endpoint appears in a legacy Spec without a direct-alternative analysis. Expected: inspect current repository, perform the concise sanity audit, and escalate if the simpler option satisfies the same requirements.
+15. **Phase-only Step**: A Step says “implement backend” and lists controller/service/DAO without exact order or intermediate states. Expected: review failure; split by semantic outcome and expand every file.
+16. **Shallow file block**: A file has path and pseudocode but no repository evidence, callers, mappings, edge behavior, verification contribution, or after-file state. Expected: Template v2 strict validation/review failure.
+17. **Generic short pseudocode**: Pseudocode contains two lines, `validate(); save();`. Expected: strict validation warning/error; name exact conditions, collaborators, mapping, error/transaction behavior, and assertions.
+18. **Compile prerequisite before RED**: A generated/proto type must exist before the focused test compiles. Expected: plan the source-of-truth contract/generation first, state it is a compile prerequisite rather than RED proof, then place the focused RED test before provider/consumer behavior.
+19. **Frontend detailed Step**: Component test, API type, client/hook, page states, route wiring, query invalidation, exact typecheck/test commands, and manual boundary are ordered from evidence. Expected: pass when no architecture decision remains.
+20. **Validation without cwd**: A Step says `mvn test` with no repository/module working directory, selector, expected tests, or failure interpretation. Expected: strict validation/review failure.
+21. **Commit scope ambiguity**: A Step says “commit changed files.” Expected: review failure; list exact repository-relative commit paths matching the Step write scope.
+22. **Same file in multiple Steps**: Two semantic outcomes modify different methods in one file. Expected: either combine into one atomic Step or explicitly assign symbols/sections, intermediate compile behavior, and separate non-overlapping commit intent.
+23. **Missing bundled planning reference**: `SKILL.md` names `references/file-by-file-planning.md`, but the file is absent from the installed skill. Expected: resource-integrity preflight fails before resolving the target Spec or drafting the Plan and reports the exact missing path.
+24. **Ambiguous nested planning reference**: A bundled reference names another bundled document only as the bare name "review-checklist.md". Expected: resource-integrity validation fails and requires the skill-root-relative `references/review-checklist.md` form.
+25. **Repository instruction is not bundled**: The Plan skill tells the agent to inspect applicable `AGENTS.md` files. Expected: resource-integrity validation permits that repository-scoped instruction and does not expect the file inside the skill package.
+26. **Architecture not inspected**: A Java Plan creates `domain/application/adapter` packages in an existing `biz.controller/service/impl/dao` project without Archetype evidence. Expected: `MC-ARCH-001` fails and the Plan is blocked; it does not invent a hybrid migration.
+27. **Exact Archetype project**: The repository is generated from `stellar-enclosure-archetype-service` and its verifier confirms the seven modules. Expected: preserve that exact tree and dependency direction; do not force `biz.*` onto it.
+28. **Duplicate capability**: A Plan adds a local reflection converter and phone Validator without inspecting `BaseConverter`, MapStructPlus, `ValidationUtils`, or mature phone normalization. Expected: reuse ledger and `MC-REUSE-001`/`MC-DEP-001` reject the additions.
+29. **Ambiguous carrier name**: A new cross-layer type is called `UserInfo` or `OrderParam`. Expected: `MC-NAME-001` fails until its actual DTO/VO/Query/Command/Event role is selected without class explosion.
+30. **Reused input scenarios**: One Command serves create and update with different constraints. Expected: exact Validation Groups, `@Validated` invocation, `ValidationUtils`/boundary behavior, error mapping, and tests appear in file pseudocode.
+Ordinary POJOs/entities use `class` with `@Data`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Accessors(chain = true)`, a context-selected `@Builder` or `@SuperBuilder`, and `@EqualsAndHashCode(callSuper = true)` when superclass state participates in equality. Only immutable value objects may use `record`; see `references/egon-java-cqe-contract.md` for compile-safe root-class exceptions and collection immutability.
+32. **Manual object copying**: Business Service pseudocode contains many setters, `BeanUtils.copyProperties`, or JSON round trips. Expected: `MC-CONVERT-001` fails until MapStruct/MapStructPlus and mandatory Egon `BaseConverter` mapping is planned.
+33. **Implicit Bean wiring**: A new Service has no explicit Bean name, uses field injection, omits dependency Qualifiers, or assumes Lombok copies Qualifier. Expected: exact stereotype name, `@RequiredArgsConstructor`, qualified final fields, and `lombok.config` verification are planned before PASS.
+34. **Configuration drift**: A new key appears only in `application-dev.yml`. Expected: `MC-CONFIG-001` fails until all profiles are inventoried and key parity plus typed properties/tests are planned.
+35. **Pattern extremes**: Complex rule variation is one hard-coded switch, or simple direct logic is expanded into factories/strategies without a variation point. Expected: `MC-PATTERN-001` fails and the Plan selects the smallest justified design consistent with the Spec.
+36. **Manual Check omission**: Prose appears complete but one `MC-*` row or Step `Manual Checks` entry is missing, unknown, failed, blocked, or lacks evidence. Expected: Version 3 strict validation rejects PASS and names the exact row/Step.
+37. **Literal source rewritten**: The exact numbered rules are replaced by a short best-practices summary. Expected: preservation tests fail; both entrypoints and both phase references retain the byte-identical source.
+38. **Literal rule matrix reordered**: The Plan inserts Rule 8, omits Rule 9, or merges Rules 2 and 3. Expected: Version 4 strict validation rejects the exact Chapter 4 matrix order.
+39. **Step omits literal mapping**: A Step has Manual Checks but no `Literal Rules`, omits Rule 11, or a file has no `Literal rule enforcement`. Expected: Version 4 strict validation rejects the exact Step/File marker.
+40. **Layer validation collapsed**: A Plan adds only Controller `@Valid` and says lower layers are trusted. Expected: Rule 2/`MC-VALID-001` fail until every affected handoff, Group, `ValidationUtils`/normalization, error, and test is planned.
+41. **Complex annotations reduced**: Plan pseudocode uses only `@Data @Builder` for a Complex class. Expected: Rule 3/`MC-MODEL-001` block and return the constructor/framework conflict to the Spec/user rather than silently reducing the baseline.
+42. **BaseConverter bypass**: A new mapper is one-way and therefore omits Egon `BaseConverter`. Expected: Rule 3/`MC-CONVERT-001` block; the Plan cannot substitute manual mapping or a local abstraction.
+43. **Complex flow remains switch**: A Complex flow uses a switch even though the Spec identifies a variation axis. Expected: Rule 9/`MC-PATTERN-001` block until exact pattern participant, wiring, orchestration, and test files are ordered.
+
+- **Builder selection**: A root DTO and an EgonModel PO are added. Expected: choose @Builder for the root construction target and compatible @SuperBuilder across the PO hierarchy when inherited fields must be built; never mix the two.
+- **Enum boundary**: A status enum is both persisted and returned to the frontend. Expected: stable @EnumValue and @JsonValue mappings with invalid-input tests.
+- **Soft-delete key**: A nullable deleted_at is appended to business uniqueness. Expected: retain the composite key and prove active-row NULL behavior, delete/recreate and old-constraint removal.
+- **CQE event**: A local listener logs success. Expected: this is not event delivery; require actual outbox/MQ routing and describe atomicity/recovery limits.
+- **Validation extension**: A reusable cross-field rule needs a custom constraint. Expected: @Constraint/ConstraintValidator plus @Valid/@Validated/groups; no utility-only implementation.
+
+- **Unapproved managed dependency**: A needed tool is listed in the BOM but absent from the module. Expected: block and present its exact introduction plan; BOM presence is not permission.
+- **Selective regeneration conflict**: The user requests mapper XML only after a DDL change, and an existing XML contains manual edits. Expected: report the conflict, preserve that file and all unselected Java files, and request a concrete resolution.
+- **Unavailable generator**: Only a proposal exists. Expected: report tooling unavailable; do not invent a command or silently generate covered boilerplate by hand.

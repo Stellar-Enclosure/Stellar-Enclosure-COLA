@@ -1,0 +1,206 @@
+# Java、Spring 与 Egon-COLA 编码规范
+
+Dependency introduction and DDL/CRUD templates must also follow `references/backend-code-generation.md`: no autonomous dependencies; an unmet capability requires a user-approved introduction plan.
+
+Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modeling, enum, MP, validation, uniqueness, CQE and architecture contract.
+
+> 本文件是 `references/java-spring-egon-coding-standards.md` 的全中文审核镜像。每个 Java coding Spec 必须先读取 `references/user-mandated-java-rules.zh-CN.md`，再读取本文件。用户逐字规则是绝对约束；本文增加仓库证据要求，不能把“必须/只允许/不允许”改成建议。本规范不授权无关存量大重构。
+
+## 目录
+
+- [优先级与触达代码边界](#优先级与触达代码边界)
+- [仓库与能力发现](#仓库与能力发现)
+- [允许的架构形态](#允许的架构形态)
+- [Java 语义命名](#java-语义命名)
+- [跨层参数校验](#跨层参数校验)
+- [数据对象建模](#数据对象建模)
+- [对象转换](#对象转换)
+- [Spring Bean、依赖注入与日志](#spring-bean依赖注入与日志)
+- [工具、JSON、时间与配置规则](#工具json时间与配置规则)
+- [业务建模与设计模式](#业务建模与设计模式)
+- [MyBatis-Plus 与 ShardingSphere-JDBC 使用规范](#mybatis-plus-与-shardingsphere-jdbc-使用规范)
+- [阻断型 Manual Check 目录](#阻断型-manual-check-目录)
+
+## 优先级与触达代码边界
+
+按以下顺序执行规则：
+
+1. 用户最新明确要求和适用的 `AGENTS.md`；
+2. 当前项目明确规范和已选 Egon-COLA Archetype 契约；
+3. 本参考；
+4. 只有不与上述规则冲突时才沿用附近存量代码风格。
+
+发现存量代码违规时不能启动无关清理。本次新增文件和实质修改的符号必须在获批范围内尽可能符合规范。如果合规需要未声明的公开契约、模块移动、依赖、Migration 或大范围重构，必须记录阻断并申请批准，不能静默绕过。
+
+## 仓库与能力发现
+
+选择实现前必须：
+
+1. 识别仓库根目录、受影响模块、构建清单、Java/Spring Boot 版本、依赖管理、`lombok.config`、多环境配置、测试和生成源码规则；
+2. 按下方允许形态判定代码结构；
+3. 搜索当前模块和 Egon-COLA 已有 Entity/PO、DTO/VO/BO、Query/Command/Event、Converter、Validator、Component、Repository/DAO、Gateway、Service/Domain Service、Exception、Result、Enum、工具、Starter 和基础设施；
+4. 核对当前版本已经提供的 Spring/Spring Boot 官方能力；
+5. 建立复用账本，写明候选项、准确路径/依赖、能力、适配或缺口和最终复用决策；
+6. 检查现有与拟新增依赖以及其归属的 Starter/Component。
+
+平台能力优先复用匹配的 Egon-COLA 组件；剩余缺口检查 JDK/Spring、已有 Starter 与模块实现，再决定新增依赖或自研。
+
+新增依赖或重复抽象在 Spec 写清准确能力缺口、已检查候选及不足、版本/维护/安全/运维影响，并在任何依赖引入前获得用户明确批准前，属于阻断项。不得本地重复实现 Spring 或 Egon-COLA 已有能力。
+
+当前仓库证据包括：
+
+- `stellar-enclosure-component-common-core` 的 `BaseConverter<S,T>` / `BaseForwardConverter<S,T>` 公共转换契约；
+- `stellar-enclosure-component-common-core` 的 Jakarta Validation 与 Group 工具 `ValidationUtils`；
+- Egon-COLA Archetype/common core 中的 MapStructPlus 依赖与 Processor；
+- 生成项目边界/Application 模块中的 `spring-boot-starter-validation`；
+- Archetype `lombok.config` 中的 `lombok.copyableAnnotations += org.springframework.beans.factory.annotation.Qualifier`；
+- `stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-{light,service,web}` 脚手架和对应 Open 变体；
+- PostgreSQL + MyBatis-Plus + ShardingSphere-JDBC 持久化使用 `stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter`。拓扑、表类型、2n 布局、LOCAL 事务和受管 DDL 见 `references/database-design.zh-CN.md`。
+
+每次都必须在当前基线重新核实这些路径，不能因本参考提到某组件就假设目标项目已经可用。
+
+## 允许的架构形态
+
+编码前必须从仓库证据中且只选择一种：
+
+### 传统分层架构
+
+沿用项目已有的 `biz.controller`、`biz.service`、嵌套的 `biz.service.impl`、`biz.dao`、`biz.config`、`biz.utils` 和语义化 `biz.domain`，保持 Controller -> Service 接口 -> `service.impl` -> DAO 方向。不得在该形态中加入 DDD/COLA 模块。
+
+### Egon-COLA Archetype 架构
+
+严格使用项目选中的 `stellar-enclosure-archetypes` 模板和生成校验器。Light 使用 Archetype 的单项目包职责；Service/Web 使用 Archetype 规定的 `common`、`facade`、`domain`、`application`、`infrastructure`、`adapter`、`starter` 模块及依赖方向；Open 变体遵循其自身生成契约。不得自行解释通用 DDD/COLA、与 `biz.*` 混搭、重命名模块或新增 Archetype 不存在的层。
+
+当前代码不符合两种形态，或无法确认所选 Archetype 时，必须在目标设计前停止，向用户展示实际 Tree、可选形态、迁移影响和建议，不能静默规范化仓库。
+
+## Java 语义命名
+
+所有新增或实质修改 Java 类型都必须按真实职责使用语义后缀，不能只约束载体类。
+
+- 持久化载体使用 `*PO`；只有具备明确身份和生命周期语义的真实 ORM/DDD 实体才使用 `*Entity`。
+- 业务计算载体使用 `*BO`；传输/集成载体使用 `*DTO`；展示输出使用 `*VO`。
+- 读取意图使用 `*Query`；修改意图使用 `*Command`；已发生事实使用 `*Event`。
+- 纯协议入参载体使用 `*DTO`；读写意图保留 `*Query`/`*Command`。应用/协议输出使用 `*Result`/`*PageResult`；展示输出保留 `*VO`。不新增项目自有 `*Request`、`*Response` 载体。
+- 数据访问组件使用 `*DAO`；DAO 是访问组件，不是 POJO。
+- 其他行为类型使用准确后缀，例如 `*Controller`、`*Service`、`*Repository`、`*Gateway`、`*Converter`、`*Validator`、`*Component`、`*Factory`、`*Strategy`、`*Exception`、`*Enum`。
+
+禁止使用 `Data`、`Info`、`Param`、`Bean` 等含糊载体后缀来逃避语义选择。没有真实边界差异时，不能重复创建 PO/BO/DTO/VO/Query/Command/Event。范围外存量含糊名称不是重构授权；新增和实质修改类型必须纠正，无法纠正时报告冲突。
+
+## 跨层参数校验
+
+每个受影响层间输入边界都必须使用 `spring-boot-starter-validation` 提供的 Jakarta Bean Validation；只校验外部 Controller/Adapter 不合格：
+
+- 在 Request/DTO/Command/Query/Event 或方法参数上声明约束，嵌套对象使用 `@Valid`；
+- 需要方法/边界校验时使用 Spring `@Validated`；
+- 复用输入对象必须通过明确 Validation Group 区分操作，不能弱化约束或复制近似类；
+- 优先 Jakarta 原生约束；显式/手动校验和 Group 调用使用 Egon-COLA 已有 `ValidationUtils`；
+- 标准化数据只在一个命名边界归一化；电话号码相关变更使用 libphonenumber 等成熟方案完成解析、地区处理、规范化和有效性校验；
+- 业务约束使用自定义注解与 ConstraintValidator 扩展，通用规则复用原生约束；ValidationUtils 仅手工触发，不承载全部业务校验。
+- 写清校验顺序、规范化前后关系、错误映射、Null/Blank 语义、Group 选择和边界测试。
+- 必须分别清单并设计外部输入 -> Controller/Adapter、Controller/Adapter -> Service/Application、Service/Application -> Domain Service/Component、Service/Application -> DAO/Repository/Gateway，以及事件/Job/内部重入路径。
+
+禁止手写重复的空值/范围/格式 Validator，也不能只校验 Controller 而信任其他跨层构造路径。
+
+## 数据对象建模
+
+必须按下列逐字分类选择表示方式，不能把复杂对象完整注解基线弱化成可选集合：
+
+- 普通 POJO/实体使用 `class`，默认 `@Data`、`@NoArgsConstructor`、`@AllArgsConstructor`、`@Accessors(chain = true)`，按构造目标选择 `@Builder` 或 `@SuperBuilder`；父类状态参与相等性时使用 `@EqualsAndHashCode(callSuper = true)`。仅不可变值对象可以用 `record`；无父类等编译边界见 `references/egon-java-cqe-contract.md`。
+- 不可变值对象可用 `record`，不套用可变 class 注解；仅字段少不能证明值对象语义。
+
+核对构造目标、父类链与生成签名；按 `references/egon-java-cqe-contract.md` 的场景规则处理 Builder、无父类和零字段，其他实际框架/API 冲突记录为阻断。
+- 必须说明构造器可见性、必填字段、Builder/默认值、可变性、Equals/Hash、序列化、ORM/Proxy 和校验语义。
+- 拒绝冲突/重复构造器注解，禁止把可变 `@Data` 与不可变 `@Value` 语义混用。
+
+## 对象转换
+
+跨层对象转换统一使用 MapStruct 或 MapStructPlus。每个新增受影响 Converter 必须继承或实现 `stellar-enclosure-component-common-core` 已有 `BaseConverter<S,T>` / `BaseForwardConverter<S,T>` 体系，并写清准确路径、泛型源/目标、生成实现和 Bean 名称。
+
+规范化、派生字段、枚举/时间转换、敏感字段排除、默认值和空值语义放在命名 Converter 方法、MapStruct Mapping 或 Qualifier Helper 中。禁止在业务 Service 散布手工 `set/get`，禁止使用 `BeanUtils.copyProperties`、反射复制或 JSON 序列化完成映射。允许 Commons BeanUtils 作为工具依赖，不代表允许它承担业务对象转换。
+
+不可逆投影使用现有 Common BaseForwardConverter；两种共享契约都无法表达时报告缺口；不能用单向本地抽象或手工映射绕过。
+
+## Spring Bean、依赖注入与日志
+
+- 每个具体业务行为类必须使用 Lombok `@Slf4j`，不能手写 Logger 字段。
+- 每个 Spring 管理 Bean 都必须通过组件注解 Value 或 `@Bean` 方法声明稳定显式名称，例如 `@Service("userService")`、`@Component("orderComponent")`、`@Repository("userRepository")`、`@RestController("userController")`。
+- 使用 Final 字段、构造器注入和 Lombok `@RequiredArgsConstructor`；禁止字段 `@Autowired`，禁止在业务代码中手写注入构造器。
+- 每个注入依赖字段都使用 `@Qualifier("stableBeanName")`。必须核对 `lombok.config` 会把 `Qualifier` 复制到生成构造参数；否则补充正确 Copyable Annotation 配置或解决注入契约属于受影响设计，不能假设字段注解自动生效。
+- 实现集合/Map 也必须由稳定限定的聚合 Bean 或明确获批 Registry 提供。
+- 日志必须可操作、参数化且不包含秘密/敏感载荷；不能为了满足注解要求输出噪声式进出日志。
+
+## 工具、JSON、时间与配置规则
+
+### 工具
+
+优先 JDK，其次使用已管理的 Apache Commons（`commons-lang3`、`commons-collections4`、`commons-io`、`commons-text`、`commons-codec`、`commons-beanutils`）或 Guava。Apache Tika 只有真实文档/内容识别需求时才能引入。不能为了少量方法增加其他工具库或重复 `*Utils`。`commons-beanutils` 仍禁止用于业务对象转换。
+
+### JSON
+
+统一使用 Spring Boot Jackson。外部 DTO/VO/Result/Command/Query/Event 仅按真实协议需要使用 Jackson 注解，明确字段名、Include/Ignore、枚举、时间、多态、兼容和未知字段策略。禁止引入或混用 Gson、Fastjson，也禁止 JSON 往返转换对象。
+
+### 日期时间
+
+新增或实质修改代码使用 `LocalDate`、`LocalDateTime`、`Instant`、`OffsetDateTime`、`ZonedDateTime`、`Duration` 等 `java.time` 类型。禁止新增 `java.util.Date`、`Calendar`、`SimpleDateFormat`。边界必须定义时区、精度、Clock 来源、持久化类型和 JSON 表达。
+
+### 配置
+
+优先类型化 `@ConfigurationProperties`，禁止散落大量 `@Value`。新增/修改配置 Key 时，比较所有 Spring Boot 环境 Profile，保持相同结构和核心 Key 集合，允许 Value 不同。检查默认值、校验、Metadata、测试、秘密处理和兼容性。任一环境私自缺少或增加核心 Key 都是阻断项。
+
+## 业务建模与设计模式
+
+复杂业务不得堆积长 `if/else`、`switch`、类型判断和硬编码编排。识别真实变化维度、状态流转、规则组合、算法切换、责任链、对象创建和事件协作。
+
+受影响业务逻辑一旦判定为复杂，就必须使用合适设计模式。选择能够隔离已有变化/职责的 Strategy、Template Method、Factory、Chain of Responsibility、State、Specification、Domain Event 或其他仓库模式，并写清变化点、参与者、依赖方向、注册/选择机制、扩展步骤、失败和测试。复杂业务使用长 `if/else`、`switch`、类型/字符串分发、反射分发，或以“直接逻辑更简单”为由不使用模式，都不合格。Simple 逻辑保持直接实现，禁止制造仪式性模式类。
+
+## MyBatis-Plus 与 ShardingSphere-JDBC 使用规范
+
+持久化、分片或数据源 YAML 为 `Affected` 时，必须复用已有 Starter `stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter`。不得本地重建 `ShardingDataSourceBootstrapper`、第二套 Schema 变更 Runner 或自定义 ID 生成器。
+
+- YAML 位于 `egon.cola.component.mybatis-plus.sharding`。`config-style: STRATEGY` 与 `NATIVE` 互斥，优先 STRATEGY。模式为 `SHARDING` 和 `SHARDING_READWRITE`。多环境文件必须保持 Rule 7 的 Key 结构一致。
+- 生产驱动只允许 PostgreSQL。H2 只作为 CI 测试证据；CPU/Mock/H2 不能证明 PostgreSQL DDL、复制、物理落点或查询性能。
+- 持久化模型继承 `EgonModel<PO>`，声明 `@TableName` 和使用继承的 `@TableId(type=ASSIGN_ID)`。`tenantId` 必须非空。`EgonColaIdentifierGenerator` 委托给已命名 Bean `snowflakeIdGenerator`（`LongIdGenerator`）。持久化为 `BIGINT`；HTTP/GraphQL 文本边界使用 `nextId()` 十进制字符串。
+- 新增分片表默认 `STANDARD_TENANT_ID`。`SINGLE` 是单节点元数据；`BROADCAST` 只读。`COMPLEX_TENANT_THEN_BUSINESS` 仅在已证明父子共置时可选。拓扑、分片键、mix64-v1、2n 布局、LOCAL 共置、写守卫和受管 DDL（`EgonColaPostgreDdlRunner` / `ddl_history`）在 `references/database-design.zh-CN.md` 设计。
+- Repository 留在基础设施。Command 使用受守卫的 save/带版本 update；Query 使用具名 Mapper XML。不得启用 ActiveRecord、QueryChain 或通用 Query Wrapper 入口。
+
+## 阻断型 Manual Check 目录
+
+每份 Spec、Plan、每个执行 Step 和最终执行审核都必须使用以下稳定 ID。所有适用行必须为带具体证据的 `PASS`；不适用行必须为带证据与原因的 `N/A`。`FAIL`、`BLOCKED`、`UNKNOWN`、缺失证据或缺少 ID 都会阻断整体 PASS。
+
+| Check ID | 阻断主题 |
+| --- | --- |
+| `MC-ARCH-001` | 已识别并保持唯一允许的架构形态 |
+| `MC-REUSE-001` | 新设计前已检查 Spring、Spring Boot Starter、Egon-COLA Component/公共基础设施和模块内复用候选 |
+| `MC-DEP-001` | 每个新增依赖或自研替代都有已证明能力缺口和获批影响；否则不新增 |
+| `MC-NAME-001` | 每个新增/修改 Java 类型都有强制语义后缀，且无 `Data`/`Info`/`Param`/`Bean` 含糊命名 |
+| `MC-VALID-001` | 每个受影响层间输入交接都使用 Jakarta/Spring Validation、复用 Group、获批规范化和测试 |
+| `MC-MODEL-001` | Ordinary POJOs/entities use `class` with `@Data`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Accessors(chain = true)`, a context-selected `@Builder` or `@SuperBuilder`, and `@EqualsAndHashCode(callSuper = true)` when superclass state participates in equality. Only immutable value objects may use `record`; see `references/egon-java-cqe-contract.md` for compile-safe root-class exceptions and collection immutability. |
+| `MC-CONVERT-001` | MapStruct/MapStructPlus 与 Egon `BaseConverter` 负责全部受影响跨层映射，不存在绕过或禁止复制 |
+| `MC-LOG-001` | 每个受影响具体业务类使用 `@Slf4j` 和安全可操作日志 |
+| `MC-BEAN-001` | 每个受影响 Spring Bean 有稳定名称、构造器注入、`@RequiredArgsConstructor` 和带 Lombok 传播验证的 Qualifier 依赖 |
+| `MC-UTIL-001` | 工具只使用获准 JDK/Commons/Guava/Tika，且不重复已有 Helper |
+| `MC-JSON-001` | Jackson 是唯一 JSON 体系，外部契约只携带必要 Jackson 注解 |
+| `MC-TIME-001` | 新增/修改时间建模使用 `java.time` 并明确边界语义 |
+| `MC-CONFIG-001` | 所有环境配置保持等价 Key 结构，并按需使用类型化配置 |
+| `MC-PATTERN-001` | 每个受影响复杂业务流程使用具体有依据的设计模式；Simple 逻辑保持直接且无仪式性抽象 |
+| `MC-SCOPE-001` | 触达代码合规且没有无关大重构；不可避免例外已明确并获批 |
+| `MC-TEST-001` | 聚焦测试/静态门禁证明适用规范和保持行为 |
+| `MC-BLOCKER-001` | 所有阻断和 Manual Check 失败已关闭，没有 `UNKNOWN`、静默例外或缺失证据 |
+
+生成文档使用以下表格：
+
+| Check ID | Applicability | Status | Evidence | Finding | Required action/exception |
+| --- | --- | --- | --- | --- | --- |
+| `MC-ARCH-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<路径、符号、依赖或命令证据>` | `<观察结果>` | `None / 准确下一步和负责人` |
+
+时间边界还必须遵循 `references/time-semantics.zh-CN.md`：发生时刻 UTC、纯日期语义不偏移、显式业务时区计算及前端展示转换。`MC-TIME-001` 要求适用映射/序列化/日历/夏令时/精度/兼容证据。
+
+
+## 构造器注入补充规则（2026-10-13）
+
+Spring 依赖注入构造器即使只有一个，也统一显式声明 `@Autowired`。保留 final 依赖字段，采用
+`@RequiredArgsConstructor(onConstructor_ = @Autowired)`；具名 Bean、每个 `@Qualifier` 和构造参数复制配置保持。
+多个构造器时，仅标注实际用于依赖注入的构造器。字段注入仍禁止。
+DTO、PO、异常、纯 Domain 值对象构造和 `@ConfigurationProperties` 构造绑定不适用本规则；给绑定构造器
+添加 `@Autowired` 会改变绑定语义。验证实际生成构造器的注解和参数 Qualifier，不能只检查 Lombok 文本。
+以 source-projects 和 CRUD 模板为生产来源，不手改生成 Java。本补充落实 Rule 4，保留历史用户原文。

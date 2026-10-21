@@ -1,0 +1,263 @@
+---
+name: stellar-enclosure-coding-writing-plan
+description: 当编码任务已有明确且经过审核或接受的 Spec，需要在修改代码前编写基于仓库、可直接实施的逐文件 Plan，并明确依赖顺序、Java/Spring/Egon-COLA 规范、阻断型 Manual Check、仓库语言伪代码、验证命令和逐 Step 提交范围时使用。
+---
+
+# EGON 编码 Plan 编写
+
+> 本文件是 `SKILL.md` 的全中文审核镜像，不是 Codex 的运行入口。实际开发使用英文 `SKILL.md`；修改任一版本时必须同步另一版本，确保语义一致。
+
+## 依赖审批与后端模板生成
+
+资源预检后，Java 依赖决策或 DDL/CRUD 模板任务必须读取 `references/backend-code-generation.md`。禁止自行引入依赖；能力不足时阻断并提交具体引入方案，获得用户明确批准后再继续。已批准的精确依赖不重复询问。生成器可用后，已支持模板必须调用 scripts/stellar-enclosure-codegen.sh；禁止虚构命令或静默手写替代。native light、web、service 仅对初始 CREATE 建表使用生成器；ALTER 等后续结构变更由 agent 按获批 Plan 分析并修改代码，不得再用生成器刷新旧产物。新业务项目由 stellar-enclosure-coding-create-new-module 按一个非 open archetype 生成，不能手写模块骨架。每次 apply 成功后，或本次只授权到 plan 时，按 references/backend-code-generation.md 追加 classpath SQL 日志。
+
+生成基础 CRUD 时按 Repo → Domain Service/实现 → Manage/实现 → Light/Web Controller 链路选择 `backend-crud`；Service 不生成 HTTP。DDL 中通用列需要校验，PO 通过 `EgonModel` 继承，不重复声明。v1/过期计划和无归属文件阻断 apply。
+
+生成项目的业务工作必须消费有效 Spec §2.5 的样例清单。每个 `EXAMPLE-*` 和清理 `REQ-*` 映射到准确路径、注册/资源/测试及有序 Step，在首个真实业务功能验收前完成。覆盖目标项目全部未使用样例域，不限该功能文件；清单缺失先补 Spec，禁止“参考保留”和未定期的最终清理。保留有证据的真实业务/基础设施及不可变的已应用 SQL 历史。
+
+## Java / CQE effective contract (2026-09-22)
+
+Read `references/egon-java-cqe-contract.md` after resource preflight for every Java task. Apply its POJO, enum, component/MP reuse, validation, soft-delete uniqueness, CQE delivery and source-grounded DDD checks in design, planning and final review. This is the latest user-directed contract; ordinary three-layer structure stays unchanged.
+
+## Transactional Outbox 与 Spring Statemachine（2026-09-27）
+
+任务涉及Outbox接入、Spring Statemachine消费业务Event或技术投递/迁移变更时，资源预检后读取 `references/outbox-statemachine-integration.zh-CN.md`。现有单Starter管理必需的技术生命周期，业务适配可选启用；普通Query或无关CRUD不强制接入，直接MQ和已有handler仍是有效CQE方案。
+
+按第2部分把已接受设计映射到既有SPI、Bean、Event封装、MP/DDL、生产者及测试文件，并明确依赖顺序、状态与凭据原子性、兼容的校验约束、配置和行为RED/GREEN。业务接入不能重新实现组件已有runner、Store或dispatcher。
+
+## 目的
+
+把一个明确的编码 Spec 和当前仓库状态转化为有顺序、逐文件的实施路径。在设计审核后、开始实现前，把 Plan 写到 `docs/egon/plan`。
+
+Plan 定义的是**先处理哪个文件、其中怎么写、接着处理哪个文件，以及如何证明每一步完成**。Plan 实施 Spec，不能重新设计 Spec，也不能开始编码。
+
+## 适用范围与输出契约
+
+- 只用于已有可识别 Spec 的编码工作。
+- 只生成或修订 Plan、Plan 关系元数据和目标 Spec 的 `Related Plans` 元数据；不能修改生产/测试代码、执行迁移或启动项目。
+- Plan 使用用户指定的自然语言；用户未指定时，跟随目标 Spec 的语言。仓库路径、符号、代码标识符、schema 和命令必须精确。
+- 新 Plan 固定保存为 `docs/egon/plan/YYYY-MM-DD-HH-MM-ABSTRACT.md`。
+  - 使用用户/仓库本地创建分钟。
+  - `ABSTRACT` 替换为简洁的小写 ASCII kebab-case 摘要，通常 3–8 个单词。
+  - 示例：`docs/egon/plan/2026-08-15-16-10-account-lockout-implementation.md`。
+  - 同一分钟且摘要相同时不能覆盖旧文档，应使用更具体的摘要。
+- 必须以 `assets/plan-template.md` 中的 Plan Template Version 5 为模板，保留全部编号章节。不适用的章节写有证据的 `N/A`。校验器继续按原契约接受 Version 2 至 Version 4 和既有无版本 Plan。
+
+## 时间语义与 UTC 规则
+
+时间语义或边界受影响时读取 `references/time-semantics.zh-CN.md`。区分发生时刻（UTC 存储、ISO 8601 `Z` 传输）、纯日期、本地时间、地区调度和时长。业务按明确业务时区计算，前端按明确展示时区转换；`MC-TIME-001` 要求具体边界及兼容证据。本规则不扩大已授权代码/数据/迁移范围。
+
+## 资源完整性预检
+
+把本 `SKILL.md` 所在目录解析为 `<skill-root>`。读取任何内置参考资料、模板或辅助脚本前，必须运行：
+
+```bash
+python3 <skill-root>/scripts/validate_skill_resources.py
+```
+
+`<skill-root>` 只是记号，不是可直接执行的 shell 文本；运行命令前必须替换成解析得到的绝对目录。本 skill 的所有内置路径都以该目录为基准，因此必须以 `references/`、`assets/` 或 `scripts/` 开头；不得把裸文件名相对于仓库根目录或当前打开的 reference 文件解析。预检报告资源缺失、越界、歧义或本地 Markdown 链接失效时，必须在规划前停止，向用户报告准确诊断，并修复或重新安装 skill。不得带着不完整 skill 继续，也不得静默虚构替代资源。
+
+## 用户强制 Java 规则——逐字规范源
+
+以下规则逐字保留，是强制约束，必须转换为有序文件、伪代码、检查和逐 Step 提交，不能缩成普通编码提示。不可弱化的 Plan 执行细则见 `references/user-mandated-java-rules.zh-CN.md`。
+
+```text
+1 类名规范，必须以 java的pojo规范命名。以dao po bo vo dto query command event等结尾
+2 每层之间必须被 springboot-validation 校验，复用对象使用分组校验；基于原生和自定义约束注解、@Valid、@Validated 及 ConstraintValidator 扩展实现。ValidationUtils 只承担通用手工校验，不承载全部业务校验；电话号码复用 libphonenumber。
+3 Java POJO 默认使用 class，注解为 @Data @NoArgsConstructor @AllArgsConstructor @Accessors(chain = true)，按构造目标选择 @Builder 或 @SuperBuilder；父类状态参与相等性时使用 @EqualsAndHashCode(callSuper = true)。只有不可变 value object 可以使用 record，并豁免 class 的 Lombok 规范；普通实体不能因简单而使用 record。使用 MapStruct、MapStructPlus 和 egon-cola-component-common-core 的 BaseConverter（双向）或 BaseForwardConverter（不可逆投影）进行转换。
+4业务类必须使用@Slf4j注解注入log对象。如果业务类被spring管理，必须指定名称，如果是单例的情况下，参考@Service("userService")。如果需要依赖注入，必须@RequiredArgsConstructor进行修饰，不要代码中写。且属性必须被@qualify修饰。
+5 工具类只允许使用jdk原生、Apache Commons(commons-lang3、commons-collections4、commons-io、commons-text、commons-codec、commons-beanutils)、Guava。针对Tika按需引入。
+6 JSON 使用 Spring Boot Jackson；持久化枚举值使用 @EnumValue，向前端输出的枚举值使用 @JsonValue，禁止 ordinal 作为业务编码。
+7 springboot 多环境配置文件，必须保持配置一致，但值不一定一致。
+9 复杂业务必须引入设计模式，不允许硬编码
+10 日期相关的必须使用java.time下的实体类，不允许使用java.util下的
+11 只允许现有三层结构或当前 egon-cola-archetypes 的 DDD 结构，三层结构保持现状。必须尽量复用 egon-cola-components；持久化模块必须使用 Egon COLA MP Starter，DDL 统一由 egon-mp-sdj-ext-starter 分布式管理。业务唯一键必须组合业务列与 deletedAt（数据库 deleted_at），并验证 NULL、租户及重复软删除语义。采用 CQE（Command Query Event）；Event 必须经 egon-cola-component-transactional-outbox-starter 或 MQ 中间件投递。
+```
+
+禁止翻译、重新编号、纠错、缩写或概括该区块。`references/user-mandated-java-rules.zh-CN.md` 只把原始拼写解析为准确 Java/Spring 符号，不能放松规则。
+
+## 不可违反的规则
+
+1. Plan 必须在 `Implements Spec` 中用仓库相对 Markdown 链接指定且只指定一个主目标，并在 `Effective Specs` 中列出完整有效集合：主 Spec、适用的已接受修订、规范性依赖和替代文档。
+2. 完整读取主 Spec 与所有有效 Spec，包括元数据关系、需求、验收标准、目标文件树、接口、模型、数据库、前端、测试、兼容、发布、风险和审批状态。
+3. 读取所有适用 `AGENTS.md`，并检查目标基线的当前仓库。验证路径、符号、消费者、构建/测试命令、迁移、生成源码和相关工作树变更，不能照抄过期 Spec 结论。
+4. 如果不存在目标 Spec、目标不唯一、有效 Spec 冲突，或开放重大决策会改变实现，不能生成定案 Plan。应使用 `stellar-enclosure-coding-writing-spec`，或找用户确认目标/决策。
+5. 不能加入有效 Spec 没有的行为、公共契约、schema 字段、页面、依赖、架构层或重构。重大 Spec 缺陷或实质仓库漂移必须先回到用户和 Spec。
+6. 只能推断保持有效设计、遵循唯一明确仓库惯例的小型、本地、可逆实现细节。有影响的推断以 `Plan Clarification` 记录证据和错误影响。
+7. 每个实施 Step 必须足够小，可独立验证，通常对应一个语义提交。仓库要求每任务一提交时必须遵守。
+8. 每个 Step 都必须写覆盖的源需求 ID、依赖、可观察结果、严格文件顺序、文件操作、符号、符合仓库语言的伪代码、中间结果、精确验证、完成标准、回滚点和建议提交信息。
+9. 行为变更默认测试先行：先计划聚焦且会失败的单元/契约测试，说明预期 RED 原因；再计划最小生产修改；最后重构、接线和验证。如果技术上无法测试先行，除非用户或仓库明确授权，否则视为重大决策。
+10. 伪代码必须承载实现信息，但不能成为生产代码。应使用真实类/函数/组件/表名、签名、字段映射、分支、调用、状态变化、错误路径、事务和断言，并遵循仓库语言与框架风格。
+11. 文件顺序由真实依赖决定。迁移、生成代码、契约发布、跨模块编译或前后端兼容要求不同顺序时，不能机械套用分层列表。
+12. 所有适用的迁移、配置、权限、可观测性、文档、兼容、发布、回滚和发布验证文件都必须进入有序步骤。
+13. 使用 MP-SDJ Starter 分布式 DDL；一个逻辑变更新增一个下一版本 SQL 与 SHA-256 Manifest 条目，保留已应用历史并定义多目标失败/续跑。native light/web/service 的初始 CREATE 模板由 `scripts/stellar-enclosure-codegen.sh plan`/`apply` 生成；ALTER 等后续结构变更必须规划 agent 修改的准确文件及消费者，生成器不刷新旧文件。遵循 `references/backend-code-generation.md`。
+14. 交付前对照 Spec 记录的原始用户需求和全部有效设计复核 Plan，自行修复遗漏与不一致。
+15. 主 Spec 未明确接受、Plan 未经用户/决策负责人批准时，不能把 Plan 标为 `Ready`。完整待审时为 `Review`；存在 Spec 或决策阻塞时为 `Draft` 或 `Blocked`。
+16. 必须完整读取 `references/file-by-file-planning.zh-CN.md`。每个 Step 都要写基线/结束状态、Test-first 适用性、准确文件顺序、验证工作目录、Commit Paths 和一个语义结果。每个文件都要写当前仓库证据、依赖/消费者、输入输出/状态映射、错误/边界行为、承载实现信息的伪代码、验证贡献和 After-file 状态。
+17. 规划文件前执行 Spec 简洁性与实施必要性审核。不能把无依据 API、参数 Preflight、类、分层、表、缓存、Job、依赖或页面静默编译成实施步骤。如果直接/复用方案满足同一需求，或 Spec 缺少必要性决策，必须带证据和准确 Spec 章节返回 `REVISE`/`BLOCKED`；不能在 Plan 内重新设计。
+18. 每个 Java Plan 必须完整读取 `references/user-mandated-java-rules.zh-CN.md` 和 `references/java-spring-egon-coding-standards.zh-CN.md`。分配文件前，根据当前 Tree 和已选 Archetype 证明且只证明一种允许架构，并建立覆盖 Spring、Spring Boot Starter、Egon-COLA Component/公共基础设施和模块内候选的复用账本。没有已证明能力缺口与获批影响时不能规划新依赖或自研替代。
+19. 每个 Step 都必须列出适用阻断型 `MC-*`，每个受影响 Java 文件写明规范影响。伪代码和验证必须把语义命名、每个层间交接的 Validation/Group/规范化、准确 Record/`@Value`/复杂类完整 Lombok、MapStruct/MapStructPlus 与强制 Egon `BaseConverter`、Bean 名/注入/Qualifier 传播、`@Slf4j`、工具、Jackson、`java.time`、配置一致性和每个 Complex Flow 的强制获批模式落实为可执行内容。
+20. 第 12 章逐项完成全部 Manual Check。适用行必须有具体仓库/Plan 证据且为 `PASS`，不适用行必须有证据地 `N/A`。缺失 ID/证据、`FAIL`、`BLOCKED`、`UNKNOWN` 或未关闭例外都禁止 PASS。
+21. 必须逐字执行 `references/user-mandated-java-rules.zh-CN.md`。第 4 章按原编号 `1、2、3、4、5、6、7、9、10、11` 保留十个独立行；每个 Step 写 `Literal Rules:`，每个受影响文件写 `Literal rule enforcement:`。禁止把强制措辞改成“优先/考虑/兼容时”。冲突必须返回 Spec/用户并阻断 PASS。
+22. 现有仓库命令无法覆盖的门禁需要临时验收 harness。其创建必须规划在仓库 `scripts/work/` 下，命名为 `<plan-id>-<verb>.sh`——禁止写入 `scripts/` 顶层，那里只放长期工具——并在最后一个 Step 明确处置：升格进仓库长期检查集、并入它实际守护的子系统，或删除。`scripts/work/` 中留有未判定 harness 的 Plan 不能标为 `Ready`。
+
+## 目标 Spec 与有效设计解析
+
+编写前读取 `references/spec-resolution.md`。
+
+用户给出 Spec 路径时直接使用；否则搜索 `docs/egon/spec` 和相关旧设计目录，只有一份当前文档明确治理该需求时才能自行选择。候选仍有多个时必须询问用户。
+
+使用相对链接，不要求特殊数字 ID。旧格式 Spec 只有在设计足够完整且仍然有效时才可作为目标。如果它缺少可追踪需求、包含未决事项，或描述的是已经完成的工作，应停止并解释：需要补充修订 Spec、剩余工作 Spec，还是只需做验证，而不是重复写 Plan。
+
+有效设计按以下顺序解析：
+
+1. 从主目标 Spec 开始。
+2. 替换当前范围内已被替代的内容。
+3. 按时间顺序应用已接受的修订。
+4. 纳入规范性依赖。
+5. 保留来源需求标识（`REQ-*` 或已有前置标识体系）。来源没有 ID 时，只能为已有陈述创建 Plan 本地追踪别名，不能发明新需求。
+6. 没有治理关系的冲突视为重大阻塞。
+
+在 Plan Header 中记录准确的 Spec 状态、更新/版本、基线 commit 和链接。用户可以明确要求针对 Draft/Review Spec 先写 Draft Plan，但它不能成为 Ready，且必须暴露风险。
+
+## Spec 缺陷、漂移与推断边界
+
+如果发现会改变业务行为、范围、验收、公共 API/RPC/事件契约、模型/schema、职责归属、依赖方向、权限/安全/租户、事务/一致性/幂等、技术选型、兼容、迁移、发布、破坏性行为或运维成本，必须回到 Spec/用户确认。
+
+只有细节是本地的、可逆的、不改变已决定契约的外部语义，并且当前代码有直接证据时，才能写 `Plan Clarification`，例如内部 helper 名、测试 fixture 位置，或语义完全相同的类重命名。
+
+不能把重新设计伪装成 Clarification。
+
+如果过度设计改变公共交互次数、前后端状态、契约面、失败点、运维成本或实施范围，就属于重大 Spec 缺陷。特别是：调用方先查询值再原样转发给可自行派生/校验的 Command 时，Plan 必须拒绝。
+
+## 必需工作流
+
+1. **锁定目标 Spec**
+   - 记录主路径、状态、版本、关系、批准证据和原始需求来源。
+2. **建立有效需求集**
+   - 提取所有有效需求、验收标准、接口、字段、状态规则、表/页面/测试要求、非功能约束、迁移和发布条件。
+   - 把每个已批准设计元素映射到 Spec 必要性结论。旧 Spec 使用 `references/file-by-file-planning.zh-CN.md` 的精简审核；实质缺口必须升级，不能发明理由。
+3. **检查当前仓库基线**
+   - 验证真实文件/符号，识别已完成、缺失、移动、生成或冲突的工作。
+   - 保护无关脏工作树变更，并规划 path-limited commits。
+   - Java 工作在提出新文件或依赖前，必须执行 `references/user-mandated-java-rules.zh-CN.md`，确定准确传统分层或已选 Archetype COLA 形态，并按 `references/java-spring-egon-coding-standards.zh-CN.md` 建立能力复用账本。
+4. **解决阻塞与澄清项**
+   - 重大缺陷/歧义询问用户；只推断小型实现空白。
+5. **推导依赖路径**
+   - 明确编译、契约、数据、迁移、运行时和消费者顺序。
+   - 明确可并行和必须串行的步骤，同时避免写范围重叠。
+6. **编写目标文件树**
+   - 每个 Create/Modify/Delete 路径只列一次，并标注符号、职责、需求映射和所属 Step。
+7. **编写有序实施步骤**
+   - 每项行为先写聚焦失败测试，再写生产实现。
+   - 每个文件给出语言/框架相关伪代码和完成该文件后的仓库状态。
+   - 每个 Step 以定向验证、客观完成证据、回滚方式和一个建议提交结束。
+   - 记录基线/结束状态、Test-first 门禁、验证工作目录和准确 Commit Paths；使用 `references/file-by-file-planning.zh-CN.md` 要求的全部逐文件字段。
+   - 为 Step 列出适用 `MC-*`，为每个 Java 文件写规范影响；Step 验证必须在建议提交前证明这些检查。
+   - 为 Step 列出准确原始 `Rule N`，为每个文件说明逐字规则如何落实；一段泛化规范说明不合格。
+8. **编写质量与发布门禁**
+   - 使用仓库真实命令覆盖聚焦测试、模块测试、静态检查、构建、集成/E2E/人工验证、迁移校验和最终回归。
+   - 门禁优先复用仓库既有命令。确实没有覆盖时，把聚焦 harness 规划在仓库 `scripts/work/` 下，并按第 22 条写明最后一个 Step 的处置。
+9. **复核并修复**
+   - 执行 `references/review-checklist.md`，解决与有效 Spec 的所有不一致。
+   - 逐项执行第 12 章 Manual Check；关闭失败/阻断或改变结论，不能把多项检查折叠成一句无证据断言。
+10. **校验并交付**
+    - 运行 `scripts/validate_plan.py <plan-path> --strict`。
+    - 报告 Plan 路径/状态、目标/有效 Specs、Step 数量、Clarification、阻塞项和验证边界。
+    - 停止并等待用户审核，不能顺带开始实现。
+
+## 文件顺序与伪代码契约
+
+每个 Step 必须遵循以下顺序：
+
+1. 说明需求、依赖、基线状态、一个可观察结果、准确结束状态，以及 Test-first 是 Required 还是有证据的 Not applicable。
+   同时列出该 Step 全部适用阻断型 Manual Check ID。
+   同时列出全部适用原始 `Rule N`；包含仓库文件的每个 Step 都适用 Rule 11。
+2. 按实现者应处理的精确顺序列出文件。
+3. 每个文件提供：
+   - `CREATE`、`MODIFY`、`DELETE`、`RENAME` 或 `GENERATED` 操作；
+   - 精确仓库相对路径和受影响符号；
+   - 证明放置、符号、风格和操作的当前仓库证据；
+   - Caller、Callee、Import/Module、生成源码及运行/编译消费者；
+   - 为什么此文件位于当前顺序；
+   - 要新增/修改的签名、契约和字段；
+   - 输入/输出/字段/状态映射，包括空值/默认/枚举/时间/精度和持久化/副作用；
+   - 适用的校验、权限、不存在、重复、并发、依赖、回滚和兼容行为；
+   - 针对控制流、映射、持久化、错误和测试的语言相关伪代码；
+   - 适用 Java/Spring/Egon-COLA 规范、准确注解/契约和 Manual Check ID；
+   - 准确原始 Rule 编号及本文件不可弱化的具体落实；
+   - 本文件贡献的准确测试/门禁；
+   - 该文件完成后的预期中间仓库状态。
+4. 写明验证工作目录、准确聚焦命令、准确成功结果和失败回退点。
+5. 写明完成证据、回滚点、准确 Commit Paths 和一个语义提交信息。
+
+好的 Java 伪代码会写出注解、方法签名、协作者、事务边界、领域调用、Mapper/Repository 操作、异常和断言。目录内文件是例外：伪代码写生成器配置和 `scripts/stellar-enclosure-codegen.sh` 命令，不写类体。遵循 `references/backend-code-generation.md`。好的 TypeScript/React 伪代码会写出 props/type、hook/state、API 调用、渲染分支、事件和组件测试。好的 SQL 伪代码会写出新迁移、DDL/DML、约束、索引、回填、保护条件和回滚/forward-fix 边界。
+
+不能使用“实现 Service”“处理错误”“更新前端”“运行测试”等占位描述。实施者不应再发明架构或文件顺序。
+
+## 必需章节
+
+1. **摘要**——目标 Spec、范围、实施方向和最终证据。
+2. **目标 Spec 与有效设计**——精确相对链接、状态/版本、关系、批准和需求来源。
+3. **有效需求与验收**——全部来源 ID/陈述、精确 Spec 章节、验收和实现影响。
+4. **实现策略与依赖顺序**——Spec 简洁性/必要性审核、顺序理由、变更单元依赖、测试策略、迁移/兼容约束、并行关系和提交边界。
+5. **变更文件树**——完整 Create/Modify/Delete/Rename/Generated 树，映射当前证据、准确符号、最终状态、Steps、需求和验证所有者。
+6. **前置条件、约束与 Plan Clarifications**——命令、环境、不可变文件/契约、决策、脏工作树保护和小型有证据推断。
+7. **有序逐文件实施 Steps**——严格路径顺序和上述伪代码契约。
+8. **测试、验证与质量门禁**——RED/GREEN 点、聚焦/模块/全量检查、预期结果和失败回退点。
+9. **迁移、兼容、发布与回滚**。
+10. **需求到 Step 追踪矩阵**。
+11. **风险、阻塞和用户决策**。
+12. **复核与验收**——原始需求符合性、Spec 一致性、仓库可执行性、覆盖和发布安全、完整阻断型 Manual Check 表，以及最终结论。
+
+## 完成结论
+
+只能使用以下之一：
+
+- `PASS — Ready for user review`
+- `BLOCKED — Spec or user decision required`
+- `REVISE — Plan and Spec are inconsistent`
+
+`PASS` 只表示内部完整且所有阻断型 Manual Check 为 `PASS` 或有证据的 `N/A`，不表示用户已批准或可以开始实现。仅写 Plan 时，不能声称代码、数据库、服务、浏览器或运行时已验证。
+
+## 常见失败
+
+| 失败 | 必需修正 |
+| --- | --- |
+| 根据一句需求直接写 Plan | 先编写并批准 Spec |
+| 要求数字 Spec ID 而不接受精确路径 | 链接真实治理 Spec 及其有效关系 |
+| 照抄过期目标树 | 重新检查当前路径、符号、消费者和工作树状态 |
+| 把新 API/表/页面当作 Plan Clarification | 停止并经用户批准修订 Spec |
+| 忠实规划“先查再转发”或其他无依据 Spec 元素 | 记录仓库/直接方案证据，返回 `REVISE`/`BLOCKED` 给 Spec；详细 Plan 不能替代必要性 |
+| 只列阶段，不列精确文件 | 展开成严格文件顺序和符号 |
+| 使用“实现校验”等泛化伪代码 | 写出签名、字段、分支、协作者、错误和断言 |
+| 文件块缺少仓库证据、消费者、映射、边界行为或 After-file 状态 | 补齐所有必需字段，使实施不再需要架构或行为决策 |
+| 验证只写“运行测试/构建” | 增加工作目录、准确命令/Selector/环境、预期退出/结果和失败回退点 |
+| 所有测试都放在生产代码之后 | 每项行为先规划聚焦 RED 测试 |
+| 猜测验证命令 | 从仓库脚本/构建文件读取并写明客观通过标准 |
+| 遗漏迁移/配置/文档/权限/可观测性文件 | 把所有适用文件加入文件树与有序 Steps |
+| Plan 文件树无升级就偏离 Spec | 除非证据证明是语义不变重命名，否则回到 Spec |
+| 未检查当前 Tree 就规划混合/新分层 | 选择既有传统形态或准确 Archetype 形态，否则阻断并找用户决策 |
+| 未发现 Spring/Egon/模块复用就新增 Helper/依赖 | 完成复用账本并证明能力缺口，否则移除新增项 |
+| Java 伪代码遗漏 Validation Group、转换、Bean 名/Qualifier、时间/JSON/配置语义或适用注解 | 补充准确且符合仓库惯例的实施与验证结果 |
+| 用摘要或“最佳实践”段落替代用户编号规则 | 恢复逐字区块，把每个原始规则映射到文件、伪代码、验证和 Step |
+| 只规划 Controller 校验 | 增加每个受影响层间交接、Group/调用/错误和测试 |
+| 缩减复杂类 Lombok 基线或绕过 `BaseConverter` | 阻断并返回 Spec/用户，不能规划静默例外 |
+| 把 Complex 业务变化保留为直接分支 | 增加有效 Spec 已选模式的参与者、接线、编排和测试 |
+| Manual Check 缺失、失败或未知仍标记 PASS | 用证据关闭全部阻断，否则使用 `BLOCKED`/`REVISE` |
+| 写完 Plan 就编码或启动运行时 | 停止并交付用户审核 |
+| 把 ALTER 等后续结构变更送进只支持 CREATE 的生成器 | 规划 agent 修改的准确代码与测试；`plan`/`apply` 只用于初始 CREATE 模板 |
+
+## Skill 维护
+
+修改本 skill 时，先运行逐字规则保留测试（`scripts/test_user_mandated_java_rules.py`）、资源完整性测试（`scripts/test_validate_skill_resources.py`）、Manual Check 测试（`scripts/test_validate_manual_checks.py`）和预检（`scripts/validate_skill_resources.py`），再用 `references/acceptance-scenarios.md` 进行场景复核，并执行适用的输出校验器。必须保持 `SKILL.md` 和所有 `*.zh-CN.md` 审核镜像与英文运行契约同步。逐字源发生变化、内置资源缺失、路径歧义/越界或本地 Markdown 链接失效时，本次修改都不能算完成。
+
+
+## 构造器注入补充规则（2026-10-13）
+
+Spring 依赖注入构造器即使只有一个，也统一显式声明 `@Autowired`。保留 final 依赖字段，采用
+`@RequiredArgsConstructor(onConstructor_ = @Autowired)`；具名 Bean、每个 `@Qualifier` 和构造参数复制配置保持。
+多个构造器时，仅标注实际用于依赖注入的构造器。字段注入仍禁止。
+DTO、PO、异常、纯 Domain 值对象构造和 `@ConfigurationProperties` 构造绑定不适用本规则；给绑定构造器
+添加 `@Autowired` 会改变绑定语义。验证实际生成构造器的注解和参数 Qualifier，不能只检查 Lombok 文本。
+以 source-projects 和 CRUD 模板为生产来源，不手改生成 Java。本补充落实 Rule 4，保留历史用户原文。

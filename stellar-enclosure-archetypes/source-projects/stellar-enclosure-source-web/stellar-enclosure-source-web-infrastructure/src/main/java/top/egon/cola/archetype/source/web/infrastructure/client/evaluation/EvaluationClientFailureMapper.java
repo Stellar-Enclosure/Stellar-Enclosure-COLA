@@ -1,0 +1,68 @@
+package top.egon.cola.archetype.source.web.infrastructure.client.evaluation;
+
+import java.util.Locale;
+import top.egon.cola.archetype.source.web.common.exception.ExternalDependencyException;
+import top.egon.cola.archetype.source.web.common.enums.ExternalDependencyFailure;
+import top.egon.cola.component.rpc.common.exception.EgonRpcException;
+
+public final class EvaluationClientFailureMapper {
+
+    private static final String DEPENDENCY = "evaluation";
+
+    private EvaluationClientFailureMapper() {
+    }
+
+    public static ExternalDependencyException map(RuntimeException failure) {
+        if (failure instanceof EgonRpcException rpcFailure) {
+            ExternalDependencyFailure category = switch (rpcFailure.getRpcErrorCode()) {
+                case RPC_DEADLINE_EXCEEDED -> ExternalDependencyFailure.TIMEOUT;
+                case RPC_INVALID_CONTRACT, RPC_METHOD_NOT_FOUND -> ExternalDependencyFailure.CONTRACT_INCOMPATIBLE;
+                default -> ExternalDependencyFailure.UNAVAILABLE;
+            };
+            return failure(category, rpcFailure.getRpcErrorCode().name(), rpcFailure);
+        }
+        return failure(ExternalDependencyFailure.SERVICE_FAILURE, "UNKNOWN", failure);
+    }
+
+    /** A provider rejection keeps only its wire string code; remote details stay sanitized out. */
+    public static ExternalDependencyException rejected(String code) {
+        return failure(category(code), code, null);
+    }
+
+    public static ExternalDependencyException incompatible(String operation) {
+        return new ExternalDependencyException(
+                DEPENDENCY,
+                ExternalDependencyFailure.CONTRACT_INCOMPATIBLE,
+                "INVALID_RESPONSE",
+                "evaluation dependency returned an invalid response for " + operation,
+                null);
+    }
+
+    private static ExternalDependencyFailure category(String code) {
+        String normalized = code == null ? "" : code.toUpperCase(Locale.ROOT);
+        if (normalized.contains("NOT_FOUND")) {
+            return ExternalDependencyFailure.NOT_FOUND;
+        }
+        if (normalized.contains("VALIDATION") || normalized.contains("INVALID")) {
+            return ExternalDependencyFailure.VALIDATION_FAILED;
+        }
+        if (normalized.contains("CONFLICT")
+                || normalized.contains("FORBIDDEN")
+                || normalized.contains("REJECTED")) {
+            return ExternalDependencyFailure.BUSINESS_REJECTED;
+        }
+        return ExternalDependencyFailure.SERVICE_FAILURE;
+    }
+
+    private static ExternalDependencyException failure(
+            ExternalDependencyFailure category,
+            String externalCode,
+            RuntimeException cause) {
+        return new ExternalDependencyException(
+                DEPENDENCY,
+                category,
+                externalCode,
+                "evaluation dependency failed: " + category.name(),
+                cause);
+    }
+}

@@ -1,0 +1,418 @@
+import groovy.io.FileType
+import groovy.xml.XmlSlurper
+
+def projectDir = [
+        new File(basedir, "project/student-management-evaluation"),
+        new File(basedir, "student-management-evaluation"),
+        basedir
+].find { candidate -> new File(candidate, "student-management-evaluation-starter").isDirectory() }
+assert projectDir != null: "Expected generated Service Open project"
+
+// Source layout is checked before build-output assertions; a clean hash or javac pass is insufficient.
+def contractJavaSources = []
+projectDir.eachFileRecurse(FileType.FILES) { source ->
+    def relative = projectDir.toPath().relativize(source.toPath()).toString().replace('\\', '/')
+    if (!relative.tokenize('/').any { it in ['target', '.egon', '.git'] } &&
+            source.name.endsWith('.java') && relative.contains('src/main/java/')) {
+        contractJavaSources << [file: source, relative: relative.split('src/main/java/', 2)[1]]
+    }
+}
+assert contractJavaSources: 'Expected main Java sources for package/path contract'
+contractJavaSources.each { entry ->
+    if (entry.relative != 'module-info.java') {
+        def declaration = entry.file.getText('UTF-8') =~ /\A(?:\s|\/\/[^\r\n]*|\/\*[\s\S]*?\*\/)*package\s+([\w.]+)\s*;/
+        assert declaration.find(): "Missing Java package: ${entry.file}"
+        def slash = entry.relative.lastIndexOf('/')
+        def expected = slash < 0 ? '' : entry.relative.substring(0, slash).replace('/', '.')
+        assert declaration.group(1) == expected: "Java package/path mismatch: ${entry.file}"
+        def carrier = entry.file.getText('UTF-8') =~ /(?m)^\s*(?:(?:public|protected|private|static|abstract|final|sealed|non-sealed)\s+)*(?:class|interface|record)\s+\w*(?:Request|Response)\b/
+        assert !carrier.find(): "Business carrier must use DTO/Command/Query or Result/VO: ${entry.file}"
+    }
+}
+
+def file = { String path ->
+    def result = new File(projectDir, path)
+    assert result.isFile(): "Expected generated file ${path}"
+    result
+}
+
+def missing = { String path ->
+    assert !new File(projectDir, path).exists(): "Unexpected generated path ${path}"
+}
+
+def filesUnder = { String path, Closure<Boolean> predicate ->
+    def root = new File(projectDir, path)
+    assert root.isDirectory(): "Expected generated directory ${path}"
+    def result = []
+    root.eachFileRecurse { candidate ->
+        if (candidate.isFile() && predicate(candidate)) {
+            result << candidate
+        }
+    }
+    result
+}
+
+def moduleNames = [
+        "student-management-evaluation-common",
+        "student-management-evaluation-facade",
+        "student-management-evaluation-domain",
+        "student-management-evaluation-application",
+        "student-management-evaluation-infrastructure",
+        "student-management-evaluation-adapter",
+        "student-management-evaluation-starter"
+]
+def rootPomFile = file("pom.xml")
+def rootPom = new XmlSlurper(false, false).parse(rootPomFile)
+assert rootPom.modules.module*.text() == moduleNames
+assert rootPom.properties.'java.version'.text() == "21"
+assert !rootPom.properties.'mybatis-plus.version'.text()
+assert rootPom.properties.'archunit.version'.text() == "1.4.2"
+assert rootPom.properties.'organization-facade.group-id'.text() == "top.egon.internal.archetype.source"
+assert rootPom.properties.'organization-facade.artifact-id'.text() == "stellar-enclosure-source-web-open-facade"
+assert rootPom.properties.'organization-facade.version'.text() == rootPom.properties.'stellar-enclosure.version'.text()
+assert rootPom.properties.'organization-facade.package'.text() == "top.egon.cola.archetype.source.webopen.facade"
+moduleNames.each { name -> file("${name}/pom.xml") }
+
+def peerFacadeDependencies = { module ->
+    def pom = new XmlSlurper(false, false)
+            .parse(file("student-management-evaluation-${module}/pom.xml"))
+    pom.dependencies.dependency.findAll {
+        it.artifactId.text() == '${organization-facade.artifact-id}'
+    }.collect { [groupId: it.groupId.text(), artifactId: it.artifactId.text()] }
+}
+assert peerFacadeDependencies("infrastructure") == [[
+        groupId: '${organization-facade.group-id}',
+        artifactId: '${organization-facade.artifact-id}'
+]]
+moduleNames.collect { it - "student-management-evaluation-" }.findAll { it != "infrastructure" }.each { module ->
+    assert peerFacadeDependencies(module).isEmpty():
+            "Only infrastructure may consume the peer Facade artifact: ${module}"
+}
+
+def runtimeFiles = filesUnder(".") { candidate ->
+    def path = candidate.path.replace('\\', '/')
+    path.contains('/src/main/') || candidate.name == 'pom.xml'
+}
+def runtimeText = runtimeFiles.collect { it.getText("UTF-8") }.join("\n")
+[
+        "springdoc-openapi",
+        "org.springdoc",
+        "spring-boot-starter-gateway",
+        "spring.cloud.gateway",
+        "spring-boot-starter-data-jpa",
+        "jakarta.persistence",
+        "org.flywaydb",
+        "flyway-database",
+        "liquibase",
+        "UuidV7Generator",
+        "UUID.randomUUID",
+        "egon-cola-organization-facade",
+        "egon-cola-evaluation-facade",
+        "top.egon.cola.organization.facade",
+        "top.egon.cola.evaluation.facade",
+        "stellar-enclosure-component-bytecode-architecture"
+        ,"mybatis-plus-spring-boot3-starter"
+        ,"com.baomidou.mybatisplus.core.mapper.BaseMapper"
+        ,"repo.mapper"
+].each { token ->
+    assert !runtimeText.contains(token): "Forbidden Service Open runtime token ${token}"
+}
+assert !runtimeText.contains("@RestController")
+assert !runtimeText.contains("@Controller")
+
+def protoRoot = new File(projectDir, "student-management-evaluation-facade/src/main/proto")
+assert protoRoot.isDirectory()
+def protoFiles = []
+protoRoot.eachFileRecurse { candidate ->
+    if (candidate.isFile() && candidate.name.endsWith('.proto')) {
+        protoFiles << candidate.path.substring(protoRoot.path.length() + 1)
+                .replace('\\', '/')
+    }
+}
+assert protoFiles.sort() == [
+        "evaluation/v1/course.proto",
+        "evaluation/v1/exam.proto",
+        "evaluation/v1/score.proto",
+        "google/protobuf/empty.proto"
+]
+missing("student-management-evaluation-facade/src/main/proto/organization")
+assert file("student-management-evaluation-infrastructure/src/main/java/it/pkg/infrastructure/client/organization/impl/DubboOrganizationDirectoryClientImpl.java")
+        .text.contains("top.egon.cola.archetype.source.webopen.facade.organization.v1.UserService")
+[
+        "student-management-evaluation-facade/src/test/java/it/pkg/facade/contract/ProtoDescriptorContractTest.java",
+        "student-management-evaluation-adapter/src/main/java/it/pkg/adapter/course/facade/impl/CourseFacadeImpl.java",
+        "student-management-evaluation-adapter/src/main/java/it/pkg/adapter/exam/facade/impl/ExamFacadeImpl.java",
+        "student-management-evaluation-adapter/src/main/java/it/pkg/adapter/exam/facade/impl/ScoreFacadeImpl.java",
+        "student-management-evaluation-adapter/src/test/java/it/pkg/adapter/rpc/EvaluationDubboTripleIntegrationTest.java",
+        "student-management-evaluation-infrastructure/src/main/java/it/pkg/infrastructure/client/organization/impl/DubboOrganizationDirectoryClientImpl.java",
+        "student-management-evaluation-infrastructure/src/main/java/it/pkg/infrastructure/client/organization/impl/LocalOrganizationDirectoryClientImpl.java",
+        "student-management-evaluation-infrastructure/src/main/java/it/pkg/infrastructure/course/service/impl/OrganizationDirectoryServiceImpl.java",
+        "student-management-evaluation-starter/src/test/java/it/pkg/starter/EvaluationServiceApplicationTest.java",
+        "student-management-evaluation-starter/src/test/java/it/pkg/starter/EvaluationExternalFreeContextTest.java",
+        "student-management-evaluation-starter/src/test/java/it/pkg/architecture/OpenArchitectureTest.java"
+].each { path -> file(path) }
+
+def mapperFiles = filesUnder("student-management-evaluation-infrastructure/src/main/resources/mybatis/mapper") {
+    it.name.endsWith("DAO.xml")
+}
+assert mapperFiles.size() == 5
+[
+        "student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/README.md",
+        "student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/master-data/001__create_evaluation_master_data_schema.sql",
+        "student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/shard/002__create_evaluation_sharded_schema.sql",
+        "student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/master-data/003__migrate_evaluation_master_data_to_egon_model.sql",
+        "student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/shard/004__migrate_evaluation_sharded_to_tenant_model.sql"
+].each { path -> file(path) }
+assert file("student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/master-data/001__create_evaluation_master_data_schema.sql").text.contains("BIGINT")
+assert file("student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/shard/002__create_evaluation_sharded_schema.sql").text.contains("BIGINT")
+assert file("student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/master-data/003__migrate_evaluation_master_data_to_egon_model.sql").text
+        .contains("evaluation_course")
+assert file("student-management-evaluation-infrastructure/src/main/resources/db/manual/postgresql/shard/004__migrate_evaluation_sharded_to_tenant_model.sql").text
+        .contains("tenant_id")
+missing("student-management-evaluation-infrastructure/src/main/resources/db/migration")
+missing("student-management-evaluation-infrastructure/src/main/java/it/pkg/infrastructure/course/repo/jpa")
+missing("student-management-evaluation-infrastructure/src/main/java/it/pkg/infrastructure/exam/repo/jpa")
+missing("student-management-evaluation-infrastructure/src/main/java/it/pkg/infrastructure/course/repo/mapper")
+missing("student-management-evaluation-infrastructure/src/main/java/it/pkg/infrastructure/exam/repo/mapper")
+missing("student-management-evaluation-domain/src/main/java/it/pkg/domain/course/service/impl")
+missing("student-management-evaluation-domain/src/main/java/it/pkg/domain/exam/service/impl")
+
+def starterPom = file("student-management-evaluation-starter/pom.xml").text
+assert starterPom.contains("stellar-enclosure-component-dynamic-thread-pool-starter")
+assert starterPom.contains("archunit-junit5")
+assert !file("student-management-evaluation-domain/pom.xml").text
+        .contains("stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter")
+assert file("student-management-evaluation-infrastructure/pom.xml").text
+        .contains("stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter")
+assert file("student-management-evaluation-starter/src/main/resources/application.yml").text
+        .contains("queue-capacity: \${ASYNC_QUEUE_CAPACITY:1000}")
+assert file("student-management-evaluation-starter/src/main/resources/application.yml").text
+        .contains("machine-id: \${EGON_ID_MACHINE_ID}")
+assert file("student-management-evaluation-starter/src/main/resources/application-test.yml").text
+        .contains("machine-id: 0")
+assert file("student-management-evaluation-starter/src/main/resources/application-test.yml").text
+        .contains("enabled: false")
+assert file("deploy/env/.env.example").text.contains("NACOS_IMAGE=nacos/nacos-server:v3.0.3")
+[
+        "compose.docker.yaml", "compose.podman.yaml", "compose.nerdctl.yaml",
+        "compose.docker.prod.yaml", "compose.podman.prod.yaml", "compose.nerdctl.prod.yaml"
+].each { name ->
+    def compose = file("deploy/compose/${name}").text
+    assert compose.contains("EGON_ID_MACHINE_ID")
+    assert compose.contains("DTP_ENABLED")
+    assert compose.contains("DUBBO_REGISTRY_ADDRESS")
+}
+
+def reports = filesUnder(".") { candidate ->
+    candidate.path.replace('\\', '/').contains('/target/surefire-reports/') && candidate.name.endsWith('.xml')
+}
+[
+        "ProtoDescriptorContractTest",
+        "OpenPeerFacadeContractTest",
+        "EvaluationDubboTripleIntegrationTest",
+        "EvaluationServiceApplicationTest",
+        "EvaluationExternalFreeContextTest",
+        "OpenArchitectureTest"
+].each { testName ->
+    def report = reports.find { it.name.contains(testName) }
+    assert report && report.text.contains('failures="0"') && report.text.contains('errors="0"'):
+            "Expected generated Service test report ${testName} to pass"
+}
+
+// A listener is opt-in; require its real report even when the explicit gate disables it.
+def tripleReport = reports.find { it.name.endsWith('.EvaluationDubboTripleIntegrationTest.xml') }
+def tripleSuite = new XmlSlurper(false, false).parse(tripleReport)
+assert tripleSuite.@tests.text().toInteger() == 1: 'Expected the complete Triple interoperability test'
+assert tripleSuite.@skipped.text() in ['0', '1']: 'Unexpected Triple test skip count'
+if (tripleSuite.@skipped.text() == '1') {
+    assert System.getProperty('egon.test.triple.enabled') != 'true': 'Enabled Triple test must execute'
+    assert tripleSuite.testcase.skipped.@message.text().contains('egon.test.triple.enabled'):
+            'Triple test may only be skipped by its explicit listener gate'
+    println 'Triple listener validation is pending: enable egon.test.triple.enabled=true to execute it'
+}
+
+def javaFiles = []
+projectDir.traverse(type: FileType.FILES) { candidate ->
+    def relativePath = projectDir.toPath().relativize(candidate.toPath()).toString()
+            .replace(File.separator, "/")
+    if (relativePath.contains("/src/main/java/") && candidate.name.endsWith(".java")) {
+        javaFiles << candidate
+    }
+}
+def javaPath = { File candidate ->
+    projectDir.toPath().relativize(candidate.toPath()).toString().replace(File.separator, "/")
+}
+def persistencePoSources = javaFiles.findAll { candidate ->
+    def path = javaPath(candidate)
+    path.contains("/infrastructure/") && path.contains("/po/")
+            && candidate.name.endsWith("PO.java")
+}
+assert persistencePoSources.size() == 5
+persistencePoSources.each { candidate ->
+    def source = candidate.text
+    ["@Data", "@NoArgsConstructor", "@AllArgsConstructor", "@Builder",
+     "@Accessors(chain = true)", "@TableName", "extends EgonModel<"].each { token ->
+        assert source.contains(token): "Expected ${candidate.name} to contain ${token}"
+    }
+    assert !source.contains("@RequiredArgsConstructor")
+    assert !source.contains("@SuperBuilder")
+}
+def daoSources = javaFiles.findAll { candidate ->
+    def path = javaPath(candidate)
+    path.contains("/infrastructure/") && path.contains("/dao/")
+            && candidate.name.endsWith("DAO.java")
+}
+assert daoSources.size() == 5
+daoSources.each { candidate ->
+    assert candidate.text.contains("extends EgonColaMapper<"):
+            "DAO must extend EgonColaMapper: ${candidate.name}"
+}
+def domainServiceSources = javaFiles.findAll { candidate ->
+    def path = javaPath(candidate)
+    path.contains("/domain/") && path.contains("/service/")
+            && candidate.name.endsWith("DomainService.java")
+}
+assert domainServiceSources.size() == 3
+domainServiceSources.each { candidate ->
+    assert !candidate.text.contains("EgonColaIService"):
+            "Domain service must expose a domain-only port: ${candidate.name}"
+}
+def infrastructureServiceSources = javaFiles.findAll { candidate ->
+    def path = javaPath(candidate)
+    path.contains("/infrastructure/") && path.contains("/service/impl/")
+            && candidate.name.endsWith("DomainServiceImpl.java")
+}
+assert infrastructureServiceSources.size() == 3
+infrastructureServiceSources.each { candidate ->
+    assert !candidate.text.contains("extends EgonColaServiceImpl<"):
+            "Infrastructure service must compose repositories: ${candidate.name}"
+}
+javaFiles.each { candidate ->
+    assert !candidate.text.contains("extends BaseMapper<")
+    assert !candidate.text.contains("repo.mapper")
+}
+
+assert file("README.md").text.contains("MyBatis-Plus")
+assert file("README.md").text.contains("Proto")
+assert file("README.md").text.contains("Springdoc")
+["organization-facade.group-id", "organization-facade.artifact-id",
+ "organization-facade.version", "organization-facade.package"].each { token ->
+    assert file("README.md").text.contains(token):
+            "The README must document the peer Facade property ${token}"
+}
+
+def sourceBoundaryFiles = []
+projectDir.eachFileRecurse { candidate ->
+    def candidatePath = projectDir.toPath().relativize(candidate.toPath()).toString().replace(File.separator, '/')
+    // Authored sources carry the boundary; a packaged build output embeds the resolved peer facade
+    // dependency GAV, which is a resolution input rather than a source leak.
+    if (candidate.isFile() && !candidatePath.startsWith('target/') && !candidatePath.contains('/target/')) {
+        sourceBoundaryFiles << candidate
+    }
+}
+assert sourceBoundaryFiles.every { candidate ->
+    def relativePath = projectDir.toPath().relativize(candidate.toPath()).toString().replace(File.separator, '/')
+    !relativePath.contains('.generated')
+}
+// The IT supplies the peer project's real coordinates, so the root POM's explicit
+// `organization-facade.*` property lines carry them by design instead of leaking a template sentinel.
+def boundaryText = { candidate ->
+    def relativePath = projectDir.toPath().relativize(candidate.toPath()).toString().replace(File.separator, '/')
+    def text = candidate.getText('UTF-8')
+    relativePath == 'pom.xml'
+            ? text.readLines().findAll { !it.contains('organization-facade.') }.join('\n')
+            : text
+}
+[
+    'top.egon.internal.archetype.source',
+    'stellar-enclosure-source-service-open',
+    '0.0.1'
+].each { forbiddenToken ->
+    sourceBoundaryFiles.each { candidate ->
+        assert !boundaryText(candidate).contains(forbiddenToken):
+                "Generated project leaked source sentinel ${forbiddenToken} in ${candidate}"
+    }
+}
+true
+
+// Verify Maven filtering and Java argument parsing without starting the application.
+def launchModule = new File(projectDir, "student-management-evaluation-starter")
+def launchTemplate = new File(launchModule, "src/main/launch/launch.args")
+assert launchTemplate.isFile(): "Expected external launch argument template"
+assert launchTemplate.text.contains('@run.jvm-args@')
+assert launchTemplate.text.contains('@run.config-location@')
+def launchArgs = new File(launchModule, "target/launch.args")
+assert launchArgs.isFile(): "Maven must generate target/launch.args"
+assert !launchArgs.text.contains('@run.')
+assert !new File(launchModule, "target/classes/launch.args").exists()
+def launchJava = new File(System.getProperty("java.home"),
+        System.getProperty("os.name").toLowerCase().contains("windows") ? "bin/java.exe" : "bin/java")
+def launchCheck = new ProcessBuilder(launchJava.absolutePath, "@${launchArgs.absolutePath}",
+        "-XshowSettings:properties", "-version").redirectErrorStream(true).start()
+def launchOutput = launchCheck.inputStream.getText("UTF-8")
+assert launchCheck.waitFor() == 0: launchOutput
+assert launchOutput.contains("spring.profiles.active = dev"): launchOutput
+assert launchOutput.contains("server.port = 8081"): launchOutput
+assert launchOutput.contains("spring.config.additional-location = optional:file:./config/override.yml"): launchOutput
+true
+
+// Verify the released parent and the actual packaged runtime, separately from BOM management.
+def releasedParent = new XmlSlurper(false, false).parse(new File(projectDir, 'pom.xml'))
+assert releasedParent.parent.groupId.text() == 'top.egon'
+assert releasedParent.parent.artifactId.text() == 'stellar-enclosure-archetypes-parent'
+assert releasedParent.parent.version.text() == releasedParent.properties.'stellar-enclosure.version'.text()
+assert releasedParent.parent.version.text() ==~ /[0-9]+(?:\.[0-9]+)+(?:[-.][A-Za-z0-9]+)*/
+assert releasedParent.parent.relativePath.size() == 1 && !releasedParent.parent.relativePath.text()
+['commons-lang3.version', 'commons.lang3.version', 'shardingsphere.version', 'dubbo.version',
+ 'grpc.version', 'protobuf.version', 'spring-cloud.version', 'spring-cloud-alibaba.version', 'springdoc.version'].each { name ->
+    assert !releasedParent.properties."${name}".text(): "Version must be inherited: ${name}"
+}
+def releasedArchive = new File(projectDir, 'student-management-evaluation-starter/target').listFiles()?.find {
+    it.name.endsWith('.jar') && !it.name.endsWith('-sources.jar') && !it.name.endsWith('-javadoc.jar')
+}
+assert releasedArchive: 'Expected packaged consumer runtime'
+def releasedLibraries = [] as Set
+new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
+    archive.entries().each { entry ->
+        if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
+    }
+}
+assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
+assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
+assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')
+assert !releasedLibraries.any { it.startsWith('stellar-enclosure-component-rpc-') || it.startsWith('stellar-enclosure-tianshu') }
+assert releasedLibraries.contains('grpc-api-1.73.0.jar')
+assert releasedLibraries.contains('protobuf-java-3.25.8.jar')
+assert releasedLibraries.contains('dubbo-3.3.6.jar')
+
+println 'Published parent and service-open runtime boundaries passed'
+true
+
+// Repository/CQRS and managed PostgreSQL initialization must survive project generation.
+def repositoryContractFiles = []
+projectDir.traverse(type: FileType.FILES) { candidate ->
+    def resourcePath = projectDir.canonicalFile.toPath().relativize(candidate.canonicalFile.toPath()).toString().replace(File.separator, "/")
+    if (!resourcePath.startsWith("target/") && !resourcePath.contains("/target/")) { repositoryContractFiles << candidate }
+}
+def repositoryImplementations = repositoryContractFiles.findAll {
+    it.path.replace('\\', '/').contains('/src/main/java/') && it.name.endsWith('Repository.java')
+}
+assert repositoryImplementations.size() == 5: 'Expected concrete persistence repositories'
+repositoryImplementations.each { assert it.text.contains('extends EgonColaRepository<') }
+def repositoryManifests = repositoryContractFiles.findAll { it.name == 'repository-manifest.json' }
+assert repositoryManifests.size() == 1
+def repositoryManifest = new groovy.json.JsonSlurper().parse(repositoryManifests.first())
+assert repositoryManifest.family == 'service-open'
+assert repositoryManifest.scripts.size() == 1
+def initializationSql = new File(repositoryManifests.first().parentFile, 'V20260913_001__initialize_repository_schema.sql')
+assert initializationSql.isFile()
+assert repositoryManifest.scripts.first().sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(initializationSql.bytes).encodeHex().toString()
+assert initializationSql.text.contains('deleted_at') && initializationSql.text.contains('version BIGINT NOT NULL DEFAULT 0')
+repositoryContractFiles.findAll { it.path.replace('\\', '/').contains('/src/main/resources/mybatis/mapper/') && it.name.endsWith('DAO.xml') }.each {
+    assert it.text.contains('selectActiveById') && it.text.contains('selectActiveByIds')
+    assert it.text.contains('deleteVersionedById') && it.text.contains('MP_OPTLOCK_VERSION_ORIGINAL')
+    assert !it.text.contains('is_deleted')
+}
+
+return true

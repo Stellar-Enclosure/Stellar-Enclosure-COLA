@@ -1,0 +1,1606 @@
+import groovy.io.FileType
+import groovy.xml.XmlSlurper
+
+def generatedProjectDir = new File(basedir, "project/basic")
+
+// Source layout is checked before build-output assertions; a clean hash or javac pass is insufficient.
+def contractJavaSources = []
+generatedProjectDir.eachFileRecurse(FileType.FILES) { source ->
+    def relative = generatedProjectDir.toPath().relativize(source.toPath()).toString().replace('\\', '/')
+    if (!relative.tokenize('/').any { it in ['target', '.egon', '.git'] } &&
+            source.name.endsWith('.java') && relative.contains('src/main/java/')) {
+        contractJavaSources << [file: source, relative: relative.split('src/main/java/', 2)[1]]
+    }
+}
+assert contractJavaSources: 'Expected main Java sources for package/path contract'
+contractJavaSources.each { entry ->
+    if (entry.relative != 'module-info.java') {
+        def declaration = entry.file.getText('UTF-8') =~ /\A(?:\s|\/\/[^\r\n]*|\/\*[\s\S]*?\*\/)*package\s+([\w.]+)\s*;/
+        assert declaration.find(): "Missing Java package: ${entry.file}"
+        def slash = entry.relative.lastIndexOf('/')
+        def expected = slash < 0 ? '' : entry.relative.substring(0, slash).replace('/', '.')
+        assert declaration.group(1) == expected: "Java package/path mismatch: ${entry.file}"
+        def carrier = entry.file.getText('UTF-8') =~ /(?m)^\s*(?:(?:public|protected|private|static|abstract|final|sealed|non-sealed)\s+)*(?:class|interface|record)\s+\w*(?:Request|Response)\b/
+        assert !carrier.find(): "Business carrier must use DTO/Command/Query or Result/VO: ${entry.file}"
+    }
+}
+
+def assertFile = { path ->
+    def file = new File(generatedProjectDir, path)
+    assert file.isFile(): "Expected file ${path}"
+    file
+}
+
+def assertMissing = { path ->
+    assert !new File(generatedProjectDir, path).exists(): "Unexpected path ${path}"
+}
+
+def assertLoggingContract = { mainConfigPath, testConfigPath, applicationConfigPath ->
+    def mainConfig = assertFile(mainConfigPath)
+    def mainText = mainConfig.getText("UTF-8")
+    def mainXml = new XmlSlurper(false, false).parse(mainConfig)
+    assert mainXml.name() == "configuration"
+    assert !mainXml.attributes().containsKey("scan")
+
+    [
+        "org/springframework/boot/logging/logback/defaults.xml",
+        'source="spring.application.name"',
+        'source="spring.profiles.active"',
+        'source="logging.file.path"',
+        'source="app.logging.instance-name"',
+        'source="logging.level.root"',
+        'traceId=%X{traceId:-}',
+        'spanId=%X{spanId:-}',
+        'requestId=%X{requestId:-}',
+        'tenantId=%X{tenantId:-}',
+        'userId=%X{userId:-}',
+        'entId=%X{entId:-}',
+        "%kvp",
+        '${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}',
+        'name="(local | dev | test) &amp; !k8s"',
+        'name="k8s"',
+        'name="!local &amp; !dev &amp; !test &amp; !k8s"',
+        "StructuredLogEncoder",
+        'name="ASYNC_APP_FILE"',
+        '<discardingThreshold>${ASYNC_DISCARDING_THRESHOLD}</discardingThreshold>',
+        '<neverBlock>${ASYNC_NEVER_BLOCK}</neverBlock>',
+        "<includeCallerData>false</includeCallerData>",
+        'name="ERROR_FILE"',
+        "LevelFilter",
+        "<level>ERROR</level>",
+        "SizeAndTimeBasedRollingPolicy",
+        ".%i.log.gz"
+    ].each { token ->
+        assert mainText.contains(token): "Expected ${mainConfigPath} to contain ${token}"
+    }
+    assert !mainText.contains("%class")
+    assert !mainText.contains("%method")
+    assert !mainText.contains("%line")
+    assert !mainText.contains("%caller")
+    assert !mainText.contains("<contextName>")
+
+    def appenderRefsForProfile = { profileName ->
+        def profile = mainXml.springProfile.find { it.@name.text() == profileName }
+        assert profile: "Expected ${mainConfigPath} to define profile ${profileName}"
+        profile.root.'appender-ref'.collect { it.@ref.text() } as Set
+    }
+    assert appenderRefsForProfile("(local | dev | test) & !k8s") == (["CONSOLE"] as Set)
+    assert appenderRefsForProfile("k8s") == (["JSON_CONSOLE"] as Set)
+    assert appenderRefsForProfile("!local & !dev & !test & !k8s") ==
+            (["CONSOLE", "ASYNC_APP_FILE", "ERROR_FILE"] as Set)
+
+    mainXml.depthFirst().findAll { it.name() == "root" }.each { rootLogger ->
+        def appenderRefs = rootLogger.'appender-ref'.collect { it.@ref.text() }
+        assert !(appenderRefs.contains("APP_FILE") && appenderRefs.contains("ASYNC_APP_FILE")):
+                "ROOT must not reference synchronous and asynchronous main-file appenders together"
+    }
+
+    def testConfig = assertFile(testConfigPath)
+    def testText = testConfig.getText("UTF-8")
+    def testXml = new XmlSlurper(false, false).parse(testConfig)
+    [
+        "UTF-8",
+        'traceId=%X{traceId:-}',
+        'spanId=%X{spanId:-}',
+        'requestId=%X{requestId:-}',
+        "%kvp",
+        '${LOG_EXCEPTION_CONVERSION_WORD:-%wEx}'
+    ].each { token ->
+        assert testText.contains(token): "Expected ${testConfigPath} to contain ${token}"
+    }
+    assert testXml.root.@level.text() == "WARN"
+
+    def applicationText = assertFile(applicationConfigPath).getText("UTF-8")
+    [
+        "logging:",
+        "instance-name:",
+        "error-total-size-cap:",
+        "queue-size:",
+        "discarding-threshold:",
+        "never-block:",
+        "max-flush-time:",
+        "web-stack:",
+        "persistence:",
+        "rpc:",
+        "messaging:",
+        "max-file-size:",
+        "max-history:",
+        "total-size-cap:",
+        "clean-history-on-start:"
+    ].each { token ->
+        assert applicationText.contains(token): "Expected ${applicationConfigPath} to contain ${token}"
+    }
+}
+
+def assertPortableDockerfile = { jarFile, exposedPorts, readinessPort ->
+    assertMissing("Dockerfile")
+    [
+        "Dockerfile.containerd",
+        "Dockerfile.nerdctl",
+        "Dockerfile.podman",
+        "Containerfile",
+        "Containerfile.podman",
+        "deploy/container/Dockerfile.containerd",
+        "deploy/container/Dockerfile.nerdctl",
+        "deploy/container/Dockerfile.podman",
+        "deploy/container/Containerfile",
+        "deploy/container/Containerfile.podman"
+    ].each { assertMissing(it) }
+
+    def text = assertFile("deploy/container/Dockerfile").text
+    assert text.contains("ARG BUILD_IMAGE=eclipse-temurin:21-jdk-jammy")
+    assert text.contains('FROM ${BUILD_IMAGE} AS builder')
+    assert text.contains("chmod +x mvnw")
+    assert text.contains("./mvnw -B -ntp -DskipTests package")
+    assert text.contains("ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-jammy")
+    assert text.contains('FROM ${RUNTIME_IMAGE} AS extractor')
+    assert text.contains("ARG JAR_FILE=${jarFile}")
+    assert text.contains('COPY --from=builder /workspace/${JAR_FILE} app.jar')
+    assert text.contains("java -Djarmode=tools -jar app.jar extract --layers --destination extracted")
+    assert text.contains('FROM ${RUNTIME_IMAGE} AS runtime')
+    assert text.contains("ARG CONTAINER_ENGINE=oci")
+    assert text.contains("ARG APP_UID=10001")
+    assert text.contains("ARG APP_GID=10001")
+    assert text.contains("org.opencontainers.image.build.engine")
+    assert text.contains("USER app")
+    assert text.contains("EXPOSE ${exposedPorts}")
+    assert text.contains("http://127.0.0.1:${readinessPort}/actuator/health/readiness")
+    assert text.contains("JarLauncher")
+    assert !text.contains("--mount=type=cache")
+}
+
+def assertRuntimeConfigFiles = { resourcesDir ->
+    [
+        "application.yml",
+        "application-dev.yml",
+        "application-test.yml",
+        "application-prod.yml"
+    ].each {
+        assertFile("${resourcesDir}/${it}")
+    }
+    def profileConfigNames = new File(generatedProjectDir, resourcesDir).listFiles()
+            .findAll { it.isFile() && it.name ==~ /(?:application|bootstrap)-.+\.yml/ }
+            .collect { it.name }
+            .sort()
+    assert profileConfigNames == [
+        "application-dev.yml",
+        "application-prod.yml",
+        "application-test.yml"
+    ]: "Only dev, test and prod profile configuration files are allowed"
+    assertMissing("${resourcesDir}/bootstrap-local.yml")
+    assertMissing("${resourcesDir}/application-local.yml")
+}
+
+def javaFileTexts = { path ->
+    def dir = new File(generatedProjectDir, path)
+    assert dir.isDirectory(): "Expected directory ${path}"
+    def files = []
+    dir.traverse(type: FileType.FILES) { file ->
+        if (file.name.endsWith(".java")) {
+            files << file
+        }
+    }
+    files.collect { it.text }
+}
+
+def assertNoGenericMapStructConverterInjection = { path ->
+    javaFileTexts(path).each { text ->
+        assert !text.contains("import io.github.linpeilie.Converter;")
+        assert !text.contains("private final Converter converter;")
+        assert !text.contains('@Qualifier("converter")')
+    }
+}
+
+def assertNoInternalImports = { path, forbiddenLayers, allowedImports = [] ->
+    javaFileTexts(path).each { text ->
+        forbiddenLayers.each { layer ->
+            def forbidden = text.readLines().findAll {
+                it.contains("import it.pkg.${layer}.") && !allowedImports.contains(it.trim())
+            }
+            assert forbidden.isEmpty(): "Unexpected ${layer} import under ${path}: ${forbidden}"
+        }
+    }
+}
+
+assertFile("pom.xml")
+def mvnw = assertFile("mvnw")
+assertFile("mvnw.cmd")
+if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("windows")) {
+    assert mvnw.canExecute(): "Expected mvnw to be executable"
+}
+assertFile(".mvn/wrapper/maven-wrapper.properties")
+assertFile(".gitignore")
+assertFile(".gitattributes")
+assertFile("README.md")
+assertFile(".dockerignore")
+assert assertFile("README.md").text.contains("Docker")
+assertPortableDockerfile("target/*.jar", "8080 50051", "8080")
+def developmentEnv = assertFile("deploy/env/.env.example").text
+def productionEnv = assertFile("deploy/env/.env.prod.example").text
+[
+    "POSTGRES_IMAGE=postgres:17-alpine",
+    "REDIS_IMAGE=redis:7.4-alpine",
+    "RABBITMQ_IMAGE=rabbitmq:4-management",
+    "POSTGRES_PASSWORD=",
+    "REDIS_PASSWORD=",
+    "RABBITMQ_PASSWORD="
+].each { expected ->
+    assert productionEnv.readLines().contains(expected):
+            "Expected production env example line ${expected}"
+}
+[
+    "POSTGRES_PASSWORD=local-postgres",
+    "REDIS_PASSWORD=local-redis",
+    "RABBITMQ_PASSWORD=local-rabbitmq"
+].each { forbidden ->
+    assert !productionEnv.contains(forbidden):
+            "Production env example must not contain development credential ${forbidden}"
+}
+assert developmentEnv.contains("IMAGE_TAG=local")
+assert developmentEnv.contains("TIANSHU_RPC_TARGET=")
+assert productionEnv.contains("REGISTRY=")
+assert productionEnv.contains("REGISTRY_NAMESPACE=")
+assert productionEnv.contains("IMAGE_TAG=")
+assert developmentEnv.contains("IMAGE_NAME=basic")
+assert developmentEnv.contains("POSTGRES_DB=student_management")
+assert developmentEnv.contains("EXTERNAL_HTTP_ENABLED=false")
+def assertDevelopmentCompose = { fileName, engine, requiredApplicationLines ->
+    def text = assertFile("deploy/compose/${fileName}").text
+    ["application:", "postgres-master-data:", "postgres-shard-0:",
+     "postgres-shard-1:", "redis:", "rabbitmq:",
+     "healthcheck:", "networks:", "volumes:", "application_logs:"].each { token ->
+        assert text.contains(token): "Expected ${fileName} to contain ${token}"
+    }
+    assert text.contains("CONTAINER_ENGINE: ${engine}")
+    assert text.contains("dockerfile: deploy/container/Dockerfile")
+    assert text.contains("context: ../..")
+    assert text.contains('stop_grace_period: ${STOP_GRACE_PERIOD:-40s}')
+    assert text.contains('SPRING_PROFILES_ACTIVE: dev')
+    assert text.contains('APP_DATASOURCE_MODE: "SHARDING"')
+    assert !text.contains('APP_DATASOURCE_MODE: ${APP_DATASOURCE_MODE')
+    assert text.contains('jdbc:postgresql://postgres-master-data:5432/${POSTGRES_DB}')
+    assert text.contains('jdbc:postgresql://postgres-shard-0:5432/${POSTGRES_DB}')
+    assert text.contains('jdbc:postgresql://postgres-shard-1:5432/${POSTGRES_DB}')
+    assert text.contains("TIANSHU_RPC_TARGET:")
+    assert text.contains("TIANSHU_REGISTRY_ACCESS_KEY:")
+    assert text.contains('pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"')
+    assert text.contains('redis-cli --no-auth-warning -a "$${REDIS_PASSWORD}" ping')
+    assert text.contains('["CMD", "rabbitmq-diagnostics", "-q", "ping"]')
+    requiredApplicationLines.each { required ->
+        assert text.contains(required): "Expected ${fileName} to contain ${required}"
+    }
+}
+def developmentComposeFiles = [
+    "compose.docker.yaml" : "docker",
+    "compose.podman.yaml" : "podman",
+    "compose.nerdctl.yaml": "nerdctl"
+]
+developmentComposeFiles.each { fileName, engine ->
+    assertDevelopmentCompose(fileName, engine, [
+        'SERVER_PORT: ${APPLICATION_PORT:-8080}',
+        'EXTERNAL_HTTP_ENABLED: "false"',
+        '"${APPLICATION_PORT:-8080}:${APPLICATION_PORT:-8080}"'
+    ])
+}
+def assertProductionCompose = { fileName, requiredApplicationLines ->
+    def text = assertFile("deploy/compose/${fileName}").text
+    ["application:", "postgres-master-data:", "postgres-shard-0:",
+     "postgres-shard-1:", "redis:", "rabbitmq:",
+     "healthcheck:", "networks:", "volumes:", "application_logs:",
+     "read_only: true", "tmpfs:", "mem_limit:", "cpus:",
+     "restart: unless-stopped"].each { token ->
+        assert text.contains(token): "Expected ${fileName} to contain ${token}"
+    }
+    assert text.contains('${REGISTRY:?Set REGISTRY}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/${IMAGE_NAME:?Set IMAGE_NAME}:${IMAGE_TAG:?Set IMAGE_TAG}')
+    assert text.contains('stop_grace_period: ${STOP_GRACE_PERIOD:-40s}')
+    assert text.contains("SPRING_PROFILES_ACTIVE: prod")
+    assert text.contains('APP_DATASOURCE_MODE: "SHARDING"')
+    assert !text.contains('APP_DATASOURCE_MODE: ${APP_DATASOURCE_MODE')
+    assert text.contains('${POSTGRES_USER:?Set POSTGRES_USER}')
+    assert text.contains('${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}')
+    assert text.contains('${REDIS_PASSWORD:?Set REDIS_PASSWORD}')
+    assert text.contains('${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}')
+    assert text.contains('TIANSHU_REGISTRY_SECRET_KEY: ${TIANSHU_REGISTRY_SECRET_KEY}')
+    assert !text.contains("build:")
+    assert !text.contains("local-postgres")
+    assert !text.contains("local-redis")
+    assert !text.contains("local-rabbitmq")
+    assert !text.contains('${POSTGRES_PORT:-5432}:5432')
+    assert !text.contains('${RABBITMQ_MANAGEMENT_PORT:-15672}:15672')
+    requiredApplicationLines.each { required ->
+        assert text.contains(required): "Expected ${fileName} to contain ${required}"
+    }
+}
+def productionComposeFiles = [
+    "compose.docker.prod.yaml",
+    "compose.podman.prod.yaml",
+    "compose.nerdctl.prod.yaml"
+]
+productionComposeFiles.each { fileName ->
+    assertProductionCompose(fileName, [
+        'SERVER_PORT: ${APPLICATION_PORT:-8080}',
+        'EXTERNAL_HTTP_ENABLED: "${EXTERNAL_HTTP_ENABLED:-false}"'
+    ])
+}
+def jenkinsfile = assertFile("Jenkinsfile").text
+[
+    "pipeline {",
+    "choice(name: 'CONTAINER_ENGINE', choices: ['docker', 'podman', 'nerdctl']",
+    "string(name: 'CONTAINERD_NAMESPACE', defaultValue: 'default'",
+    "string(name: 'REGISTRY', defaultValue: ''",
+    "string(name: 'REGISTRY_NAMESPACE', defaultValue: ''",
+    "string(name: 'REGISTRY_CREDENTIALS_ID', defaultValue: ''",
+    "string(name: 'IMAGE_NAME', defaultValue: ''",
+    "string(name: 'IMAGE_TAG', defaultValue: ''",
+    "booleanParam(name: 'PUBLISH_IMAGE', defaultValue: false",
+    "booleanParam(name: 'PUBLISH_LATEST', defaultValue: false",
+    "stage('Preflight')",
+    "stage('Test')",
+    "stage('Build Image')",
+    "stage('Publish Image')",
+    "deploy/container/Dockerfile",
+    'CONTAINER_ENGINE=${CONTAINER_ENGINE}',
+    "credentialsId: params.REGISTRY_CREDENTIALS_ID",
+    "--password-stdin",
+    "SPRING_PROFILES_ACTIVE=test bash ./mvnw -B -ntp clean verify",
+    "allowEmptyResults: true"
+].each { token ->
+    assert jenkinsfile.contains(token): "Expected Jenkinsfile to contain ${token}"
+}
+assert !jenkinsfile.contains("docker compose")
+assert !jenkinsfile.contains("podman compose")
+assert !jenkinsfile.contains("nerdctl compose")
+assert !jenkinsfile.contains("withRegistry")
+def deliveryReadme = assertFile("deploy/container/README.md").text
+def normalizedDeliveryReadme = deliveryReadme.replaceAll(/\s+/, " ")
+[
+    "One Portable Dockerfile",
+    "Docker",
+    "Podman",
+    "nerdctl",
+    "Rootless And Rootful",
+    "Development Compose",
+    "Production Compose",
+    "Persistent Data",
+    "Jenkins",
+    "does not provide high availability"
+].each { token ->
+    assert normalizedDeliveryReadme.contains(token): "Expected deployment README to contain ${token}"
+}
+
+def generatedReadme = assertFile("README.md").text
+[
+    "deploy/container/Dockerfile",
+    "compose.docker.yaml",
+    "compose.podman.yaml",
+    "compose.nerdctl.yaml",
+    "Jenkinsfile",
+    "PUBLISH_IMAGE"
+].each { token ->
+    assert generatedReadme.contains(token): "Expected generated README to contain ${token}"
+}
+assert generatedReadme.contains("`dev` is the default profile")
+assert generatedReadme.contains("`feature/*`")
+assert generatedReadme.contains("`dev`, `release/*`, and `hotfix/*`")
+assert generatedReadme.contains("from `main`")
+assert !generatedReadme.contains("docker build -t")
+def dockerignoreLines = assertFile(".dockerignore").readLines("UTF-8")
+[
+    ".git",
+    ".gitignore",
+    ".github",
+    ".idea",
+    ".vscode",
+    "*.iml",
+    ".DS_Store",
+    "",
+    "**/target",
+    "**/build",
+    "**/.mvn/wrapper/maven-wrapper.jar",
+    "",
+    "logs",
+    "*.log",
+    "",
+    ".env",
+    ".env.*",
+    "config/*secret*",
+    "secrets",
+    "*.pem",
+    "*.key"
+].each {
+    assert dockerignoreLines.contains(it): "Expected .dockerignore to contain line ${it}"
+}
+def gitignoreLines = assertFile(".gitignore").readLines("UTF-8")
+[
+    ".env",
+    ".env.*",
+    "!deploy/env/.env.example",
+    "!deploy/env/.env.prod.example",
+    "config/application-secrets.yml",
+    "secrets/",
+    "*.pem",
+    "*.key"
+].each {
+    assert gitignoreLines.contains(it): "Expected .gitignore to contain line ${it}"
+}
+
+def pom = assertFile("pom.xml").text
+def pomXml = new XmlSlurper(false, false).parse(assertFile("pom.xml"))
+def generatedPoms = []
+generatedProjectDir.eachFileRecurse { file ->
+    if (file.isFile() && file.name == "pom.xml") {
+        generatedPoms << file
+    }
+}
+assert generatedPoms.size() == 1: "Expected a single Maven module"
+assert pomXml.modules.module.isEmpty(): "Expected no Maven child modules"
+def assertSpringBootLayeredJarPlugin = { pomModel ->
+    def bootPlugin = pomModel.build.plugins.plugin.find {
+        it.artifactId.text() == "spring-boot-maven-plugin"
+    }
+    assert bootPlugin.artifactId.text() == "spring-boot-maven-plugin": "Expected spring-boot-maven-plugin"
+    assert bootPlugin.configuration.layers.enabled.text() == "true"
+    assert bootPlugin.configuration.excludes.exclude.any {
+        it.groupId.text() == "org.projectlombok" && it.artifactId.text() == "lombok"
+    }: "Expected spring-boot-maven-plugin to exclude org.projectlombok:lombok"
+}
+def assertVersionProperty = { pomModel, propertyName ->
+    assert pomModel.properties."${propertyName}".text().trim():
+            "Expected non-empty ${propertyName}"
+}
+def assertEgonColaBom = { pomModel ->
+    assertVersionProperty(pomModel, "stellar-enclosure.version")
+    assert !pomModel.dependencyManagement.dependencies.dependency.any {
+        it.artifactId.text() == "stellar-enclosure-components-bom"
+    }: "Components BOM is inherited from the published archetypes parent"
+}
+
+assert pomXml.properties.'java.version'.text() == "21"
+assert !pom.contains("<artifactId>shardingsphere-jdbc</artifactId>")
+assert !pom.contains("<artifactId>shardingsphere-sharding-core</artifactId>")
+assert pom.contains("<artifactId>stellar-enclosure-component-common-id-starter</artifactId>")
+[
+    "lombok.version",
+    "lombok.mapstruct.binding.version",
+    "mapstruct-plus.version"
+].each { assertVersionProperty(pomXml, it) }
+assert pomXml.properties.'lombok.mapstruct.binding.version'.text() == "0.2.0"
+assertEgonColaBom(pomXml)
+[
+    "spring-boot-starter-graphql",
+    "spring-boot-starter-amqp",
+    "spring-boot-starter-data-redis",
+    "spring-boot-starter-aop",
+    "stellar-enclosure-yuheng-starter-openapi-webmvc",
+    "spring-boot-starter-test",
+    "spring-graphql-test"
+].each { artifactId ->
+    assert pom.contains("<artifactId>${artifactId}</artifactId>")
+}
+assert pom.contains("<artifactId>stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter</artifactId>")
+assert !pom.contains("spring-boot-starter-data-jpa")
+assert !pom.contains("<artifactId>mybatis-plus-spring-boot-starter</artifactId>")
+assert pom.contains("<artifactId>stellar-enclosure-component-common-core</artifactId>")
+assert !pom.contains("<artifactId>stellar-enclosure-component-dynamic-thread-pool-starter</artifactId>")
+assert !pom.contains("<artifactId>stellar-enclosure-component-dynamic-thread-pool-admin</artifactId>")
+assert !pom.contains("<artifactId>stellar-enclosure-component-dynamic-thread-pool-test</artifactId>")
+assert !pom.contains("<artifactId>spring-cloud-dependencies</artifactId>")
+assert !pom.contains("<artifactId>spring-cloud-alibaba-dependencies</artifactId>")
+assert pom.contains("<artifactId>mapstruct-plus-spring-boot-starter</artifactId>")
+assert !pom.contains("<artifactId>dubbo-spring-boot-starter</artifactId>")
+assert pom.contains("<artifactId>mapstruct-plus-processor</artifactId>")
+assert pom.contains("<artifactId>lombok-mapstruct-binding</artifactId>")
+def compilerPlugin = pomXml.build.plugins.plugin.find {
+    it.artifactId.text() == "maven-compiler-plugin"
+}
+def bindingProcessor = compilerPlugin.configuration.annotationProcessorPaths.path.find {
+    it.groupId.text() == "org.projectlombok" &&
+            it.artifactId.text() == "lombok-mapstruct-binding"
+}
+assert bindingProcessor: "Expected lombok-mapstruct-binding annotation processor"
+assert bindingProcessor.version.text() == '${lombok.mapstruct.binding.version}'
+assert !pom.contains("<artifactId>spring-boot-dependencies</artifactId>")
+assert !pom.contains("spring-ai")
+assert !pom.contains("drools")
+assert !pom.contains("mcp")
+assert pom.contains("<artifactId>spring-boot-maven-plugin</artifactId>")
+assert pom.contains("<layers>")
+assert pom.contains("<enabled>true</enabled>")
+assertSpringBootLayeredJarPlugin(pomXml)
+
+def starterPomText = pom
+assert !starterPomText.contains("<artifactId>spring-cloud-starter-bootstrap</artifactId>")
+assert !starterPomText.contains("<artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>")
+assert !starterPomText.contains("<artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>")
+assert starterPomText.contains("<artifactId>micrometer-registry-prometheus</artifactId>")
+assert starterPomText.contains("<spring.profiles.active>test</spring.profiles.active>")
+
+def lombokConfig = assertFile("lombok.config").text
+[
+    "config.stopBubbling = true",
+    "lombok.copyableAnnotations += org.springframework.beans.factory.annotation.Qualifier",
+    "lombok.copyableAnnotations += org.springframework.beans.factory.annotation.Value",
+    "lombok.addLombokGeneratedAnnotation = true",
+    "lombok.anyConstructor.addConstructorProperties = true",
+    "lombok.data.flagUsage = warning",
+    "lombok.val.flagUsage = warning"
+].each { expected -> assert lombokConfig.contains(expected) }
+
+assertRuntimeConfigFiles("src/main/resources")
+
+def testDatasourceYaml = assertFile("src/main/resources/application-test.yml").text
+assert testDatasourceYaml.contains("jdbc-url: jdbc:postgresql://localhost:5432/light_test_master_data")
+assert testDatasourceYaml.contains("password: test")
+assertMissing("src/test/resources/application-jpa-test.yml")
+assertMissing("src/test/java/it/pkg/infrastructure/JpaTestApplication.java")
+assertFile("src/test/java/it/pkg/architecture/LightPersistenceArchitectureTest.java")
+assert !assertFile("src/main/resources/application-test.yml").text.contains('ENC(')
+
+def testConfig = assertFile("src/main/resources/application-test.yml").text
+assert testConfig.contains("jdbc-url: jdbc:postgresql://localhost:5432/light_test_shard_0")
+assert testConfig.contains("jdbc-url: jdbc:postgresql://localhost:5432/light_test_shard_1")
+assert !testConfig.contains("DATABASE_TO_LOWER")
+assert testConfig.contains("rabbitmq:\n      enabled: false")
+assert testConfig.contains("redis:\n      enabled: false")
+assert testConfig.contains("external-http:\n      enabled: false")
+assert testConfig.contains("provider:\n          enabled: false")
+assert testConfig.contains("rabbit:\n      enabled: false")
+assert testConfig.contains("redis:\n      enabled: false")
+
+def applicationYaml = assertFile("src/main/resources/application.yml").text
+assert applicationYaml.contains("default: dev")
+assertLoggingContract(
+        "src/main/resources/logback-spring.xml",
+        "src/test/resources/logback-test.xml",
+        "src/main/resources/application.yml")
+assertMissing("src/main/resources/logback.xml")
+assert applicationYaml.contains("threads:")
+assert applicationYaml.contains("virtual:")
+assert applicationYaml.contains('${SPRING_THREADS_VIRTUAL_ENABLED:true}')
+assert applicationYaml.contains("timeout-per-shutdown-phase")
+assert applicationYaml.contains("shutdown: graceful")
+assert applicationYaml.contains("scheduling:")
+assert applicationYaml.contains('${SCHEDULING_AWAIT_TERMINATION:30s}')
+assert applicationYaml.contains('${TOMCAT_MAX_HTTP_FORM_POST_SIZE:2MB}')
+assert applicationYaml.contains('${TOMCAT_MAX_SWALLOW_SIZE:2MB}')
+assert applicationYaml.contains('${TOMCAT_PROCESSOR_CACHE:200}')
+assert applicationYaml.contains('${TOMCAT_MBEAN_REGISTRY_ENABLED:true}')
+assert applicationYaml.contains("write-dates-as-timestamps: false")
+assert applicationYaml.contains("prometheus")
+assert applicationYaml.contains("tomcat:")
+assert applicationYaml.contains('${TOMCAT_MAX_CONNECTIONS:8192}')
+assert applicationYaml.contains('port: ${RPC_PORT:50051}')
+assert applicationYaml.contains("default-timeout-ms: 3000")
+assert applicationYaml.contains("max-retries: 0")
+
+def wrapper = assertFile(".mvn/wrapper/maven-wrapper.properties").text
+assert wrapper.contains("apache-maven/3.9.14/apache-maven-3.9.14-bin.zip")
+
+assertFile("src/main/java/it/pkg/start/StudentManagementApplication.java")
+assertFile("src/main/java/it/pkg/package-info.java")
+def requiredPackagePaths = [
+    "start",
+    "start/config",
+    "start/config/async",
+    "start/config/encryption",
+    "adapter",
+    "adapter/filter",
+    "adapter/handler",
+    "adapter/pojo/convertor",
+    "adapter/pojo/dto",
+    "adapter/teaching",
+    "adapter/teaching/controller",
+    "adapter/teaching/facade",
+    "adapter/teaching/facade/impl",
+    "adapter/teaching/graphql",
+    "adapter/teaching/mq",
+    "adapter/teaching/pojo/convertor",
+    "adapter/teaching/pojo/dto",
+    "adapter/teaching/pojo/vo",
+    "adapter/teaching/validators",
+    "adapter/user",
+    "adapter/user/controller",
+    "adapter/user/facade",
+    "adapter/user/facade/impl",
+    "adapter/user/graphql",
+    "adapter/user/mq",
+    "adapter/user/pojo/convertor",
+    "adapter/user/pojo/dto",
+    "adapter/user/pojo/vo",
+    "adapter/user/validators",
+    "facade",
+    "facade/validation",
+    "facade/teaching",
+    "facade/teaching/dto",
+    "facade/teaching/enums",
+    "facade/teaching/utils",
+    "facade/user",
+    "facade/user/dto",
+    "facade/user/enums",
+    "facade/user/utils",
+    "application",
+    "application/teaching",
+    "application/teaching/manage",
+    "application/teaching/manage/impl",
+    "application/teaching/pojo/command",
+    "application/teaching/pojo/convertor",
+    "application/teaching/pojo/query",
+    "application/teaching/pojo/result",
+    "application/teaching/validators",
+    "application/user",
+    "application/user/manage",
+    "application/user/manage/impl",
+    "application/user/pojo/command",
+    "application/user/pojo/convertor",
+    "application/user/pojo/query",
+    "application/user/pojo/result",
+    "application/user/validators",
+    "domain",
+    "domain/teaching",
+    "domain/teaching/aggregates",
+    "domain/teaching/entities",
+    "domain/teaching/enums",
+    "domain/teaching/service",
+    "domain/teaching/validators",
+    "domain/teaching/vos",
+    "domain/user",
+    "domain/user/aggregates",
+    "domain/user/entities",
+    "domain/user/enums",
+    "domain/user/service",
+    "domain/user/validators",
+    "domain/user/vos",
+    "infrastructure",
+    "infrastructure/aop",
+    "infrastructure/config",
+    "infrastructure/mq",
+    "infrastructure/mq/impl",
+    "infrastructure/teaching",
+    "infrastructure/teaching/client",
+    "infrastructure/teaching/client/impl",
+    "infrastructure/teaching/converter",
+    "infrastructure/teaching/dao",
+    "infrastructure/teaching/po",
+    "infrastructure/teaching/repo",
+    "infrastructure/teaching/service",
+    "infrastructure/teaching/service/impl",
+    "infrastructure/teaching/validators",
+    "infrastructure/user",
+    "infrastructure/user/client",
+    "infrastructure/user/client/impl",
+    "infrastructure/user/converter",
+    "infrastructure/user/dao",
+    "infrastructure/user/po",
+    "infrastructure/user/repo",
+    "infrastructure/user/service",
+    "infrastructure/user/service/impl",
+    "infrastructure/user/validators",
+    "common",
+    "common/constants",
+    "common/enums",
+    "common/exception",
+    "common/utils"
+]
+requiredPackagePaths.each { packagePath ->
+    assertFile("src/main/java/it/pkg/${packagePath}/package-info.java")
+}
+def asyncConfigurationText = assertFile("src/main/java/it/pkg/start/config/async/AsyncConfiguration.java").text
+assert asyncConfigurationText.contains("implements AsyncConfigurer")
+assert asyncConfigurationText.contains("getAsyncUncaughtExceptionHandler")
+assert !asyncConfigurationText.contains("ThreadPoolTaskExecutorBuilder")
+assert !asyncConfigurationText.contains("applicationTaskExecutor(")
+assertFile("src/main/java/it/pkg/start/config/encryption/ConfigDecryptor.java")
+assertFile("src/main/java/it/pkg/common/exception/ConfigDecryptException.java")
+assertFile("src/main/java/it/pkg/start/config/encryption/ConfigDecryptKeyProvider.java")
+assertFile("src/main/java/it/pkg/start/config/encryption/AesGcmConfigDecryptor.java")
+assertFile("src/main/java/it/pkg/start/config/encryption/ConfigDecryptEnvironmentPostProcessor.java")
+assertFile("src/main/java/it/pkg/start/config/encryption/ConfigCipherCli.java")
+def springFactories = assertFile("src/main/resources/META-INF/spring.factories").text
+assert springFactories.contains("org.springframework.boot.env.EnvironmentPostProcessor")
+assert springFactories.contains("it.pkg.start.config.encryption.ConfigDecryptEnvironmentPostProcessor")
+assertFile("src/test/java/it/pkg/start/config/encryption/AesGcmConfigDecryptorTest.java")
+assertFile("src/test/java/it/pkg/start/config/encryption/ConfigDecryptEnvironmentPostProcessorTest.java")
+assertFile("src/main/java/it/pkg/start/config/JacksonConfig.java")
+assertFile("src/main/java/it/pkg/start/config/OpenApiConfig.java")
+assertFile("src/main/java/it/pkg/start/config/ActuatorConfig.java")
+assertFile("src/test/java/it/pkg/start/StudentManagementApplicationTest.java")
+assertFile("src/test/java/it/pkg/start/config/RuntimeConfigurationTest.java")
+def starterText = assertFile("src/main/java/it/pkg/start/StudentManagementApplication.java").text
+assert !starterText.contains("@EnableDubbo")
+assert starterText.contains('"it.pkg.infrastructure.user.dao"')
+assert starterText.contains('"it.pkg.infrastructure.teaching.dao"')
+assert !starterText.contains("repo.dao")
+assertFile("src/main/resources/application.yml")
+assertMissing("src/main/resources/application-sharding.yml")
+assertMissing("src/main/resources/application-readwrite.yml")
+def lightApplication = assertFile("src/main/resources/application.yml").text
+assert lightApplication.contains('classpath:egon-mybatis-plus-sharding.yml')
+assert lightApplication.contains('mode: ${APP_DATASOURCE_MODE:SHARDING}')
+// The MP starter owns the topology: one STRATEGY document, no node-map bootstrap and no raw ShardingSphere YAML.
+def lightShardingRule = assertFile("src/main/resources/egon-mybatis-plus-sharding.yml").text
+assert lightShardingRule.contains('mode: ${APP_DATASOURCE_MODE:SHARDING}')
+assert lightShardingRule.contains('config-style: STRATEGY')
+assert lightShardingRule.contains('transaction-default-type: LOCAL')
+[
+    'jdbc-url: ${LIGHT_SHARDING_MASTER_DATA_URL}',
+    'jdbc-url: ${LIGHT_SHARDING_SHARD_0_URL}',
+    'jdbc-url: ${LIGHT_SHARDING_SHARD_1_URL}'
+].each { assert lightShardingRule.contains(it) }
+assert lightShardingRule.contains('role: PRIMARY')
+assert lightShardingRule.contains('data-source: master_data')
+assert lightShardingRule.contains('type: STANDARD_TENANT_ID')
+assert lightShardingRule.contains('sharding-column: tenant_id')
+assertFile("src/main/resources/db/egon-mp/repository-manifest.json")
+assert !lightShardingRule.contains('node-map')
+assert !lightShardingRule.contains('node-count')
+assert !lightShardingRule.contains('.public.')
+assert !lightShardingRule.contains('proxy-frontend-database-protocol-type')
+assert !lightShardingRule.contains('defaultDataSource')
+assert !lightShardingRule.contains('transactionalReadQueryStrategy')
+
+assertFile("src/main/java/it/pkg/domain/user/aggregates/UserAggregate.java")
+[
+    "service/UserDomainService",
+    "service/RoleDomainService",
+    "service/PermissionDomainService",
+    "service/UserQueryService",
+    "service/UserEventService",
+    "service/UserIdempotencyService",
+    "entities/User",
+    "entities/Role",
+    "entities/Permission",
+    "enums/UserStatus",
+    "enums/RoleStatus",
+    "enums/PermissionStatus",
+    "validators/UserDomainValidator",
+    "vos/UserId",
+    "vos/RoleCode",
+    "vos/PermissionCode",
+    "vos/UserSnapshot",
+    "vos/UserEvent",
+    "vos/ExternalUser"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/domain/user/${typePath}.java")
+}
+[
+    "client",
+    "gateway",
+    "event",
+    "exceptions",
+    "pojo"
+].each { stalePath ->
+    assertMissing("src/main/java/it/pkg/domain/user/${stalePath}")
+}
+assertFile("src/test/java/it/pkg/domain/user/aggregates/UserAggregateTest.java")
+assertFile("src/test/java/it/pkg/domain/user/aggregates/RolePermissionAggregateTest.java")
+
+[
+    "entities/SchoolClass",
+    "entities/Course",
+    "aggregates/SchoolClassAggregate",
+    "aggregates/CourseAggregate",
+    "vos/SchoolClassId",
+    "vos/CourseCode",
+    "vos/Semester",
+    "vos/CourseScheduleBO",
+    "vos/ExternalCourse",
+    "vos/CourseSnapshot",
+    "vos/TeachingEvent",
+    "enums/SchoolClassStatus",
+    "enums/CourseStatus",
+    "validators/TeachingDomainValidator",
+    "service/SchoolClassDomainService",
+    "service/CourseDomainService",
+    "service/TeachingQueryService",
+    "service/TeachingEventService",
+    "service/CourseIdempotencyService"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/domain/teaching/${typePath}.java")
+}
+[
+    "client",
+    "gateway",
+    "event",
+    "exceptions",
+    "pojo"
+].each { stalePath ->
+    assertMissing("src/main/java/it/pkg/domain/teaching/${stalePath}")
+}
+assertFile("src/test/java/it/pkg/domain/teaching/aggregates/SchoolClassAggregateTest.java")
+
+[
+    "pojo/command/CreateUserCommand",
+    "pojo/command/AssignRoleCommand",
+    "pojo/command/GrantPermissionCommand",
+    "pojo/query/GetUserQuery",
+    "pojo/query/GetUserPermissionsQuery",
+    "pojo/result/UserResult",
+    "pojo/result/PermissionResult",
+    "pojo/result/PermissionDetailResult",
+    "manage/UserManage",
+    "manage/RoleManage",
+    "manage/PermissionManage",
+    "manage/impl/UserManageImpl",
+    "manage/impl/RoleManageImpl",
+    "manage/impl/PermissionManageImpl",
+    "pojo/convertor/UserApplicationConvertor",
+    "validators/UserApplicationValidator"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/application/user/${typePath}.java")
+}
+[
+    "command",
+    "query",
+    "result",
+    "convertor",
+    "assemblers",
+    "exceptions"
+].each { stalePath ->
+    assertMissing("src/main/java/it/pkg/application/user/${stalePath}")
+}
+[
+    "manage/UserManageTest",
+    "manage/RoleManageTest",
+    "manage/PermissionManageTest",
+    "validators/UserApplicationValidatorTest"
+].each { testPath ->
+    assertFile("src/test/java/it/pkg/application/user/${testPath}.java")
+}
+
+[
+    "pojo/command/CreateSchoolClassCommand",
+    "pojo/command/CreateCourseCommand",
+    "pojo/command/ScheduleCourseCommand",
+    "pojo/query/GetCourseQuery",
+    "pojo/query/GetSchoolClassQuery",
+    "pojo/result/SchoolClassResult",
+    "pojo/result/CourseResult",
+    "manage/SchoolClassManage",
+    "manage/CourseManage",
+    "manage/impl/SchoolClassManageImpl",
+    "manage/impl/CourseManageImpl",
+    "pojo/convertor/TeachingApplicationConvertor",
+    "validators/TeachingApplicationValidator"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/application/teaching/${typePath}.java")
+}
+[
+    "command",
+    "query",
+    "result",
+    "convertor",
+    "assemblers",
+    "exceptions"
+].each { stalePath ->
+    assertMissing("src/main/java/it/pkg/application/teaching/${stalePath}")
+}
+[
+    "manage/SchoolClassManageTest",
+    "manage/CourseManageTest",
+    "validators/TeachingApplicationValidatorTest"
+].each { testPath ->
+    assertFile("src/test/java/it/pkg/application/teaching/${testPath}.java")
+}
+
+[
+    "sharding/master-data/B20260825_001__baseline_light_master_data_schema.sql",
+    "sharding/shard/B20260825_002__baseline_light_sharded_schema.sql",
+    "sharding/master-data/V20260726_001__init_light_master_data_schema.sql",
+    "sharding/shard/V20260726_002__init_light_sharded_schema.sql",
+    "sharding/master-data/V20260825_001__migrate_light_master_data_to_egon_model.sql",
+    "sharding/shard/V20260825_002__migrate_light_sharded_to_tenant_model.sql"
+].each { migration ->
+    assertFile("src/main/resources/db/migration/${migration}")
+}
+assertMissing("src/main/resources/db/migration/V1__init_student_management.sql")
+assertMissing("src/main/resources/db/migration/V2__align_large_monolith_domain.sql")
+def migrationFiles = []
+new File(generatedProjectDir, "src/main/resources/db/migration")
+        .traverse(type: FileType.FILES) { file ->
+            if (file.name.endsWith(".sql")) {
+                migrationFiles << file
+            }
+        }
+assert migrationFiles.size() == 6: "Expected exactly six migration SQL files"
+migrationFiles.each { migration ->
+    def text = migration.getText("UTF-8")
+    assert text.startsWith("-- 变更内容：")
+    assert text.contains("\n-- 影响范围：")
+    assert text.contains("\n-- 兼容性说明：")
+}
+// Sharding topology, algorithms and bootstrap come from the component starter, never from a local copy.
+[
+    "DataSourceModeProperties",
+    "ShardingNodeMap",
+    "LongTenantShardingAlgorithm",
+    "ShardingWriteTargetResolver",
+    "ShardingDataSourceBootstrapper",
+    "ShardingDataSourcePropertiesLoader",
+    "ShardingTopologyValidator",
+    "ShardingSphereDataSourceConfiguration",
+    "LogicalDataSourceFlywayMigrationStrategy",
+    "ShardingDataSourceModeCondition",
+    "ShardingNodeMapCompatibilityValidator"
+].each { typeName ->
+    assertMissing("src/main/java/it/pkg/infrastructure/config/datasource/${typeName}.java")
+}
+def lightPersistenceContract = assertFile(
+        "src/test/java/it/pkg/infrastructure/config/datasource/RepositoryPersistenceContractTest.java").text
+assert lightPersistenceContract.contains("selectActiveById")
+assert lightPersistenceContract.contains("deleted_at IS NULL")
+[
+    "src/test/java/it/pkg/application/transaction/LocalTransactionBoundaryTest.java",
+    "src/test/java/it/pkg/architecture/LightPersistenceArchitectureTest.java",
+    "src/test/java/it/pkg/infrastructure/migration/FlywayMigrationConventionTest.java"
+].each { assertFile(it) }
+[
+    "user/po/UserPO",
+    "user/dao/UserDAO",
+    "user/po/RolePO",
+    "user/dao/RoleDAO",
+    "user/po/PermissionPO",
+    "user/dao/PermissionDAO",
+    "user/po/UserRolePO",
+    "user/po/RolePermissionPO",
+    "teaching/po/SchoolClassPO",
+    "teaching/dao/SchoolClassDAO",
+    "teaching/po/CoursePO",
+    "teaching/dao/CourseDAO",
+    "teaching/po/ClassCourseSchedulePO"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/infrastructure/${typePath}.java")
+}
+[
+    "src/main/java/it/pkg/infrastructure/user/dao/UserRoleDAO.java",
+    "src/main/java/it/pkg/infrastructure/user/dao/RolePermissionDAO.java",
+    "src/main/java/it/pkg/infrastructure/teaching/dao/ClassCourseScheduleDAO.java",
+    "src/main/java/it/pkg/infrastructure/user/converter/UserPOConverter.java",
+    "src/main/java/it/pkg/infrastructure/teaching/converter/CoursePOConverter.java",
+    "src/main/resources/mybatis/mapper/user/UserDAO.xml",
+    "src/main/resources/mybatis/mapper/teaching/CourseDAO.xml"
+].each { assertFile(it) }
+// The MyBatis wire follows the moved DAO/PO packages; the SQL predicates themselves stay.
+def lightMapperXmls = []
+new File(generatedProjectDir, "src/main/resources/mybatis/mapper")
+        .traverse(type: FileType.FILES) { candidate ->
+            if (candidate.name.endsWith("DAO.xml")) lightMapperXmls << candidate
+        }
+assert lightMapperXmls.size() == 8: "Expected one mapper per DAO, found ${lightMapperXmls.size()}"
+lightMapperXmls.each { xml ->
+    assert xml.text.contains("namespace=\"it.pkg.infrastructure.") && xml.text.contains(".dao.")
+    assert xml.text.contains("tenant_id")
+    assert xml.text.contains("deleted_at IS NULL")
+}
+[
+    "src/main/java/it/pkg/infrastructure/user/repo/po",
+    "src/main/java/it/pkg/infrastructure/user/repo/dao",
+    "src/main/java/it/pkg/infrastructure/teaching/repo/po",
+    "src/main/java/it/pkg/infrastructure/teaching/repo/dao",
+    "src/main/java/it/pkg/infrastructure/user/repo/jpa",
+    "src/main/java/it/pkg/infrastructure/user/repo/impl",
+    "src/main/java/it/pkg/infrastructure/teaching/repo/jpa",
+    "src/main/java/it/pkg/infrastructure/teaching/repo/impl"
+].each { assertMissing(it) }
+assert !pom.contains("<id>postgres-flyway-verify</id>")
+assert !pom.contains("<artifactId>flyway-maven-plugin</artifactId>")
+
+[
+    "user/service/impl/UserDomainServiceImpl",
+    "user/service/impl/RoleDomainServiceImpl",
+    "user/service/impl/PermissionDomainServiceImpl",
+    "user/service/impl/UserQueryServiceImpl",
+    "user/service/impl/UserEventServiceImpl",
+    "user/service/impl/UserIdempotencyServiceImpl",
+    "teaching/service/impl/SchoolClassDomainServiceImpl",
+    "teaching/service/impl/CourseDomainServiceImpl",
+    "teaching/service/impl/TeachingQueryServiceImpl",
+    "teaching/service/impl/TeachingEventServiceImpl",
+    "teaching/service/impl/CourseIdempotencyServiceImpl",
+    "user/client/UserQueryClient",
+    "teaching/client/TeachingQueryClient",
+    "user/client/impl/LocalUserQueryClientImpl",
+    "teaching/client/impl/LocalTeachingQueryClientImpl",
+    "mq/MqMessageService",
+    "mq/MqRouteEnum",
+    "mq/impl/RabbitMqMessageServiceImpl",
+    "config/TransactionCompletionExecutor",
+    "config/LocalAdapterConfiguration"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/infrastructure/${typePath}.java")
+}
+assertFile("src/test/java/it/pkg/infrastructure/config/TransactionCompletionExecutorTest.java")
+
+[
+    "user/client/impl/RestUserQueryClientImpl",
+    "teaching/client/impl/RestTeachingQueryClientImpl",
+    "user/validators/UserInfrastructureValidator",
+    "teaching/validators/TeachingInfrastructureValidator",
+    "aop/DaoMonitorAspect",
+    "aop/InfrastructureLogAspect",
+    "config/ExternalClientConfig",
+    "config/RabbitMqConfig",
+    "config/RedisConfig"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/infrastructure/${typePath}.java")
+}
+[
+    "src/main/java/it/pkg/infrastructure/user/cache",
+    "src/main/java/it/pkg/infrastructure/teaching/cache",
+    "src/main/java/it/pkg/infrastructure/user/mq",
+    "src/main/java/it/pkg/infrastructure/teaching/mq",
+    "src/main/java/it/pkg/infrastructure/aop/RepositoryMonitorAspect.java"
+].each { assertMissing(it) }
+[
+    "user/client/RestUserQueryClientImplTest",
+    "teaching/client/RestTeachingQueryClientImplTest",
+    "user/service/UserEventServiceImplTest",
+    "teaching/service/TeachingEventServiceImplTest",
+    "mq/RabbitMqMessageServiceImplTest",
+    "user/validators/UserInfrastructureValidatorTest",
+    "teaching/validators/TeachingInfrastructureValidatorTest",
+    "aop/InfrastructureAspectTest",
+    "config/RabbitMqConfigTest"
+].each { testPath ->
+    assertFile("src/test/java/it/pkg/infrastructure/${testPath}.java")
+}
+
+[
+    "controller/UserController",
+    "controller/RoleController",
+    "controller/PermissionController",
+    "pojo/dto/CreateUserDTO",
+    "pojo/dto/AssignRoleDTO",
+    "pojo/dto/GrantPermissionDTO",
+    "pojo/vo/UserDetailVO",
+    "pojo/vo/PermissionTreeVO",
+    "pojo/convertor/UserAdapterConvertor",
+    "validators/UserRequestValidator",
+    "graphql/UserResolver",
+    "facade/impl/UserFacadeImpl",
+    "facade/impl/PermissionFacadeImpl",
+    "mq/UserImportedConsumer"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/adapter/user/${typePath}.java")
+}
+[
+    "UserFacade",
+    "PermissionFacade",
+    "dto/CreateUserDTO",
+    "dto/AssignRoleDTO",
+    "dto/GrantPermissionDTO",
+    "dto/UserDetailDTO",
+    "dto/PermissionDTO",
+    "dto/PermissionDetailDTO",
+    "enums/UserFacadeStatus",
+    "utils/UserFacadeAssert"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/facade/user/${typePath}.java")
+}
+[
+    "RequestContext",
+    "RequestContextHolder",
+    "TraceIdFilter",
+    "RequestContextFilter"
+].each { typeName ->
+    assertFile("src/main/java/it/pkg/adapter/filter/${typeName}.java")
+}
+assertFile("src/main/resources/graphql/user.graphqls")
+["controller", "mq", "graphql", "facade/impl", "validators", "pojo/dto", "pojo/vo", "pojo/convertor"].each { packageName ->
+    assert new File(generatedProjectDir, "src/main/java/it/pkg/adapter/user/${packageName}").isDirectory()
+    assert !new File(generatedProjectDir, "src/main/java/it/pkg/adapter/${packageName}/user").exists()
+}
+[
+    "controller/SchoolClassController",
+    "controller/CourseController",
+    "pojo/dto/CreateSchoolClassDTO",
+    "pojo/dto/CreateCourseDTO",
+    "pojo/dto/ScheduleCourseDTO",
+    "pojo/vo/SchoolClassDetailVO",
+    "pojo/vo/CourseDetailVO",
+    "pojo/convertor/TeachingAdapterConvertor",
+    "validators/TeachingRequestValidator",
+    "graphql/CourseResolver",
+    "facade/impl/SchoolClassFacadeImpl",
+    "facade/impl/CourseFacadeImpl",
+    "mq/CourseImportedConsumer"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/adapter/teaching/${typePath}.java")
+}
+[
+    "SchoolClassFacade",
+    "CourseFacade",
+    "dto/CreateSchoolClassDTO",
+    "dto/CreateCourseDTO",
+    "dto/ScheduleCourseDTO",
+    "dto/SchoolClassDetailDTO",
+    "dto/CourseDTO",
+    "enums/CourseFacadeStatus",
+    "utils/TeachingFacadeAssert"
+].each { typePath ->
+    assertFile("src/main/java/it/pkg/facade/teaching/${typePath}.java")
+}
+[
+    "src/main/java/it/pkg/adapter/user/dto",
+    "src/main/java/it/pkg/adapter/user/vo",
+    "src/main/java/it/pkg/adapter/user/convertor",
+    "src/main/java/it/pkg/adapter/user/rpc",
+    "src/main/java/it/pkg/adapter/teaching/dto",
+    "src/main/java/it/pkg/adapter/teaching/vo",
+    "src/main/java/it/pkg/adapter/teaching/convertor",
+    "src/main/java/it/pkg/adapter/teaching/rpc",
+    "src/main/java/it/pkg/adapter/rpc",
+    "src/main/java/it/pkg/facade/rpc",
+    "src/main/java/it/pkg/facade/user/exceptions",
+    "src/main/java/it/pkg/facade/teaching/exceptions"
+].each { assertMissing(it) }
+assertFile("src/main/java/it/pkg/adapter/pojo/dto/RpcIdQuery.java")
+assertFile("src/main/java/it/pkg/adapter/pojo/convertor/LightFacadeConverter.java")
+assertFile("src/main/java/it/pkg/facade/validation/NativeRpcValidationGroup.java")
+[
+    "UserFacadeException",
+    "TeachingFacadeException",
+    "UserUseCaseException",
+    "TeachingUseCaseException",
+    "UserDomainException",
+    "TeachingDomainException",
+    "BaseBusinessException",
+    "ConfigDecryptException"
+].each { typeName ->
+    assertFile("src/main/java/it/pkg/common/exception/${typeName}.java")
+}
+[
+    "GlobalExceptionHandler",
+    "ResponseWrapperHandler",
+    "GraphQlExceptionResolver",
+    "RabbitConsumerErrorHandler"
+].each { typeName ->
+    assertFile("src/main/java/it/pkg/adapter/handler/${typeName}.java")
+}
+assertFile("src/main/resources/graphql/teaching.graphqls")
+["controller", "mq", "graphql", "facade/impl", "validators", "pojo/dto", "pojo/vo", "pojo/convertor"].each { packageName ->
+    assert new File(generatedProjectDir, "src/main/java/it/pkg/adapter/teaching/${packageName}").isDirectory()
+}
+
+def teachingAdapterMapper = assertFile(
+        "src/main/java/it/pkg/adapter/teaching/pojo/convertor/TeachingAdapterConvertor.java").text
+assert teachingAdapterMapper.contains("@Mapper(")
+assert teachingAdapterMapper.contains("ReportingPolicy.ERROR")
+assert teachingAdapterMapper.contains("@BeforeMapping")
+assert teachingAdapterMapper.contains("BaseForwardConverter<")
+def userAdapterMapper = assertFile(
+        "src/main/java/it/pkg/adapter/user/pojo/convertor/UserAdapterConvertor.java").text
+assert userAdapterMapper.contains("@Mapper(")
+assert userAdapterMapper.contains("ReportingPolicy.ERROR")
+assert userAdapterMapper.contains("@BeforeMapping")
+assert userAdapterMapper.contains("BaseForwardConverter<")
+def coursePoConverter = assertFile(
+        "src/main/java/it/pkg/infrastructure/teaching/converter/CoursePOConverter.java").text
+assert coursePoConverter.contains("extends BaseConverter<Course, CoursePO>")
+assert coursePoConverter.contains("@Mapper(componentModel = \"spring\"")
+def coursePo = assertFile(
+        "src/main/java/it/pkg/infrastructure/teaching/po/CoursePO.java").text
+assert coursePo.contains("@Data")
+assert coursePo.contains("@NoArgsConstructor")
+assert coursePo.contains("@AllArgsConstructor")
+assert coursePo.contains("@Builder")
+assert coursePo.contains("@Accessors(chain = true)")
+assert coursePo.contains("@TableName")
+assert coursePo.contains("extends EgonModel<CoursePO>")
+assert !coursePo.contains("@RequiredArgsConstructor")
+assert !coursePo.contains("@SuperBuilder")
+def rabbitMqConfig = assertFile(
+        "src/main/java/it/pkg/infrastructure/config/RabbitMqConfig.java").text
+assert rabbitMqConfig.contains("@RequiredArgsConstructor")
+assert !rabbitMqConfig.contains("public RabbitMqConfig(")
+assertNoGenericMapStructConverterInjection("src/main/java/it/pkg")
+
+def facadeJavaFiles = []
+new File(generatedProjectDir, "src/main/java/it/pkg/facade").eachFileRecurse { file ->
+    if (file.isFile() && file.name.endsWith(".java")) {
+        facadeJavaFiles << file
+    }
+}
+assert !facadeJavaFiles.isEmpty()
+assert facadeJavaFiles.every { !it.text.contains("import it.pkg.domain.") }
+
+def allApplicationJava = []
+new File(generatedProjectDir, "src/main/java/it/pkg/application").eachFileRecurse { file ->
+    if (file.isFile() && file.name.endsWith(".java")) {
+        allApplicationJava << file
+    }
+}
+assert allApplicationJava.every { !it.text.contains("View") }
+assert allApplicationJava.every { !it.text.contains("facade.dto") }
+assert allApplicationJava.every { !it.text.contains("common.response") }
+
+// The converged exception home is shared on purpose, so only named common.exception types may cross layers.
+def assertOnlyCommonExceptions = { path ->
+    javaFileTexts(path).each { text ->
+        text.readLines().findAll { it.contains("import it.pkg.common.") }.each { line ->
+            assert line.trim() ==~ /import it\.pkg\.common\.exception\.\w+;/:
+                    "Unexpected common import under ${path}: ${line}"
+        }
+    }
+}
+
+assertNoInternalImports("src/main/java/it/pkg/start", ["application", "common", "domain", "facade"],
+        ["import it.pkg.common.exception.ConfigDecryptException;"])
+assertNoInternalImports("src/main/java/it/pkg/adapter", ["domain", "infrastructure", "start"])
+assertNoInternalImports("src/main/java/it/pkg/application", ["adapter", "facade", "infrastructure", "start"])
+assertNoInternalImports("src/main/java/it/pkg/domain", ["adapter", "application", "facade", "infrastructure", "start"])
+assertNoInternalImports("src/main/java/it/pkg/infrastructure", ["adapter", "application", "facade", "start"],
+        ["import it.pkg.facade.teaching.dto.CreateCourseDTO;", "import it.pkg.facade.user.dto.CreateUserDTO;"])
+assertNoInternalImports("src/main/java/it/pkg/facade", ["adapter", "application", "domain", "infrastructure", "start"])
+assertNoInternalImports("src/main/java/it/pkg/common", ["adapter", "application", "domain", "facade", "infrastructure", "start"])
+["adapter", "application", "domain", "infrastructure", "facade"].each { layer ->
+    assertOnlyCommonExceptions("src/main/java/it/pkg/${layer}")
+}
+
+
+// GraphQL framework security adapters are shared infrastructure, not flat business resolvers.
+def graphQlSecurityTypes = ["NativeGraphQlSecurityInstrumentation", "NativeGraphQlSecurityInterceptor",
+        "NativeGraphQlSecuritySnapshotBO"]
+def graphQlSecurityDir = new File(generatedProjectDir, "src/main/java/it/pkg/adapter/graphql")
+assert graphQlSecurityDir.isDirectory(): "Expected native GraphQL security adapters"
+def graphQlSecurityFiles = []
+graphQlSecurityDir.eachFileRecurse(FileType.FILES) { candidate ->
+    if (candidate.name.endsWith('.java') && candidate.name != 'package-info.java') {
+        graphQlSecurityFiles << candidate.name.replace('.java', '')
+    }
+}
+graphQlSecurityFiles.sort()
+assert graphQlSecurityFiles == graphQlSecurityTypes.sort(): "Only the native GraphQL security adapters belong here"
+[
+        "NativeGraphQlSecurityInterceptor": ["implements WebGraphQlInterceptor", "nativeGraphQlSecurityInterceptor", "TokenAuditProofBO"],
+        "NativeGraphQlSecurityInstrumentation": ["extends SimplePerformantInstrumentation", "nativeGraphQlSecurityInstrumentation", "withinSnapshot"],
+        "NativeGraphQlSecuritySnapshotBO": ["record NativeGraphQlSecuritySnapshotBO", "Set.copyOf", "NATIVE_GRAPHQL_IDENTITY_MISMATCH"]
+].each { type, tokens ->
+    def content = assertFile("src/main/java/it/pkg/adapter/graphql/${type}.java").getText("UTF-8")
+    tokens.each { token -> assert content.contains(token): "Expected ${type} to contain ${token}" }
+}
+
+[
+    "src/main/java/it/pkg/adapter/controller",
+    "src/main/java/it/pkg/adapter/mq",
+    "src/main/java/it/pkg/adapter/rpc",
+    "src/main/java/it/pkg/adapter/facade",
+    "src/main/java/it/pkg/adapter/dto",
+    "src/main/java/it/pkg/adapter/vo",
+    "src/main/java/it/pkg/adapter/convertor",
+    "src/main/java/it/pkg/adapter/validators",
+    "src/main/java/it/pkg/adapter/validation",
+    "src/main/java/it/pkg/application/manage",
+    "src/main/java/it/pkg/application/command",
+    "src/main/java/it/pkg/application/query",
+    "src/main/java/it/pkg/application/result",
+    "src/main/java/it/pkg/application/convertor",
+    "src/main/java/it/pkg/application/validators",
+    "src/main/java/it/pkg/application/assemblers",
+    "src/main/java/it/pkg/application/config",
+    "src/main/java/it/pkg/facade/api",
+    "src/main/java/it/pkg/facade/dto",
+    "src/main/java/it/pkg/facade/enums",
+    "src/main/java/it/pkg/facade/exceptions",
+    "src/main/java/it/pkg/facade/utils",
+    "src/main/java/it/pkg/infrastructure/repo",
+    "src/main/java/it/pkg/infrastructure/service",
+    "src/main/java/it/pkg/infrastructure/validators",
+    "src/main/java/it/pkg/infrastructure/client",
+    "src/main/java/it/pkg/infrastructure/cache",
+    "src/main/java/it/pkg/common/exceptions",
+    "src/main/java/it/pkg/facade/rpc",
+    "src/main/java/it/pkg/domain/common",
+    "src/main/java/it/pkg/domain/student",
+    "src/main/java/it/pkg/domain/teaching/model"
+].each { path ->
+    assert !new File(generatedProjectDir, path).exists(): "Unexpected reversed or stale path ${path}"
+}
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/application/client").exists()
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/domain/user/service/impl").exists()
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/domain/teaching/service/impl").exists()
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/domain/teaching/gateway").exists()
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/domain/teaching/event").exists()
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/domain/user/gateway").exists()
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/domain/user/event").exists()
+
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/adapter/ChargeController.java").exists()
+assert !new File(generatedProjectDir, "src/main/java/it/pkg/domain/charge").exists()
+assert !new File(generatedProjectDir, "src/test/charge.http").exists()
+
+assert migrationFiles.size() == 6
+
+assertMissing("src/test/java/it/pkg/ArchitectureDependencyTest.java")
+def architecturePlugin = pomXml.build.plugins.plugin.find {
+    it.groupId.text() == "top.egon" &&
+            it.artifactId.text() == "stellar-enclosure-component-bytecode-architecture-maven-plugin"
+}
+assert architecturePlugin
+assert architecturePlugin.version.text() == '${stellar-enclosure.version}'
+assert architecturePlugin.executions.execution.goals.goal*.text().contains("check")
+assertFile("target/egon-cola-architecture/architecture-report.json")
+assert generatedPoms.every { !it.text.contains("archunit-junit5") && !it.text.contains("archunit.version") }
+assertFile("src/test/java/it/pkg/adapter/NativeRpcProviderTest.java")
+assertFile("src/test/java/it/pkg/facade/NativeRpcContractTest.java")
+assertFile("src/test/java/it/pkg/facade/NativeRpcMappingTest.java")
+assertFile("src/test/java/it/pkg/start/config/NativeRpcConfigurationTest.java")
+assertFile("src/test/java/it/pkg/start/config/NativeHttpCompatibilityTest.java")
+assertMissing("src/test/java/it/pkg/adapter/user/rpc/UserRpcProviderTest.java")
+assertMissing("src/test/java/it/pkg/adapter/teaching/rpc/CourseRpcProviderTest.java")
+
+def readme = assertFile("README.md").text
+// The generated guide must name the generated project, not the archetype's own sample.
+assert readme.contains("# basic")
+assert !readme.contains("Student Management")
+assert assertFile("README.zh-CN.md").text.contains("# basic")
+assert readme.contains("single Maven module")
+assert readme.contains("start          -> adapter, infrastructure")
+assert readme.contains("adapter        -> application, facade")
+assert readme.contains("infrastructure -> domain")
+assert readme.contains("Domain-First Structure")
+assert readme.contains("Primary Workflows")
+assert readme.contains("RABBITMQ_ENABLED=true")
+assert readme.contains("ConfigCipherCli")
+["EgonColaRepository", "SHARDING_READWRITE", "tenant_id", "mix64-v1", "LOCAL", "REBUILD_REQUIRED", "repository-manifest.json"].each { assert readme.contains(it) }
+def lightReadmeZh = assertFile("README.zh-CN.md").text
+["EgonColaRepository", "SHARDING_READWRITE", "tenant_id", "mix64-v1", "LOCAL", "REBUILD_REQUIRED", "repository-manifest.json"].each { assert lightReadmeZh.contains(it) }
+assert !readme.contains("计费")
+assert !readme.contains("Charge")
+
+def allFiles = []
+new File(generatedProjectDir, "src").eachFileRecurse { file ->
+    if (file.isFile()) {
+        allFiles << file
+    }
+}
+assert allFiles.every { !it.name.contains("Charge") }
+assert !new File(generatedProjectDir, "img.png").exists()
+assert !new File(generatedProjectDir, "img_1.png").exists()
+
+def sourceBoundaryFiles = []
+generatedProjectDir.eachFileRecurse { candidate ->
+    def candidatePath = generatedProjectDir.toPath().relativize(candidate.toPath()).toString().replace('\\', '/')
+    if (candidate.isFile() && !candidatePath.startsWith('target/')) {
+        sourceBoundaryFiles << candidate
+    }
+}
+assert sourceBoundaryFiles.every { candidate ->
+    def relativePath = generatedProjectDir.toPath().relativize(candidate.toPath()).toString().replace('\\', '/')
+    !relativePath.contains('.generated')
+}
+[
+    'top.egon.internal.archetype.source',
+    'stellar-enclosure-source-light',
+    '0.0.1'
+].each { forbiddenToken ->
+    sourceBoundaryFiles.each { candidate ->
+        assert !candidate.getText('UTF-8').contains(forbiddenToken):
+                "Generated project leaked source sentinel ${forbiddenToken} in ${candidate}"
+    }
+}
+true
+true
+
+// Verify Maven filtering and Java argument parsing without starting the application.
+def launchModule = new File(generatedProjectDir, ".")
+def launchTemplate = new File(launchModule, "src/main/launch/launch.args")
+assert launchTemplate.isFile(): "Expected external launch argument template"
+assert launchTemplate.text.contains('@run.jvm-args@')
+assert launchTemplate.text.contains('@run.config-location@')
+def launchArgs = new File(launchModule, "target/launch.args")
+assert launchArgs.isFile(): "Maven must generate target/launch.args"
+assert !launchArgs.text.contains('@run.')
+assert !new File(launchModule, "target/classes/launch.args").exists()
+def launchJava = new File(System.getProperty("java.home"),
+        System.getProperty("os.name").toLowerCase().contains("windows") ? "bin/java.exe" : "bin/java")
+def launchCheck = new ProcessBuilder(launchJava.absolutePath, "@${launchArgs.absolutePath}",
+        "-XshowSettings:properties", "-version").redirectErrorStream(true).start()
+def launchOutput = launchCheck.inputStream.getText("UTF-8")
+assert launchCheck.waitFor() == 0: launchOutput
+assert launchOutput.contains("spring.profiles.active = dev"): launchOutput
+assert launchOutput.contains("server.port = 8080"): launchOutput
+assert launchOutput.contains("spring.config.additional-location = optional:file:./config/override.yml"): launchOutput
+true
+
+// Verify the released parent and the actual packaged runtime, separately from BOM management.
+def releasedParent = new XmlSlurper(false, false).parse(new File(generatedProjectDir, 'pom.xml'))
+assert releasedParent.parent.groupId.text() == 'top.egon'
+assert releasedParent.parent.artifactId.text() == 'stellar-enclosure-archetypes-parent'
+assert releasedParent.parent.version.text() == releasedParent.properties.'stellar-enclosure.version'.text()
+assert releasedParent.parent.version.text() ==~ /[0-9]+(?:\.[0-9]+)+(?:[-.][A-Za-z0-9]+)*/
+assert releasedParent.parent.relativePath.size() == 1 && !releasedParent.parent.relativePath.text()
+['commons-lang3.version', 'commons.lang3.version', 'shardingsphere.version', 'dubbo.version',
+ 'grpc.version', 'protobuf.version', 'spring-cloud.version', 'spring-cloud-alibaba.version', 'springdoc.version'].each { name ->
+    assert !releasedParent.properties."${name}".text(): "Version must be inherited: ${name}"
+}
+def releasedArchive = new File(generatedProjectDir, 'target').listFiles()?.find {
+    it.name.endsWith('.jar') && !it.name.endsWith('-sources.jar') && !it.name.endsWith('-javadoc.jar')
+}
+assert releasedArchive: 'Expected packaged consumer runtime'
+def releasedLibraries = [] as Set
+new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
+    archive.entries().each { entry ->
+        if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
+    }
+}
+assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
+assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
+assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')
+assert releasedLibraries.contains('grpc-core-1.75.0.jar')
+assert releasedLibraries.contains('protobuf-java-4.32.0.jar')
+['stellar-enclosure-component-rpc-starter-', 'stellar-enclosure-component-rpc-tianshu-adapter-',
+ 'stellar-enclosure-tianshu-starter-',
+ 'stellar-enclosure-tianshu-http-registration-starter-',
+ 'stellar-enclosure-yuheng-starter-openapi-webmvc-'].each { required ->
+    assert releasedLibraries.any { it.startsWith(required) }: "Missing native runtime ${required}"
+}
+assert !releasedLibraries.any { it.startsWith('dubbo-') || it.startsWith('nacos-') || it.startsWith('spring-cloud-starter-alibaba-nacos-') }
+['bootstrap.yml', 'bootstrap-dev.yml', 'bootstrap-test.yml', 'bootstrap-prod.yml'].each {
+    assert !new File(generatedProjectDir, 'src/main/resources/' + it).exists()
+}
+['application.yml', 'application-dev.yml', 'application-test.yml', 'application-prod.yml'].each { profile ->
+    def config = new File(generatedProjectDir, 'src/main/resources/' + profile).text
+    ['rpc:', 'tianshu:', 'provider:', 'consumer:', 'registry:', 'yuheng:', 'openapi:', 'tianquan:', 'shoubing:'].each { token ->
+        assert config.contains(token): "Missing native configuration ${token} in ${profile}"
+    }
+    assert !config.contains('DUBBO_') && !config.contains('NACOS_')
+    // The component prefix is egon.cola.platform.tianquan.shoubing; '-' is not a hierarchy separator.
+    assert !config.contains('tianquan-shoubing:'): "tianquan-shoubing must nest as tianquan.shoubing in ${profile}"
+}
+def nativeJava = []
+generatedProjectDir.traverse(type: FileType.FILES) { candidate ->
+    def path = '/' + generatedProjectDir.toPath().relativize(candidate.toPath()).toString().replace('\\', '/')
+    if (path.contains('/src/main/java/') && !path.contains('/target/') && candidate.name.endsWith('.java')) nativeJava << candidate
+}
+assert nativeJava.every { !it.text.contains('org.apache.dubbo') }
+// The facade implementation publishes the native contract directly; no wrapper provider type remains.
+def nativeProviders = nativeJava.findAll { it.text.contains('@EgonRpcProvider') }
+assert nativeProviders.size() == 4: "Expected one provider per facade, found ${nativeProviders*.name}"
+assert nativeProviders.every { it.name.endsWith('FacadeImpl.java') && it.path.contains('/adapter/') }
+assert nativeProviders.every { it.text.contains('@RequiredArgsConstructor') }
+def nativeOperations = nativeProviders.collectMany { provider ->
+    (provider.text =~ /public\s+\w*Response\s+(\w+)\(/).collect { it[1] }
+}.sort()
+assert nativeOperations == ["createUser", "assignRole", "getUser", "grantPermission", "getUserPermissions", "createCourse", "getCourse", "createSchoolClass", "scheduleCourse", "getSchoolClass"].sort(): "Native operation inventory changed: ${nativeOperations}"
+['docker', 'podman', 'nerdctl'].each { engine ->
+    ['', '.prod'].each { profile ->
+        def compose = new File(generatedProjectDir, "deploy/compose/compose.${engine}${profile}.yaml").text
+        assert compose.contains('TIANSHU_APP_CODE: ${TIANSHU_APP_CODE:?Set TIANSHU_APP_CODE}')
+        ['${artifactId}', '${rootArtifactId}', '${parentArtifactId}'].each { marker ->
+            assert !compose.contains(marker): "Unexpanded archetype variable in Compose: ${marker}"
+        }
+    }
+}
+def nativeReports = []
+generatedProjectDir.traverse(type: FileType.FILES) { candidate ->
+    if (candidate.path.replace('\\', '/').contains('/target/surefire-reports/') && candidate.name.endsWith('.xml')) nativeReports << candidate
+}
+["NativeRpcContractTest", "NativeRpcMappingTest", "NativeRpcProviderTest", "NativeRpcConfigurationTest", "NativeHttpCompatibilityTest"].each { name ->
+    def reportsForTest = nativeReports.findAll {
+        it.name.endsWith('.' + name + '.xml') || it.name.contains('.' + name + '$')
+    }
+    assert reportsForTest: "Missing generated native test ${name}"
+    def results = reportsForTest.collect { new XmlSlurper(false, false).parse(it) }
+    assert results.sum { it.@tests.text().toInteger() } > 0: "No tests ran for ${name}"
+    assert results.every { it.@failures.text() == '0' && it.@errors.text() == '0' }:
+            "Generated native test failed: ${name}"
+}
+
+println 'Published parent and light runtime boundaries passed'
+true
+
+// Repository/CQRS and managed PostgreSQL initialization must survive project generation.
+def repositoryContractFiles = []
+generatedProjectDir.traverse(type: FileType.FILES) { candidate ->
+    def resourcePath = generatedProjectDir.canonicalFile.toPath().relativize(candidate.canonicalFile.toPath()).toString().replace(File.separator, "/")
+    if (!resourcePath.startsWith("target/") && !resourcePath.contains("/target/")) { repositoryContractFiles << candidate }
+}
+def repositoryImplementations = repositoryContractFiles.findAll {
+    it.path.replace('\\', '/').contains('/src/main/java/') && it.name.endsWith('Repository.java')
+}
+assert repositoryImplementations.size() == 8: 'Expected concrete persistence repositories'
+repositoryImplementations.each { assert it.text.contains('extends EgonColaRepository<') }
+def repositoryManifests = repositoryContractFiles.findAll { it.name == 'repository-manifest.json' }
+assert repositoryManifests.size() == 1
+def repositoryManifest = new groovy.json.JsonSlurper().parse(repositoryManifests.first())
+assert repositoryManifest.family == 'light'
+assert repositoryManifest.scripts*.version == ['20260913_001', '20261015_001']
+assert repositoryManifest.scripts*.path == [
+        'db/egon-mp/V20260913_001__initialize_repository_schema.sql',
+        'db/egon-mp/V20261015_001__scope_user_uniqueness_to_tenant.sql'
+]
+def initializationSql = new File(repositoryManifests.first().parentFile, 'V20260913_001__initialize_repository_schema.sql')
+assert initializationSql.isFile()
+assert repositoryManifest.scripts.first().sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(initializationSql.bytes).encodeHex().toString()
+def tenantUniquenessSql = new File(repositoryManifests.first().parentFile, 'V20261015_001__scope_user_uniqueness_to_tenant.sql')
+assert tenantUniquenessSql.isFile()
+assert repositoryManifest.scripts.last().sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(tenantUniquenessSql.bytes).encodeHex().toString()
+assert initializationSql.text.contains('deleted_at') && initializationSql.text.contains('version BIGINT NOT NULL DEFAULT 0')
+repositoryContractFiles.findAll { it.path.replace('\\', '/').contains('/src/main/resources/mybatis/mapper/') && it.name.endsWith('DAO.xml') }.each {
+    assert it.text.contains('selectActiveById') && it.text.contains('selectActiveByIds')
+    assert it.text.contains('deleteVersionedById') && it.text.contains('MP_OPTLOCK_VERSION_ORIGINAL')
+    assert !it.text.contains('is_deleted')
+}
+
+assertMissing("src/main/java/it/pkg/adapter/handler/ApiResponse.java")
+assert assertFile("src/main/java/it/pkg/adapter/handler/ResponseWrapperHandler.java").text.contains("ResultRecord.success(body)")
+def trustedContextFilter = assertFile("src/main/java/it/pkg/adapter/filter/RequestContextFilter.java").text
+assert trustedContextFilter.contains('MDC.put("tenantId", tenant.toString())')
+assert trustedContextFilter.contains('Long.valueOf(identity.tenantId())')
+assert !trustedContextFilter.contains('getHeader(TENANT_ID_HEADER)')
+
+
+
+def projectDir = generatedProjectDir
+
+// Xingyuan native contract: the generated root owns every business permission and resource.
+def nativeRootModel = new groovy.xml.XmlSlurper(false, false).parse(new File(projectDir, 'pom.xml'))
+def nativeNamespace = nativeRootModel.artifactId.text()
+def nativeContractJava = []
+def nativeProfiles = []
+projectDir.eachFileRecurse { candidate ->
+    def path = projectDir.toPath().relativize(candidate.toPath()).toString().replace(File.separator, '/')
+    if (candidate.isFile() && !path.startsWith('target/') && !path.contains('/target/')) {
+        if ((path.startsWith('src/main/java/') || path.contains('/src/main/java/')) && candidate.name.endsWith('.java')) nativeContractJava << candidate
+        if (candidate.name ==~ /application(?:-dev|-prod|-test)?\.yml/) nativeProfiles << candidate
+    }
+}
+assert nativeProfiles.size() == 4: 'Expected all four native security profiles'
+def nativeSources = nativeContractJava.collect { it.getText('UTF-8') }.join('\n')
+assert (nativeSources =~ /@PreAuthorize\(/).count == 14: 'Every USER entry requires its own consent gate'
+assert (nativeSources =~ /@RequiresServiceScope\(/).count == 10: 'Every business RPC requires TENANT SERVICE scope'
+(nativeSources =~ /@RBACAPIResource\(code\s*=\s*"([^"]+)"\s*,\s*permission\s*=\s*"([^"]+)"/).each { resource ->
+    assert resource[1].startsWith(nativeNamespace + '.')
+    assert resource[2].startsWith(nativeNamespace + ':')
+}
+assert !nativeSources.contains('getHeader("X-Tenant-Id")')
+assert !nativeSources.contains('getHeader("X-Actor-Id")')
+assert !nativeSources.contains('getHeader("X-Actor-Roles")')
+nativeProfiles.each { profile ->
+    def text = profile.getText('UTF-8')
+    ['trusted-issuers:', 'STRICT_SHARED', 'usage-observation:', 'APPLICATION', 'resource-server-id:',
+     'register-filter: false', 'tenant-registration-ids:', 'hmac-key-file:'].each { required ->
+        assert text.contains(required): "Missing native key ${required} in ${profile.name}"
+    }
+    assert !text.contains('stellar-enclosure-source-light'): 'Source namespace must be relocated'
+}
+nativeProfiles.each { assert it.text.contains('system-code: ' + nativeNamespace) }
+
+// Require executed generated security behavior, including error/OAS and constructor wiring contracts.
+def nativeSecurityReports = []
+projectDir.traverse(type: FileType.FILES) { candidate ->
+    if (candidate.path.replace(File.separator, '/').contains('/target/surefire-reports/') && candidate.name.endsWith('.xml')) {
+        nativeSecurityReports << candidate
+    }
+}
+['NativeSecurityContractTest', 'ExplicitConstructorInjectionTest', 'NativeGraphQlSecurityContractTest'].each { testName ->
+    def suites = nativeSecurityReports.findAll {
+        it.name.endsWith('.' + testName + '.xml') || it.name.contains('.' + testName + '$')
+    }.collect { new groovy.xml.XmlSlurper(false, false).parse(it) }
+    assert suites: "Missing generated security test ${testName}"
+    assert suites.sum { it.@tests.text().toInteger() } > 0: "No generated tests ran for ${testName}"
+    assert suites.every { it.@failures.text() == '0' && it.@errors.text() == '0' && it.@skipped.text() == '0' }:
+            "Generated security behavior must pass without skips: ${testName}"
+}
+
+return true

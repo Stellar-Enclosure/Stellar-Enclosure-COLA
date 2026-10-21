@@ -1,0 +1,418 @@
+spring:
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+  security:
+    oauth2:
+      client:
+        registration:
+          tianshuregistration:
+            provider: native-control
+            client-id: ${NATIVE_CONTROL_CLIENT_ID:}
+            client-secret: ${NATIVE_CONTROL_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+            client-authentication-method: client_secret_basic
+            scope: ${NATIVE_CONTROL_SCOPES:}
+          native-tenant-one:
+            provider: native-tenant-one
+            client-id: ${NATIVE_SERVICE_CLIENT_ID:}
+            client-secret: ${NATIVE_SERVICE_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+            client-authentication-method: client_secret_basic
+            scope: service:authorization:snapshot
+          native-tenant-two:
+            provider: native-tenant-two
+            client-id: ${NATIVE_SERVICE_CLIENT_ID:}
+            client-secret: ${NATIVE_SERVICE_CLIENT_SECRET:}
+            authorization-grant-type: client_credentials
+            client-authentication-method: client_secret_basic
+            scope: service:authorization:snapshot
+        provider:
+          native-control:
+            token-uri: ${NATIVE_CONTROL_TOKEN_URI:}
+          native-tenant-one:
+            token-uri: ${NATIVE_TENANT_ONE_TOKEN_URI:}
+          native-tenant-two:
+            token-uri: ${NATIVE_TENANT_TWO_TOKEN_URI:}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+  autoconfigure:
+    exclude:
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+management:
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  integrations:
+    rabbitmq:
+      enabled: ${RABBITMQ_ENABLED:true}
+    redis:
+      enabled: ${REDIS_ENABLED:true}
+    external-http:
+      enabled: ${EXTERNAL_HTTP_ENABLED:true}
+      user-base-url: ${USER_SERVICE_BASE_URL:http://localhost:18081}
+      teaching-base-url: ${TEACHING_SERVICE_BASE_URL:http://localhost:18082}
+
+egon:
+  cola:
+    component:
+      cache:
+        enabled: true
+        node-id: ""
+        key-prefix: egon:cola:cache:v2:${spring.application.name}
+        tenant-mdc-key: tenantId
+        second-evict-delay: PT5S
+        redis:
+          topic: "egon:cola:cache:event"
+        l1:
+          max-size: 10000
+        ttl:
+          l1-expire: PT5M
+          l1-jitter: PT2M
+          l2-expire: PT1H
+          l2-jitter: PT20M
+          null-expire: PT60S
+        batch:
+          max-keys: 1000
+        lock:
+          wait-time: PT0.5S
+          lease-time: PT10S
+      mybatis-plus:
+        enabled: true
+        tenant-id:
+          mdc-key: tenantId
+          ignored-tables: []
+        audit:
+          user-id-mdc-key: userId
+        pagination:
+          enabled: true
+          max-page-size: 500
+          overflow: false
+        batch:
+          default-size: 1000
+          max-chunk-size: 1000
+          max-collection-size: 10000
+        block-attack:
+          enabled: true
+        optimistic-locker:
+          enabled: true
+        dynamic-table-name:
+          enabled: false
+          tables: {}
+        illegal-sql:
+          enabled: false
+        ddl:
+          enabled: true
+          lock-timeout: PT30S
+          statement-timeout: PT300S
+          topology-ready-timeout: PT60S
+        local-write-guard:
+          enabled: true
+          allowed-root-statements: {}
+        sharding:
+          enabled: true
+          mode: ${APP_DATASOURCE_MODE:SHARDING}
+          config-style: STRATEGY
+          transaction-default-type: LOCAL
+          data-sources:
+            - name: master_data
+              logical-name: master_data
+              role: PRIMARY
+              driver-class-name: ${LIGHT_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${LIGHT_SHARDING_MASTER_DATA_URL}
+              username: ${LIGHT_SHARDING_USERNAME}
+              password: "${LIGHT_SHARDING_PASSWORD:}"
+            - name: shard_0
+              logical-name: shard_0
+              role: PRIMARY
+              driver-class-name: ${LIGHT_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${LIGHT_SHARDING_SHARD_0_URL}
+              username: ${LIGHT_SHARDING_USERNAME}
+              password: "${LIGHT_SHARDING_PASSWORD:}"
+            - name: shard_1
+              logical-name: shard_1
+              role: PRIMARY
+              driver-class-name: ${LIGHT_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${LIGHT_SHARDING_SHARD_1_URL}
+              username: ${LIGHT_SHARDING_USERNAME}
+              password: "${LIGHT_SHARDING_PASSWORD:}"
+          tables:
+            users:
+              type: SINGLE
+              data-source: master_data
+            roles:
+              type: SINGLE
+              data-source: master_data
+            permissions:
+              type: SINGLE
+              data-source: master_data
+            user_roles:
+              type: SINGLE
+              data-source: master_data
+            role_permissions:
+              type: SINGLE
+              data-source: master_data
+            courses:
+              type: SINGLE
+              data-source: master_data
+            school_classes:
+              type: STANDARD_TENANT_ID
+              sharding-column: tenant_id
+            class_course_schedules:
+              type: STANDARD_TENANT_ID
+              sharding-column: tenant_id
+      id:
+        enabled: true
+        machine-id: ${EGON_ID_MACHINE_ID}
+        max-clock-backward: PT0.005S
+      rpc:
+        enabled: ${RPC_ENABLED:true}
+        identity:
+          env: ${APP_ENV:prod}
+          host: ${RPC_ADVERTISED_HOST:localhost}
+          instance-id: ${INSTANCE_ID:${HOSTNAME:local}}
+        provider:
+          enabled: ${RPC_ENABLED:true}
+          port: ${RPC_PORT:50051}
+          advertised-host: ${RPC_ADVERTISED_HOST:localhost}
+          registration-fail-fast: true
+        consumer:
+          enabled: true
+          default-timeout-ms: 3000
+          max-retries: 0
+        tls:
+          enabled: ${RPC_TLS_ENABLED:true}
+          development-plaintext: ${RPC_DEVELOPMENT_PLAINTEXT:false}
+          certificate-chain-path: ${RPC_CERTIFICATE_CHAIN_PATH:}
+          private-key-path: ${RPC_PRIVATE_KEY_PATH:}
+          trust-certificate-collection-path: ${RPC_TRUST_CERTIFICATE_COLLECTION_PATH:}
+      tianshu:
+        tenant-id: ${TIANSHU_TENANT_ID:}
+        enabled: ${TIANSHU_ENABLED:true}
+        biz-code: ${TIANSHU_BIZ_CODE:student-management}
+        app-code: ${TIANSHU_APP_CODE:${spring.application.name}}
+        env: ${APP_ENV:prod}
+        namespace: ${TIANSHU_NAMESPACE:default}
+        registration-resource-uri: ${TIANSHU_REGISTRATION_RESOURCE_URI:}
+        redis:
+          username: ${TIANSHU_REDIS_USERNAME:}
+          enabled: ${TIANSHU_REDIS_ENABLED:true}
+          host: ${TIANSHU_REDIS_HOST:localhost}
+          port: ${TIANSHU_REDIS_PORT:6379}
+          password: ${TIANSHU_REDIS_PASSWORD:}
+          database: ${TIANSHU_REDIS_DATABASE:0}
+        consistency:
+          fail-fast: true
+        registry:
+          enabled: ${TIANSHU_REGISTRY_ENABLED:true}
+          http:
+            enabled: ${TIANSHU_HTTP_REGISTRATION_ENABLED:true}
+            env: ${APP_ENV:prod}
+            namespace: ${TIANSHU_NAMESPACE:default}
+            instance-id: ${INSTANCE_ID:${HOSTNAME:local}}
+            service-name: ${spring.application.name}
+            version: 1.0.0
+            advertised-host: ${HTTP_ADVERTISED_HOST:localhost}
+            port: ${server.port:8080}
+            fail-fast: true
+        rpc:
+          target: ${TIANSHU_RPC_TARGET:}
+          tls:
+            enabled: ${TIANSHU_RPC_TLS_ENABLED:true}
+            development-plaintext: ${TIANSHU_RPC_DEVELOPMENT_PLAINTEXT:false}
+            certificate-chain-path: ${TIANSHU_RPC_CERTIFICATE_CHAIN_PATH:}
+            private-key-path: ${TIANSHU_RPC_PRIVATE_KEY_PATH:}
+            trust-certificate-collection-path: ${TIANSHU_RPC_TRUST_CERTIFICATE_COLLECTION_PATH:}
+          auth:
+            enabled: ${TIANSHU_RPC_AUTH_ENABLED:true}
+            runtime:
+              access-key: ${TIANSHU_RUNTIME_ACCESS_KEY:}
+              secret-key: ${TIANSHU_RUNTIME_SECRET_KEY:}
+            registry:
+              access-key: ${TIANSHU_REGISTRY_ACCESS_KEY:}
+              secret-key: ${TIANSHU_REGISTRY_SECRET_KEY:}
+      yuheng:
+        openapi:
+          enabled: ${OPENAPI_GOVERNANCE_ENABLED:false}
+          publish-to-tianshu: ${OPENAPI_PUBLISH_TO_TIANSHU:false}
+    platform:
+      tianquan:
+        shoubing:
+          enabled: true
+          register-filter: false
+          issuer: ${TIANQUAN_SHOUBING_ISSUER:}
+          jwk-set-uri: ${TIANQUAN_SHOUBING_JWK_SET_URI:}
+          resource-server-id: ${TIANQUAN_SHOUBING_RESOURCE_SERVER_ID:}
+          resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+          clock-skew: PT30S
+          trusted-issuers:
+            tenant-one:
+              issuer: ${NATIVE_TENANT_ONE_ISSUER:}
+              jwks-uri: ${NATIVE_TENANT_ONE_JWKS_URI:}
+              realm-key: ${NATIVE_TENANT_ONE_REALM_KEY:}
+              realm-type: TENANT
+              tenant-id: ${NATIVE_TENANT_ONE_ID:}
+              status: ACTIVE
+              trust-version: ${NATIVE_TENANT_ONE_TRUST_VERSION:1}
+            tenant-two:
+              issuer: ${NATIVE_TENANT_TWO_ISSUER:}
+              jwks-uri: ${NATIVE_TENANT_TWO_JWKS_URI:}
+              realm-key: ${NATIVE_TENANT_TWO_REALM_KEY:}
+              realm-type: TENANT
+              tenant-id: ${NATIVE_TENANT_TWO_ID:}
+              status: ACTIVE
+              trust-version: ${NATIVE_TENANT_TWO_TRUST_VERSION:1}
+          revocation:
+            mode: STRICT_SHARED
+            primary-endpoint: ${OAUTH_REVOCATION_PRIMARY_ENDPOINT:}
+            timeout: PT0.5S
+            epoch: ${OAUTH_REVOCATION_EPOCH:}
+          jwks-cache:
+            ttl: PT300S
+            max-issuers: 1000
+            connect-timeout: PT2S
+            read-timeout: PT5S
+          usage-observation:
+            enabled: true
+            receiver: APPLICATION
+            fallback-issuer: ${TIANQUAN_SHOUBING_ISSUER:}
+            allow-local-plaintext: false
+          audit:
+            stream: egon:oauth:audit:v1
+            spool-directory: ${NATIVE_OAUTH_AUDIT_SPOOL_DIRECTORY:}
+            spool-max-bytes: 1073741824
+            hmac-key-file: ${NATIVE_OAUTH_AUDIT_HMAC_KEY_FILE:}
+            replay-initial-delay: 5000
+            replay-delay: 5000
+            delivery:
+              receipt-ttl: PT1H
+              confirmation-timeout: PT30S
+              batch-size: 100
+          service-client:
+            app-id: stellar-enclosure-source-light
+            registration-id: tianshuregistration
+            credential-versions:
+              tianshuregistration: ${NATIVE_CONTROL_CREDENTIAL_VERSION:1}
+              native-tenant-one: ${NATIVE_TENANT_ONE_CREDENTIAL_VERSION:1}
+              native-tenant-two: ${NATIVE_TENANT_TWO_CREDENTIAL_VERSION:1}
+            # Deployment manifest supplies exact positive tenant IDs; there is no default tenant selection.
+            tenant-registration-ids: {}
+            renewal-skew: PT60S
+          rpc:
+            enabled: true
+            consumer:
+              enabled: false
+              bindings: {}
+            provider:
+              enabled: true
+              methods:
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.CourseService/CreateCourse]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:course:create"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.CourseService/GetCourse]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:course:read"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.PermissionService/GetUserPermissions]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:permission:read"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.PermissionService/GrantPermission]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:permission:grant"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.SchoolClassService/CreateSchoolClass]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:school-class:create"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.SchoolClassService/GetSchoolClass]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:school-class:read"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.SchoolClassService/ScheduleCourse]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:school-class:schedule-course"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.UserService/AssignRole]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:role:assign"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.UserService/CreateUser]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:user:create"]
+                "[top.egon.cola.archetype.source.light.facade.rpc.v1.UserService/GetUser]":
+                  required: true
+                  principal-kind: SERVICE
+                  scope-context: TENANT
+                  expected-resource-uri: ${TIANQUAN_SHOUBING_RESOURCE_URI:}
+                  required-scopes: ["stellar-enclosure-source-light:user:read"]
+        jianshen:
+          enabled: true
+          register-filter: false
+          system-code: stellar-enclosure-source-light
+          user-scope-policy:
+            enabled: true
+            permission-scopes:
+              "[stellar-enclosure-source-light:course:create]": ["stellar-enclosure-source-light:course:create"]
+              "[stellar-enclosure-source-light:course:read]": ["stellar-enclosure-source-light:course:read"]
+              "[stellar-enclosure-source-light:permission:grant]": ["stellar-enclosure-source-light:permission:grant"]
+              "[stellar-enclosure-source-light:permission:read]": ["stellar-enclosure-source-light:permission:read"]
+              "[stellar-enclosure-source-light:role:assign]": ["stellar-enclosure-source-light:role:assign"]
+              "[stellar-enclosure-source-light:school-class:create]": ["stellar-enclosure-source-light:school-class:create"]
+              "[stellar-enclosure-source-light:school-class:read]": ["stellar-enclosure-source-light:school-class:read"]
+              "[stellar-enclosure-source-light:school-class:schedule-course]": ["stellar-enclosure-source-light:school-class:schedule-course"]
+              "[stellar-enclosure-source-light:user:create]": ["stellar-enclosure-source-light:user:create"]
+              "[stellar-enclosure-source-light:user:read]": ["stellar-enclosure-source-light:user:read"]
+          authorization:
+            endpoint: ${TIANQUAN_JIANSHEN_AUTHORIZATION_ENDPOINT:}
+            cache-ttl: PT5M
+            maximum-jitter: PT30S
+            near-cache-ttl: PT5S
+            fetch-timeout: PT1S
+            service-token:
+              enabled: true
+              resource-uri: ${TIANQUAN_JIANSHEN_RESOURCE_URI:}
+              scopes: service:authorization:snapshot
+              renewal-skew: PT60S
+          runtime:
+            redis-enabled: true
+            redis-address: ${RBAC3_RUNTIME_REDIS_ADDRESS:}
+            database: ${RBAC3_RUNTIME_REDIS_DATABASE:0}
+            password-file: ${RBAC3_RUNTIME_REDIS_PASSWORD_FILE:}
+            timeout: PT2S
+
+logging:
+  level:
+
+server:
+  ssl:
+    enabled: true
+    key-store: ${NATIVE_TLS_KEY_STORE:}
+    key-store-password: ${NATIVE_TLS_KEY_STORE_PASSWORD:}
+    key-store-type: PKCS12

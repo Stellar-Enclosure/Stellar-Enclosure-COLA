@@ -1,0 +1,332 @@
+---
+name: stellar-enclosure-coding-writing-spec
+description: Use when a coding task needs a repository-grounded RFC-style specification before implementation planning, including focused layer-local changes, Java/Spring/Egon-COLA coding standards, blocking Manual Checks, architecture selection between the traditional layered profile and an exact egon-cola-archetype COLA profile, requirements/use-case analysis, detailed REST/CQE/GraphQL and springdoc/OpenAPI 3 contracts, or database design.
+---
+
+# Stellar Enclosure Coding Spec Writing
+
+## Dependency approval and backend template generation
+
+After resource preflight, read `references/backend-code-generation.md` for Java dependency decisions or DDL/CRUD scaffolding. Never introduce dependencies autonomously; block missing capabilities and obtain explicit approval for a concrete introduction plan. Prior exact approval remains valid. Once available, use the verified generator at scripts/stellar-enclosure-codegen.sh for supported templates; never invent commands or silently handwrite a replacement. On native light, web, and service, the generator writes only initial CREATE-based scaffolding. ALTER and other later structural changes are analyzed and implemented by the agent under the approved Plan; do not rerun the generator against them. A new business project is created by stellar-enclosure-coding-create-new-module from one non-open archetype, not by handwriting a module tree. After each such apply, or after a plan that is the last authorized generator action, append the classpath SQL journal required by references/backend-code-generation.md.
+
+For native CRUD, `backend-crud` uses the full Repository → Domain Service → Manage → Controller chain where that profile supports HTTP. Check `EgonModel` fields in DDL and keep them inherited in PO. A v1 or stale plan and unmanaged files block apply; use the v2 generator plan and review the exact file list.
+
+Before real business work on a generated project, read `references/archetype-example-cleanup.md` and assess the whole target project across all modules. Record the origin/scan evidence and resolve every unused example in §2.5; feature-local cleanup is insufficient. This also applies to existing projects with remnants and missing creation history. Preserve evidenced real business, required infrastructure and applied SQL history. The Spec designs deletion/replacement; implementation follows its approved cleanup inventory.
+
+## Java / CQE effective contract (2026-09-22)
+
+Read `references/egon-java-cqe-contract.md` after resource preflight for every Java task. Apply its POJO, enum, component/MP reuse, validation, soft-delete uniqueness, CQE delivery and source-grounded DDD checks in design, planning and final review. This is the latest user-directed contract; ordinary three-layer structure stays unchanged.
+
+## Transactional Outbox and Spring Statemachine (2026-09-27)
+
+After resource preflight, read `references/outbox-statemachine-integration.md` when the task adopts Outbox, consumes business Events through Spring Statemachine, or changes technical delivery/migration. The existing single Starter owns the mandatory technical lifecycle; its business adapter is optional. Ordinary queries and unrelated CRUD do not require it, and direct MQ or existing handlers remain valid CQE choices.
+
+Use section 1 to design the two state owners, CQE flow, transition table, transaction/tenant boundaries, durable receipt identity, version/failure semantics and rollout. Choose the optional business adapter explicitly; reuse existing component capabilities and record source gaps rather than treating README wording as runtime proof.
+
+## Purpose
+
+Turn a coding request and the current repository state into a reviewable system-architecture, high-level-design, or detailed-design specification. Write the artifact under `docs/egon/spec` before implementation planning or code changes.
+
+The specification defines **what must be built and why the design is coherent**. It is not an implementation sequence and must not start coding.
+
+## Scope and output contract
+
+- Use this skill only for coding work in an existing or newly initialized repository.
+- Ground every material technical statement in the current repository, an explicit user decision, or a cited predecessor specification.
+- Produce or revise specification documents and relationship metadata only. Do not produce a Plan, modify production code, apply migrations, or start the project.
+- Write the specification in the language requested by the user. If unspecified, follow the language used by the user and nearby repository documentation. Preserve source identifiers, code symbols, paths, schemas, and protocol names exactly.
+- Save every new specification as `docs/egon/spec/YYYY-MM-DD-HH-MM-ABSTRACT.md`.
+  - Use the user's/repository's local time at creation.
+  - Replace `ABSTRACT` with a concise lowercase ASCII kebab-case summary, normally 3–8 words.
+  - Example: `docs/egon/spec/2026-08-15-14-30-account-lockout-design.md`.
+  - Never overwrite a document with the same minute and abstract; choose a more specific abstract.
+- Start from Template Version 9 in `assets/spec-template.md`, including the archetype-cleanup assessment. Keep every numbered chapter, but allocate depth using `references/change-surface-and-proportional-depth.md`: fully design `Affected` areas, keep `Context-only` and `Unchanged` areas concise, and use evidence-backed `N/A` only for `Not applicable`. The validator continues to accept existing Version 2 through Version 8 Specs under their original contracts.
+
+## Time semantics and UTC policy
+
+When time semantics or boundaries are affected, read `references/time-semantics.md`. Distinguish occurred instants (UTC storage and ISO 8601 `Z` transmission), pure dates, local times, zoned schedules and durations. Use explicit business zones for computation and explicit display zones on the frontend; enforce `MC-TIME-001` with concrete boundary/compatibility evidence. This policy does not expand the authorized code/data/migration scope.
+
+## Resource-integrity preflight
+
+Resolve the directory containing this `SKILL.md` as `<skill-root>`. Before reading any bundled reference, template, or helper script, run:
+
+```bash
+python3 <skill-root>/scripts/validate_skill_resources.py
+```
+
+`<skill-root>` is notation, not literal shell text: substitute the resolved absolute directory before executing the command. All bundled paths in this skill are relative to that directory and therefore start with `references/`, `assets/`, or `scripts/`; never resolve a bare filename relative to the repository root or the currently opened reference file. If the preflight reports a missing, escaping, ambiguous, or broken resource, stop before drafting, report the exact diagnostic to the user, and repair/reinstall the skill. Do not continue with a partial skill or silently substitute an invented resource.
+
+## User-mandated Java rules — effective normative source
+
+The following source rules are the consolidated effective requirements (2026-09-22). They are mandatory, not a summary and not optional guidance. Read `references/user-mandated-java-rules.md` for the phase-specific, non-weakened enforcement contract.
+
+```text
+1 类名规范，必须以 java的pojo规范命名。以dao po bo vo dto query command event等结尾
+2 每层之间必须被 springboot-validation 校验，复用对象使用分组校验；基于原生和自定义约束注解、@Valid、@Validated 及 ConstraintValidator 扩展实现。ValidationUtils 只承担通用手工校验，不承载全部业务校验；电话号码复用 libphonenumber。
+3 Java POJO 默认使用 class，注解为 @Data @NoArgsConstructor @AllArgsConstructor @Accessors(chain = true)，按构造目标选择 @Builder 或 @SuperBuilder；父类状态参与相等性时使用 @EqualsAndHashCode(callSuper = true)。只有不可变 value object 可以使用 record，并豁免 class 的 Lombok 规范；普通实体不能因简单而使用 record。使用 MapStruct、MapStructPlus 和 egon-cola-component-common-core 的 BaseConverter（双向）或 BaseForwardConverter（不可逆投影）进行转换。
+4业务类必须使用@Slf4j注解注入log对象。如果业务类被spring管理，必须指定名称，如果是单例的情况下，参考@Service("userService")。如果需要依赖注入，必须@RequiredArgsConstructor进行修饰，不要代码中写。且属性必须被@qualify修饰。
+5 工具类只允许使用jdk原生、Apache Commons(commons-lang3、commons-collections4、commons-io、commons-text、commons-codec、commons-beanutils)、Guava。针对Tika按需引入。
+6 JSON 使用 Spring Boot Jackson；持久化枚举值使用 @EnumValue，向前端输出的枚举值使用 @JsonValue，禁止 ordinal 作为业务编码。
+7 springboot 多环境配置文件，必须保持配置一致，但值不一定一致。
+9 复杂业务必须引入设计模式，不允许硬编码
+10 日期相关的必须使用java.time下的实体类，不允许使用java.util下的
+11 只允许现有三层结构或当前 egon-cola-archetypes 的 DDD 结构，三层结构保持现状。必须尽量复用 egon-cola-components；持久化模块必须使用 Egon COLA MP Starter，DDL 统一由 egon-mp-sdj-ext-starter 分布式管理。业务唯一键必须组合业务列与 deletedAt（数据库 deleted_at），并验证 NULL、租户及重复软删除语义。采用 CQE（Command Query Event）；Event 必须经 egon-cola-component-transactional-outbox-starter 或 MQ 中间件投递。
+```
+
+Do not translate, renumber, correct, shorten, or replace this block with a paraphrase. Literal spellings such as `@qualify`, `convertor`, and `SpringBoot-JackSon` are operationally resolved by `references/user-mandated-java-rules.md` without changing the source text.
+
+## Non-negotiable rules
+
+1. Locate the repository root and read all applicable `AGENTS.md` files before designing.
+2. Inspect the relevant build manifests, modules, source packages, migrations, tests, frontend code, configuration, documentation, and existing `docs/egon/spec` documents. Search legacy design locations when they may contain authoritative decisions.
+3. Identify the actual programming languages, versions, frameworks, module boundaries, package conventions, architecture style, error model, persistence strategy, migration mechanism, frontend stack, and test tools. Follow existing patterns unless the specification explicitly justifies a change.
+4. Convert the original request into stable atomic requirements (`REQ-001`, `REQ-002`, ...), each with observable acceptance criteria and source wording.
+5. Do not silently decide a major ambiguity or repair a major requirement/design defect. Present repository evidence, impact, viable options, and a recommendation; ask the user to decide before finalizing affected design sections.
+6. Resolve small, local, reversible gaps with the smallest repository-consistent inference. Record consequential inferences as `ASM-*` with evidence and the impact if wrong; do not interrupt the user for ordinary naming, placement, or formatting choices.
+7. Use the same metadata header in every Spec. Use RFC-style `Amends`, `Supersedes`, `Depends On`, and `Related Specs` links to make the effective design traceable.
+8. Never silently rewrite an approved predecessor's normative design. Create a later Spec that names the earlier document and exact sections it changes. Metadata-only backlinks may be added when repository policy permits.
+9. A later Spec may fill gaps or correct earlier design. State whether the later document amends only named sections or supersedes the earlier document for a defined scope; unchanged predecessor sections remain effective.
+10. Do not mark a Spec `Accepted` without explicit user/decision-owner approval. An internally complete draft awaiting approval is `Review`; unresolved major decisions require `Draft` and a blocked conclusion.
+11. Design every `Affected` area at detailed-design depth: exact paths/packages, symbols, contracts, fields, state rules, schema, page states, test cases, compatibility, and failure semantics as applicable. For `Context-only` and `Unchanged` areas, record only the evidence, preserved invariant, reason no change is required, and focused verification. Do not invent full production implementations or redesign adjacent layers.
+12. Review the finished Spec against the original user request and the current repository before delivery. Fix internal defects yourself; surface only unresolved major decisions.
+13. Classify Java objects by their actual boundary and lifecycle roles. Follow `references/pojo-modeling.md` and `references/java-spring-egon-coding-standards.md`. New or materially changed carriers use explicit semantic suffixes such as PO, BO, DTO, VO, Query, Command, Event, Result, PageQuery, or PageResult; DAO names an access component. Do not create parallel classes by default, and do not introduce ambiguous `Data`, `Info`, `Param`, or `Bean` carrier names.
+14. Prevent class explosion. Require a concrete semantic reason for every distinct object and mapper. PO/ORM Entity inheritance is allowed only with repository and lifecycle justification; concrete business services default to composition and delegation rather than inheritance.
+15. Before Java package design, classify the current project as exactly one allowed profile: the traditional structure defined by `references/three-layer-architecture.md`, or the exact selected `stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-{light,service,web}` contract, including an explicitly selected open variant. Preserve the selected profile and its verifier/dependency direction. Do not invent, hybridize, or rename layers/modules. If the project matches neither profile or the evidence conflicts, treat architecture as a major blocker and ask the user. This skill does not create the project. A new business module is generated first by `stellar-enclosure-coding-create-new-module` from exactly one non-open archetype (`light`, `service`, `web`, or `agent`). Do not select an `-open` artifact for that new module and do not copy `source-projects`. An existing open or traditional tree stays as it is. The generator still does not cover open, agent, or traditional, and those profiles are not a reason to handwrite native catalog output.
+16. Classify every Spec as `Simple` or `Complex` using `references/complex-scenario-analysis.md`. For a Complex Spec, complete the evidence map, scenario matrix, ownership/consistency analysis, quality constraints, and evidence-to-decision conclusion chain before selecting the architecture. Do not burden a Simple Spec with ceremonial analysis.
+17. Split Chapter 7 into System Architecture Design, High-Level Design, and Detailed Design. Describe only the affected collaboration plus the context needed to prove its boundary. A Complex Spec must contain an architecture Mermaid flowchart, a separate critical business/control flowchart, and a Mermaid swimlane/sequence view covering the main participants and important failure behavior; a focused Simple Spec must not add decorative full-system diagrams.
+18. Read `references/interface-contract-design.md` when an HTTP/RPC/event/job/internal Service contract is `Affected`. When an external REST or GraphQL API is `Affected`, also read `references/api-rest-cqe-graphql-openapi.md` completely. Assign one interface ID per atomic REST Method + URL, GraphQL root-field operation contract, or other protocol operation; never group a CRUD variant and never treat `/graphql` alone as the operation. Inventory and fully expand every changed contract. Every external API must classify its REST/GraphQL style and Query/Command/Subscription role, design its OpenAPI 3 or GraphQL schema documentation, and close all `API-GATE-*` rows. When an existing interface is only `Context-only` or `Unchanged`, cite its exact current symbol/route and preserved invariant without reproducing its full request/response, annotations, or SDL.
+19. Read `references/database-design.md` when schema, data semantics, constraints, indexes, schema-change/DDL, sharding, datasource topology, transaction/locking behavior, or authoritative persistence ownership is `Affected`. Inventory and expand only those affected database elements. A DAO query-only change may record the exact SQL/access path and relevant existing index evidence without reproducing complete unchanged tables or ER relationships.
+20. Read `references/requirements-use-case-analysis.md` for every Spec. Requirements analysis must identify real actors and stable `UC-*` use cases with triggers, preconditions, main outcomes, alternatives/failures, postconditions, and traceability. Use a complete table or a Mermaid `flowchart`; prefer a Mermaid system-boundary view for complex or multi-actor behavior. Do not confuse use cases with Controller methods or architecture call chains.
+21. Whenever the relational data model, tables, keys, constraints, or relationships are `Affected`, add a Mermaid `erDiagram` covering every affected inventory table, directly relevant neighboring tables, actual cardinalities, relationship labels, and material PK/FK/UK fields. Map renderer-safe entity names to exact physical tables. Do not redraw an unchanged ER model for a DAO-only query or mapping change.
+22. Read `references/minimal-design-and-interface-necessity.md` before selecting architecture elements or assigning interface IDs. Start from the direct reuse/no-new-element baseline. Every new or materially expanded API, RPC/event, class, layer, table, cache, job, dependency, or frontend store/provider must prove a current requirement that the simpler alternative cannot satisfy and must record its added calls, state, coupling, failure, migration, and operational cost. Reject fetch-then-forward interfaces whose result is only copied into another request when the target can derive or validate the value itself.
+23. Read `references/change-surface-and-proportional-depth.md` before target design. Build an impact cone from the requested symbols, classify each relevant area as `Affected`, `Context-only`, `Unchanged`, or `Not applicable`, and record `Change Surface` plus `Affected Chapters` in the Header. The presence of a layer is not evidence that it must be redesigned. If repository evidence requires a major scope expansion beyond the user's stated boundary, stop and ask before widening it.
+24. Read `references/java-spring-egon-coding-standards.md` for every Java task. Before selecting new code, prove architecture and existing-capability discovery. Design semantic names, Bean Validation/groups/normalization, record/Lombok construction, MapStruct/MapStructPlus conversion and `BaseConverter` reuse, `@Slf4j`, explicit Bean names, qualified constructor injection, approved utilities, Jackson, `java.time`, configuration parity, and justified design patterns. Additional dependencies or custom infrastructure require a proven gap.
+25. Complete the blocking Manual Check catalog in Chapter 20. Every applicable `MC-*` row must be `PASS` with concrete repository/design evidence; an inapplicable row must be `N/A` with evidence and reason. Any `FAIL`, `BLOCKED`, `UNKNOWN`, missing ID, missing evidence, or unresolved exception prohibits a PASS verdict.
+26. For every Java Spec, apply `references/user-mandated-java-rules.md` literally. Include the ten-row rule matrix using the user's original numbering `1, 2, 3, 4, 5, 6, 7, 9, 10, 11`. Do not downgrade a literal “must/only/not allowed” into preference language. Any inability to satisfy a row is a user-decision blocker, not an implicit exception.
+
+## Mandatory reference loading and drafting passes
+
+Do not judge completeness by the line count of `SKILL.md` or the generated Spec. This file is the workflow entry point; the detailed operating rules live in references and the output template. Judge the result by evidence density, contract completeness, cross-section consistency, and whether another engineer can implement it without inventing design decisions.
+
+Read every applicable reference **completely before drafting the corresponding chapter**. Do not rely on the short summary in this file:
+
+| Situation | References that must be read completely |
+| --- | --- |
+| Every Spec | `references/ambiguity-policy.md`, `references/rfc-governance.md`, `references/complex-scenario-analysis.md`, `references/requirements-use-case-analysis.md`, `references/change-surface-and-proportional-depth.md`, `references/minimal-design-and-interface-necessity.md`, `references/review-checklist.md`, and `assets/spec-template.md` |
+| Every Java design | `references/user-mandated-java-rules.md` and `references/java-spring-egon-coding-standards.md`; also `references/three-layer-architecture.md` and `references/pojo-modeling.md` for the traditional profile, or the exact selected repository Archetype tree/verifier for the COLA profile |
+| Real business work in a generated archetype project, including existing remnants | `references/archetype-example-cleanup.md` before deciding §2.5, change surface, target tree and tests |
+| Any `Affected` HTTP/RPC/event/job/internal Service contract | `references/interface-contract-design.md` |
+| Any `Affected` external REST or GraphQL API | `references/interface-contract-design.md` and `references/api-rest-cqe-graphql-openapi.md` |
+| Any `Affected` schema/data/constraint/index/DDL/sharding/datasource/topology/transaction/locking/persistence-ownership surface | `references/database-design.md` |
+
+For a Complex Spec, use four explicit passes. Preserve the resulting analysis in the Spec instead of collapsing it into a summary:
+
+1. **Discovery pass** — collect exact repository evidence, current call chains, consumers, data stores, configuration, tests, and predecessor decisions; mark evidence, inference, and unverified runtime behavior.
+2. **Scenario pass** — enumerate happy, alternative, validation, permission, empty, duplicate, concurrent, timeout, partial-failure, rollback, retry, and recovery paths that materially apply.
+3. **Design pass** — establish the reuse/direct/no-new-element baseline first; then decide only the necessary ownership, contracts, data flow, transaction/consistency boundaries, failure semantics, compatibility, files, models, schema, frontend states, and tests. Derive each material decision and complexity increase from evidence.
+4. **Consistency pass** — compare requirements, diagrams, interfaces, POJOs, tables/indexes, pages, tests, rollout, and traceability field-by-field and state-by-state; repair contradictions before validation.
+
+Minimum depth is structural, not numerical padding:
+
+- a Complex Spec must contain at least two evidence/current-chain rows, three materially distinct scenario rows, three applicable quality/constraint rows, and two evidence-to-decision conclusion chains unless the affected subsection records `Depth exception:` followed by repository evidence proving that fewer real items exist;
+- every Spec must define one evidence-backed change-surface matrix, name the affected design chapters, and apply full detail only to `Affected` rows; `Context-only`, `Unchanged`, and `Not applicable` are not permission to invent target design;
+- every Spec must contain evidenced actors and stable `UC-*` goals in either a complete table or Mermaid use-case view, with conditions, outcomes, postconditions, and forward traceability;
+- every proposed element must have an `Add/Keep/Merge/Remove` necessity verdict against a direct existing/reuse alternative; no new interface may exist only to fetch values that the caller forwards unchanged or the target can derive;
+- every affected interface inventory item must contain all required per-interface subsections, actual protocol identity, complete parameter rules, success and error outcomes, ordered consumer logic, and verification;
+- every affected external API must additionally contain a protocol/CQE decision, REST resource/HTTP semantics or complete GraphQL SDL/operation/resolver semantics, documentation ownership, security/exposure, exact generated-contract verification, and nine closed `API-GATE-*` rows;
+- every affected database inventory item must contain all required per-table subsections, a complete affected-column table, per-index justification tied to real access paths, STRATEGY type/shard key/2n topology, managed-DDL/history handling, and consistency/recovery rules;
+- every affected relational-model table inventory must be represented in a Mermaid `erDiagram` with physical-name mapping and relationship/key semantics consistent with the detailed design;
+- an `Affected` area may use `N/A`, “same as existing,” “handled by framework,” a class name, or a link in place of detail only when it cites the exact authority and proves no new decision is needed; `Context-only`, `Unchanged`, and `Not applicable` use their dedicated concise treatments instead.
+
+## Ambiguity and decision boundary
+
+Read `references/ambiguity-policy.md` before asking questions.
+
+Ask the user when a wrong choice would materially change business behavior, scope, public API/RPC/event contracts, ownership boundaries, persistent data, migrations, security/permissions/tenancy, financial correctness, consistency/concurrency, technology selection, deployment topology, external dependencies, compatibility, or irreversible operations.
+
+When several major questions are discovered during one inspection pass, bundle the connected questions with options and consequences so the user can make one coherent decision. Do not repeatedly interrupt for newly discovered details that the repository can answer.
+
+Infer only when the gap is local, reversible, non-observable outside an already-decided contract, and strongly supported by repository convention.
+
+## RFC-style metadata and relationships
+
+Use this exact header field set in every Spec:
+
+| Field | Required meaning |
+| --- | --- |
+| Document | Current filename as a relative repository link or code value |
+| Template Version | `9` for the current template; existing Version 2 through Version 8 documents remain valid under their effective rules |
+| Archetype Cleanup | `Required`, `Complete`, or `Not applicable`, matching §2.5 and its current project evidence |
+| Status | `Draft`, `Review`, `Accepted`, `Implemented`, `Superseded`, or `Rejected` |
+| Type | `Feature`, `Refactor`, `Bugfix`, `Architecture`, or another clearly defined coding type |
+| Complexity | `Simple` or `Complex` |
+| Complexity Drivers | Material interaction/decision-risk drivers, or `None` for a Simple Spec |
+| Created | `YYYY-MM-DD HH:mm ZONE` |
+| Updated | `YYYY-MM-DD HH:mm ZONE` |
+| Owner | User, team, or decision owner |
+| Repository | Repository name |
+| Scope | Affected modules or bounded context |
+| Change Surface | Concise statement of the exact files/layers/behaviors that change |
+| Affected Chapters | Comma-separated design chapters (`§7` through `§18`) receiving `Affected` detail |
+| Source Requirement | User request, issue, ticket, or linked brief |
+| Baseline Revision | Git commit/branch or explicit uncommitted-worktree snapshot |
+| Amends | Earlier Spec links plus exact sections partially changed, or `None` |
+| Supersedes | Earlier Spec links plus replaced scope, or `None` |
+| Depends On | Normative predecessor/dependency links plus exact sections, or `None` |
+| Related Specs | Non-normative contextual links, or `None` |
+| Related Plans | Plans implementing this Spec, or `None` |
+
+Relationship targets may be any repository design document, including legacy paths outside `docs/egon/spec`, when that document is still authoritative. Use relative Markdown links and exact section anchors/numbers. Resolve the effective design in this order:
+
+1. Start from the referenced base design.
+2. Exclude content superseded for the current scope.
+3. Apply accepted amendments in chronological order.
+4. Include normative dependencies.
+5. Stop and ask the user if accepted documents conflict without a governing relationship.
+
+Read `references/rfc-governance.md` for lifecycle and backlink rules.
+
+## Required design workflow
+
+1. **Reconstruct and classify the request**
+   - Quote or accurately paraphrase the original goal, constraints, exclusions, and success criteria.
+   - Create the `REQ-*` inventory and identify missing decisions.
+   - Apply `references/requirements-use-case-analysis.md`; identify evidenced actors and map behavioral requirements into `UC-*` goals, flows, outcomes, and postconditions.
+   - Apply `references/complex-scenario-analysis.md`; record `Simple`/`Complex` and the concrete drivers.
+   - Apply `references/change-surface-and-proportional-depth.md`; build the impact cone and classify relevant areas before choosing target architecture.
+2. **Inspect the repository**
+   - Record real files, symbols, consumers, call chains, schemas, pages, tests, and build commands.
+   - Separate repository/static evidence from assumptions and from unverified runtime claims.
+   - Trace callers and callees only until the preserved boundary is proven; do not turn inspected context into implicit implementation scope.
+   - Assess the archetype-cleanup trigger. For generated-business work, scan all target modules and complete §2.5 under `references/archetype-example-cleanup.md`; include all unused example chains, not only the touched feature. Make needed cleanup explicit scope, requirements, target paths and acceptance tests. For absent triggers, record evidence-backed `Not applicable`.
+3. **Resolve design history**
+   - Search current and legacy Spec locations.
+   - Determine whether this Spec is new, amending, superseding, dependent, or merely related.
+4. **Handle ambiguity**
+   - Ask for major decisions before finalizing affected sections.
+   - Infer small gaps and record consequential assumptions.
+5. **Analyze complex scenarios**
+   - For a Complex Spec, complete the evidence/current-chain map, scenario matrix, boundary/data ownership map, quality-attribute matrix, critical failures, and conclusion chains before choosing the architecture.
+   - For a Simple Spec, state why the lightweight path is sufficient and continue without invented complexity.
+6. **Design the solution**
+   - Apply `references/minimal-design-and-interface-necessity.md`. Evaluate the direct repository-consistent reuse/no-new-element design first and select a more complex option only when a current approved requirement proves the direct option insufficient.
+   - Explicitly consider appropriate patterns such as Strategy, Template Method, Factory, Adapter, Facade, State, Observer, Command, or Specification.
+   - When affected business logic is classified Complex, select and fully design an actual pattern; direct branching is prohibited. Simple logic remains direct so the pattern rule does not create ceremonial classes.
+   - For Java work, apply `references/user-mandated-java-rules.md` and `references/java-spring-egon-coding-standards.md`. Confirm exactly one allowed architecture profile and build a reuse ledger before designing dependencies or abstractions. For the traditional profile, also read `references/three-layer-architecture.md` and `references/pojo-modeling.md`; for COLA, inspect the exact selected Archetype tree, module dependencies, examples, and generated verifier.
+   - Read `references/interface-contract-design.md` and `references/database-design.md` only when their surfaces are `Affected`; for an affected external REST/GraphQL API, additionally read `references/api-rest-cqe-graphql-openapi.md` and design the protocol/CQE, documentation, generated-contract, and API blocking gates. Otherwise cite the authoritative current contract or persistence evidence and preserved invariant concisely.
+   - For an affected relational model, derive a Mermaid `erDiagram` from evidenced table ownership, keys, and cardinalities before finalizing per-table details; do not redraw unchanged relationships for query-only work.
+7. **Write the Spec**
+   - Copy `assets/spec-template.md`, keep all numbered chapters, and fill them according to the change-surface disposition. Remove optional deep subsections for `Context-only`, `Unchanged`, or `Not applicable` areas instead of filling them ceremonially.
+   - Use exact signatures, field tables, state transitions, file trees, and pseudocode where they clarify design; do not write production-ready method bodies.
+   - Include the selected use-case artifact and, when the relational model/relationships are affected, the Mermaid ER diagram.
+   - Expand every affected interface and every affected table/index; do not inventory unchanged elements merely to make the document look complete.
+   - Preserve §2.5 in every Version 8 Spec. Required cleanup must trace each Delete/Replace `EXAMPLE-*` through §8 and §14 and its `REQ-*` through §4 and §19; a reference-only or deferred example cannot PASS.
+8. **Review and repair**
+   - Apply `references/review-checklist.md`.
+   - Repair omissions, contradictions, stale paths, vague placeholders, broken traceability, and unjustified scope expansion.
+   - Execute every blocking `MC-*` row manually. Close failures and blockers or change the final verdict; do not summarize several checks into one assertion.
+   - Reject missing whole-project example discovery, unsupported retention or unresolved cleanup decisions. The Plan/Execute handoff must consume every inventory ID before first-business acceptance.
+9. **Validate and deliver**
+   - Run `scripts/validate_spec.py <spec-path> --strict`.
+   - Report the path, status, predecessor relationships, assumptions, and unresolved user decisions.
+   - Stop for user review. Do not write a Plan until the user explicitly requests planning against this Spec and any required approval gate is satisfied.
+
+## Required chapters and depth
+
+The template is normative. At minimum, the Spec must contain:
+
+1. **Summary** — problem, chosen direction, affected scope, and intended result.
+2. **Background and current state** — actual behavior, call chain, existing consumers, repository evidence, and gap.
+3. **Goals and non-goals** — explicit scope control.
+4. **Requirements, acceptance criteria, and use-case analysis** — atomic `REQ-*` items and observable outcomes plus evidenced actors and `UC-*` goals. Use a complete use-case table or Mermaid `flowchart`; define triggers, preconditions, main/alternative/failure outcomes, postconditions, interfaces/pages, and tests.
+5. **Constraints, assumptions, and decisions** — confirmed constraints, `ASM-*`, resolved decisions, and open blockers.
+6. **Project technology context** — only current language/framework/build/module/persistence/frontend/testing facts that constrain affected work or prove a stopping boundary.
+7. **Architecture design** — begin with a minimum-design/element-necessity audit, then keep System Architecture Design, High-Level Design, and Detailed Design. Fully define only affected boundaries, collaboration, data/control flow, transactions, failure handling, and observability; cite surrounding unchanged architecture only to prove the stopping boundary. Complex Specs use the required three diagrams; focused Simple Specs omit non-informative diagrams with evidence.
+8. **Package structure and code file tree** — show the exact affected files and only the parent/context paths needed to locate them, with operations, symbols, responsibilities, and requirement mapping. Do not emit a full Controller/Service/DAO tree for a DAO-only task. Keep `biz.service.impl` nested under `biz.service` when it is in scope.
+9. **Interface definitions** — fully inventory and expand only added, removed, or materially changed HTTP/RPC/event/internal contracts. For unchanged boundaries, cite the exact existing route/symbol, consumers, and preserved request/response/error/documentation invariant without reproducing full JSON, annotations, or SDL. Every affected external API requires a necessity decision; REST/GraphQL and Query/Command/Subscription classification; verified operation identity; complete input rules and full commented success/error `jsonc`; logic, security, compatibility, tests, and consumer behavior. REST additionally requires resource/method/status/header semantics, springdoc/OpenAPI 3 annotation ownership, explicit `operationId`, full responses/security/schemas, and generated OAS verification. GraphQL additionally requires complete affected SDL, named operation/variables/selection, resolver mapping, null/partial-error semantics, batching/N+1/cost controls, field security, and schema/`GraphQlTester` verification. All nine `API-GATE-*` rows are blocking.
+10. **POJO and data model design** — fully design only affected/new types, fields, mappings, lifecycle, or reuse decisions. For unchanged models, cite the exact type and preserved invariant; do not inventory unrelated PO/DTO/BO/Entity/VO classes. A changed relational model must agree with the ER diagram.
+11. **Database design** — fully inventory and expand only affected schema/data/constraint/index/DDL/sharding/transaction elements. Draw a Mermaid `erDiagram` when the relational model or relationships change. For a DAO query-only change with unchanged schema, record the exact query/access path, relevant columns/index evidence, and preserved schema invariant without reproducing the whole table or ER model.
+12. **Frontend page design** — fully design routes, components, flows, mappings, and states only when frontend behavior is affected. Existing unaffected frontend receives one evidence-backed `Unchanged` record; absent frontend is `N/A`.
+13. **Design patterns and architecture principles** — consider patterns, dependency direction, cohesion, coupling, information hiding, SOLID, YAGNI, inheritance, and composition only for affected variation points and boundaries; do not restate the whole architecture.
+14. **Test design** — define focused tests for changed behavior and the smallest caller/contract/schema regressions proving the declared preserved boundaries; add higher-level tests only when the impact cone requires them.
+15. **Non-functional and cross-cutting design** — fully design only materially affected security, tenancy, privacy, performance, capacity, caching, audit, observability, operations, and maintainability concerns; otherwise record preserved invariants or `N/A` as appropriate.
+16. **Compatibility, migration, rollout, and rollback** — cover only consequences created by the affected surface and explicitly name preserved public/internal contracts, schema, callers, and deployment behavior.
+17. **Alternatives and decisions** — compare the direct/no-new-element baseline with viable alternatives for the affected decision only; do not create alternatives for unchanged layers.
+18. **Risks and open questions** — include risks from the affected surface and any evidence-backed scope-expansion conflict; do not inventory generic project risks.
+19. **Traceability matrix** — every `REQ-*` maps to affected areas/chapters, context-only or unchanged boundaries, tests, and acceptance evidence; every proposed element maps back to a requirement or necessary infrastructure rationale.
+20. **Review and acceptance** — original-request fidelity, repository fidelity, cross-section consistency, relationship correctness, the complete blocking Manual Check table, and final verdict.
+
+## Completion verdicts
+
+Use exactly one:
+
+- `PASS — Ready for user review`
+- `BLOCKED — User decision required`
+- `REVISE — Internal inconsistency found`
+
+`PASS` means the document is internally complete and every blocking Manual Check is `PASS` or evidence-backed `N/A`; it does not mean the user has accepted it. `BLOCKED` must name the decisions required. Never claim implementation or runtime verification from a Spec-only task.
+
+## Common failures
+
+| Failure | Required correction |
+| --- | --- |
+| Restating the request without repository evidence | Inspect real code, contracts, data, UI, tests, and consumers first |
+| Producing a weak conclusion for a complex scenario from one happy-path call chain | Build the scenario, ownership, failure, consistency, and quality-attribute analysis; derive each conclusion through evidence -> constraint -> decision -> consequence -> verification |
+| Listing requirements without actor goals and use cases | Add evidenced `ACTOR-*` and `UC-*` analysis using a complete table or Mermaid system-boundary view, including triggers, conditions, outcomes, failures, postconditions, and traceability |
+| Choosing major semantics because one option seems obvious | Present evidence/options and ask the user |
+| Interrupting for names or reversible local details | Infer the smallest repository-consistent choice |
+| Silently editing an approved predecessor | Create an amending or superseding Spec with exact section links |
+| Listing packages without a file tree or responsibilities | Add exact target paths, operations, symbols, ownership, and `REQ-*` mapping |
+| Interfaces, entities, schema, UI, and tests disagree | Repair through field/state/requirement traceability |
+| Providing an interface inventory without expanding each contract | Add one detailed subsection per ID with exact route/symbol, request rules, response/error payloads, logic, consumers, compatibility, and tests |
+| REST/GraphQL/CQE appears only as a label | Classify every API operation, prove the protocol and minimum CQE level, and define read/write/side-effect/idempotency semantics |
+| Copying the referenced Swagger repository's Springfox setup | Treat it as legacy inspiration only; use the project-compatible springdoc starter and `io.swagger.v3.oas.annotations.*`, or record a legacy compatibility blocker |
+| OpenAPI annotations are listed without generated-document behavior | Define annotation ownership and exact `operationId`, parameters, request body, statuses, headers, schemas, security, exposure, and generated OAS assertions |
+| GraphQL is documented only as `POST /graphql` or through Swagger annotations | Define one contract per root field with SDL, named operation, variables/selection, resolver, null/errors, batching/cost, field security, and schema tests |
+| CQE creates a bus/read store/event sourcing for simple CRUD | Return to L0/L1 and require current scale, consistency, history, or security evidence before adding physical separation |
+| Adding an interface because another request needs a parameter | Determine parameter ownership first; derive it in the target backend, reuse current route/context/local data, or accept a stable business key. Keep a separate query only for a proven independent selection/discovery/negotiation use case |
+| Selecting a larger design because the template has more chapters | Apply the dominance rule and choose the direct option when it satisfies the same requirements with fewer contracts, states, dependencies, calls, and failure points |
+| Showing a response class name or abbreviated JSON | Show the actual full `jsonc` wire shape and add a line-end meaning comment to every field |
+| Listing tables or indexes without per-item design | Expand every table and index with columns, semantics, query/access evidence, index rationale, sharding type, managed DDL, locking, verification, and rollback |
+| Designing relational data without an ER diagram, or drawing an ER diagram that omits inventory tables | Add a Mermaid `erDiagram` with physical-name mapping, actual cardinalities/labels, and material PK/FK/UK fields; reconcile it with every table detail |
+| Using a single decorative diagram for a complex architecture | Provide separate architecture, critical-flow, and swimlane Mermaid views that match contracts, data, failures, and dependency rules |
+| Creating PO/DO/Entity/BO/DTO/VO/Result for every layer by default | Apply the class-necessity test; reuse semantically identical safe types and keep only justified boundaries |
+| Using ambiguous `DO`, `VO`, or `Entity` terminology without repository meaning | State the exact role; in the current profile, `VO` means View Object and `Entity` must have an explicit persistence/ORM meaning |
+| Reusing a persistence object as a public contract to reduce classes | Keep persistence concerns behind the boundary and create only the necessary transport/view type |
+| Designing business services through a base-class hierarchy for code reuse | Compose explicit collaborators; allow inheritance only for a justified existing framework extension contract |
+| Placing `impl` beside `service` | Move implementations under `biz.service.impl` |
+| Mixing traditional-layer and Archetype COLA responsibilities, or adding COLA concepts while the traditional profile is selected | Select exactly one profile from repository evidence; keep traditional work in its approved packages, or follow the selected `egon-cola-archetype` tree exactly |
+| Inventing a hybrid architecture instead of selecting the current traditional or exact Archetype profile | Stop, cite the real tree and Archetype evidence, and obtain a user decision before structural change |
+| Adding a dependency or helper without checking Spring/Egon/module reuse | Build the reuse ledger; use existing capability or document the proven gap and approved impact |
+| Using `Data`, `Info`, `Param`, or `Bean` for a new carrier | Rename it to the exact PO/BO/DTO/VO/Query/Command/Event/Result or behavior role |
+| Marking the Spec PASS with a missing/failed/unknown Manual Check | Close every blocker and add evidence, or use `BLOCKED`/`REVISE` |
+| Letting a Controller access DAO or `service.impl` directly | Depend on the Service interface and keep persistence behind the implementation |
+| Treating a Complex business rule as direct logic or leaving `if/else`/`switch` dispatch | Select and fully design the mandatory pattern, participants, registration/selection mechanism, failures, and tests |
+| Treating integration tests as unit-test design | Define isolated unit behavior and separate higher-level coverage |
+| Fully redesigning Controller, Service, models, database, or frontend because one DAO changes | Build the change-surface matrix; fully design the DAO and tests, keep only necessary caller/database context, and mark preserved layers `Unchanged` |
+| Using `N/A` for an existing but unchanged layer | Use `Unchanged` with exact evidence, preserved invariant, stopping reason, and focused verification |
+| Omitting a non-applicable chapter | Keep it and write evidence-backed `N/A`; do not confuse `Not applicable` with `Unchanged` |
+| Writing implementation order or code | Stop at design; use `stellar-enclosure-coding-writing-plan` after review |
+| Handwriting initial CREATE catalog PO/DAO/XML/Repository types, or a new module tree | On native light/web/service, mark initial CREATE catalog files as generator-owned; later ALTER changes are agent-owned. Create a new project with `stellar-enclosure-coding-create-new-module` from one non-open archetype |
+
+## Skill maintenance
+
+When changing this skill, first run the literal-rule preservation test (`scripts/test_user_mandated_java_rules.py`), resource-integrity tests (`scripts/test_validate_skill_resources.py`), change-surface tests (`scripts/test_validate_spec_scope.py`), Manual Check tests (`scripts/test_validate_manual_checks.py`), API-contract tests (`scripts/test_validate_api_contracts.py`), and preflight (`scripts/validate_skill_resources.py`), then run `references/acceptance-scenarios.md` as review cases and the applicable output validator. Keep `SKILL.zh-CN.md` plus all `*.zh-CN.md` review mirrors synchronized with the English operational contract. A change is not complete if the verbatim source block changes, any bundled resource is missing, a path is ambiguous/escaping, or a local Markdown link is broken.
+
+## Contributors
+
+- mario
+- claudecode
+- grok
+
+
+## Constructor injection amendment (2026-10-13)
+
+For Spring dependency-injection constructors, explicitly declare `@Autowired` even when there is only one
+constructor. Keep final dependency fields and use `@RequiredArgsConstructor(onConstructor_ = @Autowired)`;
+retain stable Bean names and every `@Qualifier`, including its propagation to generated constructor parameters.
+With multiple constructors, annotate only the intended DI constructor. Field injection remains forbidden.
+This rule does not apply to DTO/PO/exception/Domain value construction or `@ConfigurationProperties` constructor
+binding; `@Autowired` on a binding constructor changes its semantics. Verify the emitted constructor annotation
+and parameter Qualifiers by compilation/reflection. Source-projects and CRUD templates are the producer truth;
+do not patch generated Java. This amendment supplements Rule 4 without changing the historical quoted text.

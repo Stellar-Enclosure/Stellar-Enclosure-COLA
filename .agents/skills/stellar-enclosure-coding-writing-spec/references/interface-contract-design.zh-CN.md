@@ -1,0 +1,436 @@
+# 逐接口契约设计
+
+> 本文件是 `references/interface-contract-design.md` 的全中文审核镜像。第 9 章存在 HTTP、RPC、事件/消息、CLI、定时任务或内部 Service 契约时必须读取。接口清单只是索引，清单中的每一项都必须有完整展开章节。外部 REST 或 GraphQL API 被影响时，还必须完整读取 `references/api-rest-cqe-graphql-openapi.zh-CN.md`，并执行其中更严格的协议、CQE、springdoc/OpenAPI 3、GraphQL、安全、生成契约和阻断门禁规则。
+
+## 目录
+
+- [接口清单](#接口清单)
+- [接口准入与必要性门禁](#接口准入与必要性门禁)
+- [每个接口必需结构](#每个接口必需结构)
+- [契约编写顺序](#契约编写顺序)
+- [完整 HTTP 示例](#完整-http-示例)
+- [列表查询展开示例](#列表查询展开示例)
+- [非 HTTP 契约](#非-http-契约)
+- [深度与一致性门禁](#深度与一致性门禁)
+- [契约复核失败条件](#契约复核失败条件)
+
+## 外部 API 专项规则
+
+外部 API 受影响时，本参考提供原子契约通用结构，`references/api-rest-cqe-graphql-openapi.zh-CN.md` 则是 API 风格与文档细节的权威规范。
+
+- 每个可独立调用 REST Method + URL 或 GraphQL Root Field Operation Contract 使用一个 `API-*` ID。GraphQL 清单身份必须包含传输与准确 Field，例如 `POST /graphql :: Query.order`；只有 `/graphql` 不能算 Operation 清单。
+- 每个 API 必须分类为 `REST Query`、`REST Command`、`GraphQL Query`、`GraphQL Mutation` 或 `GraphQL Subscription`。必须做 CQE 语义分类，但不强制拆分读写存储。
+- REST 详情增加“API 风格与 CQE 语义”和“文档契约”，覆盖 springdoc/OpenAPI 3 注解与生成 OAS 校验。
+- GraphQL 详情使用相同标题，但内容为 SDL、具名 Operation Document、Spring Resolver Mapping、Coercion/Error、Batching/Cost 和 Schema 校验。Swagger 注解不能记录 GraphQL Field。
+- Spec 通过前，第 9.4 节必须关闭 API 参考中的全部 `API-GATE-*` 行。
+
+## 接口清单
+
+使用稳定 ID，例如 `API-001`、`RPC-001`、`EVENT-001`、`JOB-001`、`INTERNAL-001`。
+
+一个 ID 只代表一个原子协议操作：一个 HTTP Method + URL、一个 RPC Service Method、一个事件/Topic Schema 契约、一个 Job 或一个内部方法。不得把整组 CRUD、多个 URL、集合/详情/状态操作合并在一行；共同规则可以复用引用，但每个操作仍要独立定义。
+
+| ID | 变更/必要性结论 | 名称/用途 | 类型 | API 风格/CQE 角色 | 消费者 | 所有者 | Method + URL / GraphQL Field / Symbol / Topic | Operation ID/Schema 来源 | 入参 | 出参 | 鉴权/租户 | 错误模型 | 幂等/版本 | 需求 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+清单和详细章节必须一一对应：清单项不能缺少详情，详细契约也不能游离在清单之外。
+
+## 接口准入与必要性门禁
+
+分配新 ID 前执行已经加载的 `references/minimal-design-and-interface-necessity.zh-CN.md`。不能仅因为调用方缺少另一个操作的请求字段就新增接口。
+
+以下情况默认拒绝独立操作：
+
+- 返回结果只被原样复制到下一请求；
+- 目标操作能从认证身份、租户上下文、Route/当前资源、持久化关系或服务端配置派生；
+- 调用方已经通过用户输入、当前记录、本地 Registry、构建产物或前一次业务结果持有；
+- 返回应保持本地的固定枚举/构建期 Metadata；
+- 只执行 Command 必须再次权威执行的校验；
+- 增加 Preflight 往返却没有独立用户可见价值。
+
+只有证明独立搜索/展示/选择/审计/能力协商目标、服务端独立变化、共享复用、缓存/版本和 Command 时陈旧选择处理时，才能保留或新增 Selector/Discovery 操作。
+
+每个接口记录 `Existing/Modify/New/Remove` 和 `Add/Keep/Merge/Remove` 结论。被删除/合并的候选可以保留在设计审核表，但不能作为保留契约 ID 出现在最终清单。
+
+## 每个接口必需结构
+
+每个契约 ID 使用一个独立小节，并保持以下结构。
+
+每个外部 `API-*` 都必须在必要性小节后立即插入“API 风格与 CQE 语义”，并在兼容性之前插入“文档契约”；两者必须使用 `assets/spec-template.md` 中的规范表格。非 HTTP 契约保留通用七个标题，不增加装饰性 API 章节。
+
+### 0. 必要性与交互成本决策
+
+| 关注点 | 决策 |
+| --- | --- |
+| 变更分类 | Existing / Modify / New / Remove |
+| 独立消费者目标 | 可观察目标与真实消费者 |
+| 参数所有权与派生 | 真实所有者及目标端上下文派生 |
+| 直接/零新增接口方案 | 复用、合并、目标扩展、稳定 Key 或本地数据 |
+| 调用方使用结果 | 展示/选择/分支/缓存，或原样转发 |
+| 往返与失败点 | 调用次数、客户端状态、缓存、重试、TOCTOU |
+| 结论 | Add / Keep / Merge / Remove，包含 `REQ-*` 和证据 |
+
+已有未修改操作引用当前消费者和独立职责；新增操作必须准确说明直接方案为什么无法满足已批准需求。
+
+### 1. 身份与用途
+
+- 准确名称、所有者、消费者/前端页面和业务用途；
+- 协议及 HTTP Method 与完整应用路由，或准确 RPC Service/Method、Topic、Job、CLI、内部符号；
+- 请求/响应 Content-Type、版本、超时、重试和兼容策略；
+- 认证、权限、租户来源、敏感数据、限流和审计规则；
+- 幂等键/来源、重复处理、顺序和并发语义。
+
+不能根据 Controller 名称猜 URL。必须从仓库核对类级与方法级 Mapping、Context Path、Gateway 前缀和版本前缀。
+
+### 2. 请求契约
+
+Path、Query、Header、Cookie、Multipart 和 Body 分开描述。每个参数都要包含：
+
+| 名称 | 位置 | 类型/格式 | 必填/可空 | 默认值 | 校验/范围/枚举 | 含义 | 示例 | 来源 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+校验规则应按需写清长度、数值范围/精度、正则、枚举值、时区、集合大小、唯一性、跨字段约束、Trim/大小写处理，以及缺失、`null`、空集合、空字符串、空白字符串、未知值、重复值的处理方式。
+
+存在 Request Body 时，先使用仅用于文档的 `jsonc` 展示完整嵌套结构；类型、可空性或来源需要更精确时，再附字段表：
+
+```jsonc
+{
+  "name": "example", // 必填。用户可见名称，Trim 后长度为 1-64。
+  "enabled": true, // 可选。是否启用，默认 true。
+  "items": [ // 必填。不重复的明细集合，1-100 项。
+    {
+      "itemId": 1001, // 必填。当前租户可见的已有明细 ID。
+      "quantity": 2 // 必填。数量，整数范围 1-9999。
+    }
+  ]
+}
+```
+
+`jsonc` 注释只用于文档，真实传输仍是严格 JSON。Wrapper、嵌套对象、数组、分页和元数据中的每个字段键都必须有行尾注释。
+
+### 3. 成功响应
+
+说明 HTTP Status 或协议结果、响应 Header、仓库真实 Response Wrapper 和完整 Response Body。HTTP JSON 响应使用 `jsonc`，每个字段都添加行尾含义注释：
+
+```jsonc
+{
+  "code": "SUCCESS", // 当前统一响应 Wrapper 定义的稳定业务结果码。
+  "message": "ok", // 面向用户或开发者的结果信息；除非仓库如此定义，否则不是国际化 Key。
+  "data": { // 成功载荷；可空性必须符合仓库 Wrapper 契约。
+    "id": 1001, // 返回给前端的稳定资源 ID。
+    "status": "ACTIVE", // 当前状态；必须列出全部允许值及前端语义。
+    "createdAt": "2026-08-17T10:15:30+08:00" // 创建时间，使用仓库标准格式与时区。
+  }
+}
+```
+
+不得使用 `...`，不得省略继承的 Wrapper 字段，也不能用 DTO 类名代替 JSON 响应。嵌套对象必须展开，数组至少展示一个代表元素。说明类型、必填/可空/默认值、枚举、精度、时间格式/时区、敏感字段脱敏、派生来源和排序。
+
+### 4. 错误响应与状态映射
+
+说明传输状态、稳定业务错误码、Message 语义、是否可重试、前端处理和触发条件。
+
+| 条件 | HTTP/协议状态 | 业务码 | 响应结构 | 可重试 | 前端处理 |
+| --- | --- | --- | --- | --- | --- |
+
+协议使用 JSON 时，以 `jsonc` 展示真实错误 Wrapper。按需区分参数校验、未认证、无权限、资源不存在、冲突/幂等、限流、依赖超时和内部错误。
+
+### 5. 面向调用方的接口逻辑
+
+不用生产代码，按顺序简要说明：
+
+1. 前置条件和权威输入/上下文；
+2. 校验与权限检查顺序；
+3. 主要查询、计算和状态转换；
+4. 数据库、缓存、外部调用和事务边界；
+5. 副作用、事件、审计/日志和派生字段；
+6. 失败、重复、并发、超时和回滚行为；
+7. 前端预期：Loading、禁用/确认态、成功刷新/跳转、缓存失效、重试、错误展示及是否需要轮询。
+
+描述应让前端工程师能够理解接口行为和 UI 反应。详细算法或状态机引用对应章节，不重复大段内容。
+
+### 6. 兼容与验证
+
+列出现有消费者、向后兼容行为、版本/废弃策略、契约测试、校验测试、权限测试、错误测试，以及前端 Fixture/Mock 更新。每个字段和结果都必须追踪到需求或必要的统一响应约定。
+
+## 契约编写顺序
+
+每个保留接口按以下顺序完成，不能复制 DTO 后猜测传输结构。
+
+0. **证明必要性**——评估复用/合并/后端派生/本地数据方案、独立消费者价值、交互成本和陈旧值竞态；文档化为契约前先删除“查询后转发”候选。
+1. **证明接口身份**——组合 Controller 类级 Mapping、方法 Mapping、Context Path、Gateway 前缀、API 版本、HTTP Method、Consumes/Produces 和真实消费者。RPC/事件/Job/内部契约证明对应协议身份。
+2. **证明 Wrapper 与错误**——检查真实响应 Wrapper、异常处理/错误映射、序列化配置、枚举/日期/小数行为和认证 Filter/Interceptor。
+3. **追踪入参**——确认每个值来自 Path、Query、Header、Cookie、Body、上传、认证 Principal、租户上下文、服务器时钟、配置或派生数据。服务器派生值不能要求调用方传入，也不能通过前置参数查询接口绕一圈传回。
+4. **追踪出参**——把每个字段映射到数据库、模型、计算、配置或依赖响应。说明脱敏、排序、精度、可空和稳定性。
+5. **编写行为**——说明校验/权限顺序、读写、事务、副作用、重复/并发、失败、恢复和前端反应。
+6. **交叉检查**——对比 POJO 字段、数据库列/类型、前端 Client/类型、测试/Fixture、前置 Spec、兼容、发布和最小设计审核。
+
+公开契约之前先使用证据工作表：
+
+| 契约事实 | 仓库证据 | 已确认值 | 置信度/限制 |
+| --- | --- | --- | --- |
+| Method 与应用路由 | Controller Mapping + Context Path | `POST /api/v1/orders` | 静态证据；Gateway 部署前缀未验证 |
+| 成功 Wrapper | 响应类型 + 全局 Advice | `ApiResponse<OrderResult>` | 已从源码核对序列化设置 |
+| 错误 Wrapper | Exception Handler | `ApiResponse<ValidationErrorData>` | 依赖超时映射仍需用户决策 |
+| 消费者 | 前端 Client 符号 | `orderClient.createOrder` | 已知一个消费者；外部消费者另行搜索 |
+
+如果路由、Wrapper、业务错误、租户来源、兼容行为或外部可见字段无法证明，而且不同选择会实质影响消费者，必须上升为重大决策，不能自行编造。
+
+## 完整 HTTP 示例
+
+本示例只说明必需深度。路由、Wrapper、字段、取值和行为均为虚构，没有仓库证据时严禁复制。
+
+### 清单行
+
+| ID | 变更/必要性结论 | 名称/用途 | 类型 | API 风格/CQE 角色 | 消费者 | 所有者 | Method + URL / GraphQL Field / Symbol / Topic | Operation ID/Schema 来源 | 入参 | 出参 | 鉴权/租户 | 错误模型 | 幂等/版本 | 需求 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `API-021` | New/Add：直接创建是独立 Command；不新增参数预查询 | 创建订单 | HTTP | REST Command | 订单创建页 | Order Web 模块 | `POST /api/v1/orders` | `createOrder`；Controller 注解和生成 OAS | Header + `CreateOrderCommand` | `ApiResponse<OrderResult>` | Bearer Principal；租户来自已验证上下文 | 稳定 HTTP + 业务码 | `Idempotency-Key`；v1 加法兼容 | `REQ-007`、`REQ-008` |
+
+### API-021 — 创建订单
+
+#### 必要性与交互成本决策
+
+| 关注点 | 决策 |
+| --- | --- |
+| 变更分类 | 新建创建 Command |
+| 独立消费者目标 | 订单创建页提交一笔用户确认订单并获得稳定结果 |
+| 参数所有权与派生 | 前端拥有客户/明细选择；后端派生租户/参与者、价格、初始状态和时间 |
+| 直接/零新增接口方案 | 一个创建 Command 是直接基线；不新增上下文/价格/租户 Preflight |
+| 调用方使用结果 | 跳转新订单并失效列表缓存，不把结果转发给另一个 Command |
+| 往返与失败点 | 一个 Command RTT；同 Key 重试处理未知结果；Command 内重校验引用/价格 |
+| 结论 | `REQ-007` 使用 `Add`；任何“获取创建参数”接口均为 `Remove` |
+
+#### API 风格与 CQE 语义
+
+| 关注点 | 决策/证据 |
+| --- | --- |
+| 协议风格 | `REST Command` |
+| CQE 角色 | 任务型创建 Command；不是 Query，并拥有状态变化 |
+| 资源/任务语义 | `POST /api/v1/orders` 创建一个从属订单资源 |
+| 读写与副作用 | 读取权威引用，写订单/幂等状态，只发布已经明确设计的事件 |
+| 一致性与幂等 | 一个已定义事务；同 Key 与相同标准化 Payload 返回相同结果 |
+| 选择该风格的原因 | 已有 REST 消费者只需要一个直接创建操作；不需要额外 CQE 基础设施或 GraphQL Facade |
+
+#### 身份与用途
+
+| 关注点 | 定义 |
+| --- | --- |
+| 用途/所有者/消费者 | 为已认证租户创建一笔订单；Order 模块所有；订单创建页调用 |
+| 协议与端点 | 核对应用 Context Path 后的 `HTTP POST /api/v1/orders`；不包含环境 Host |
+| Content-Type/版本 | 请求和响应 `application/json`；路径中的 v1 是契约版本 |
+| 成功 | HTTP `201 Created`；应用码 `SUCCESS`；仓库惯例支持时 `Location` 指向新资源 |
+| 鉴权/权限/租户 | Bearer 认证；权限 `order:create`；租户来自安全上下文，不能来自 Body |
+| 超时/重试/限流 | Client Timeout 沿用仓库策略；只有网络/超时结果使用同一幂等 Key 重试；4xx 不自动重试 |
+| 幂等/并发 | Key 在租户内 24 小时唯一；同 Key + 同标准化载荷返回已保存结果；不同载荷返回冲突 |
+| 审计/敏感数据 | 审计参与者、租户、Key Hash、结果和关联 ID；Note 属于敏感信息时不能记录原文 |
+
+#### 请求参数
+
+| 名称 | 位置 | 类型/格式 | 必填/可空 | 默认值 | 校验/范围/枚举 | 含义 | 示例 | 来源 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `Authorization` | Header | Bearer Token | 必填、非空白 | 无 | 仓库认证格式 | 已认证参与者 | `Bearer ***` | Security Filter |
+| `Idempotency-Key` | Header | ASCII 字符串 | 必填、非空白 | 无 | 16-64 字符；重试时稳定；区分大小写 | 标识一次预期创建动作 | `01J5...K9` | 前端每次提交只生成一次 |
+| `X-Correlation-Id` | Header | 仓库规定 UUID/字符串 | 可选 | 服务端生成 | 符合仓库关联格式 | 端到端诊断身份 | `7fd...` | 调用方或服务端 Filter |
+| `customerId` | Body | 64 位整数 | 必填、非空 | 无 | 正数；客户对租户可见 | 收货客户 | `12001` | 用户选择 |
+| `currency` | Body | 大写字符串 | 必填、非空 | 无 | `CNY`、`USD` 之一；不能依赖模糊 Trim | 全部金额字段币种 | `CNY` | 用户选择/业务上下文 |
+| `items` | Body | 对象数组 | 必填、非空 | 无 | 1-100 项；`productId` 唯一 | 下单明细 | 见 Body | 表单状态 |
+| `items[].productId` | Body | 64 位整数 | 必填、非空 | 无 | 正数；产品可见且可下单 | 产品身份 | `9001` | 用户选择 |
+| `items[].quantity` | Body | 整数 | 必填、非空 | 无 | 1-9999 | 请求数量 | `2` | 表单输入 |
+| `note` | Body | UTF-8 字符串 | 可缺失；仓库校验拒绝 `null` 时明确拒绝 | 空字符串 | Trim 后 0-500 字符；拒绝控制字符 | 用户可见订单备注 | `Leave at reception` | 表单输入 |
+
+```jsonc
+{
+  "customerId": 12001, // 必填。租户可见客户 ID，正 64 位整数。
+  "currency": "CNY", // 必填。订单币种，只允许 CNY 和 USD。
+  "items": [ // 必填。不重复的产品明细，数组长度 1-100。
+    {
+      "productId": 9001, // 必填。租户可见且可下单的产品 ID，正 64 位整数。
+      "quantity": 2 // 必填。请求数量，整数范围 1-9999。
+    }
+  ],
+  "note": "Leave at reception" // 可选。Trim 后的用户备注，0-500 字符；空表示无备注。
+}
+```
+
+跨字段规则：全部明细使用请求币种；重复 `productId` 拒绝而不是合并；空数组非法；未知字段遵循仓库 Serializer 策略，真实 Spec 必须明确写出。
+
+#### 成功响应
+
+HTTP `201 Created`。仓库产生响应 Header 时必须写出。完整示例传输载荷：
+
+```jsonc
+{
+  "code": "SUCCESS", // 仓库统一响应 Wrapper 的稳定成功码。
+  "message": "ok", // 面向用户/开发者的成功信息，不能用于程序分支。
+  "data": { // 非空的新建订单载荷。
+    "orderId": 810001, // 新建订单稳定 ID，用于详情页导航。
+    "orderNo": "O202608170001", // 租户可见且不可变的订单号。
+    "status": "CREATED", // 当前生命周期状态；CREATED 表示已受理但未履约。
+    "currency": "CNY", // 全部金额字段共享的币种。
+    "totalAmount": "39.80", // 字符串小数，总金额固定两位小数。
+    "items": [ // 按稳定行号顺序返回的持久化明细投影。
+      {
+        "productId": 9001, // 已接受请求中的产品 ID。
+        "quantity": 2, // 通过校验的数量。
+        "unitPrice": "19.90", // 创建时锁定的权威单价，字符串小数，两位精度。
+        "lineAmount": "39.80" // quantity * unitPrice，使用已记录舍入规则。
+      }
+    ],
+    "createdAt": "2026-08-17T10:15:30+08:00" // 服务器创建时间，仓库标准 ISO-8601 Offset 格式。
+  },
+  "traceId": "7fd3c950" // 支持诊断的关联 ID，来自请求/服务端追踪上下文。
+}
+```
+
+| 字段路径 | 类型/格式 | 必填/可空/默认 | 校验/枚举/精度 | 含义/来源 | 前端用途 |
+| --- | --- | --- | --- | --- | --- |
+| `data.status` | 字符串枚举 | 必填、非空 | `CREATED`；后续状态由详情接口定义 | Service 持久化状态 | 只展示创建成功，不表示履约完成 |
+| `data.totalAmount` | 小数字符串 | 必填、非空 | Scale 2；仓库舍入模式 | 持久化行金额之和 | 与 `currency` 展示；计算时不得使用二进制浮点 |
+| `data.createdAt` | ISO-8601 Offset 时间 | 必填、非空 | 服务器时钟与仓库时区规则 | 持久化创建时间 | 只做本地化展示 |
+
+#### 错误响应
+
+| 条件 | HTTP 状态 | 业务码 | 响应结构 | 可重试 | 前端处理 |
+| --- | --- | --- | --- | --- | --- |
+| 字段缺失/非法或产品重复 | `400` | `ORDER_REQUEST_INVALID` | 带字段错误的 Wrapper | 修正前不可重试 | 保留表单；标记字段；聚焦首个错误 |
+| 未认证 | `401` | 仓库认证码 | 标准认证 Wrapper | 重新认证后 | 启动登录/Session 恢复 |
+| 权限拒绝或租户不匹配 | `403` | `ORDER_CREATE_FORBIDDEN` | 标准错误 Wrapper | 否 | 展示拒绝状态，不泄露资源详情 |
+| 客户/产品不存在 | `404` 或仓库定义业务状态 | `ORDER_REFERENCE_NOT_FOUND` | 标准错误 Wrapper | 选择变化前不可重试 | 刷新可选数据并显示针对性信息 |
+| 同 Key 对应不同载荷 | `409` | `IDEMPOTENCY_KEY_CONFLICT` | 标准错误 Wrapper | 同 Key 不可重试 | 只有新确认动作才生成新 Key |
+| 已知提交前依赖超时 | 仓库定义超时状态 | `ORDER_DEPENDENCY_TIMEOUT` | 标准错误 Wrapper | 仅按已定义规则 | 保留表单并用同 Key 控制重试 |
+| 未预期异常 | `500` | `INTERNAL_ERROR` | 脱敏标准 Wrapper | 不自动重试 | 显示带 Trace ID 的通用错误 |
+
+校验错误完整示例：
+
+```jsonc
+{
+  "code": "ORDER_REQUEST_INVALID", // 请求校验失败的稳定业务码。
+  "message": "Request validation failed", // 安全摘要；前端按 Code 而非 Message 分支。
+  "data": { // 非空结构化校验详情。
+    "fieldErrors": [ // 每个被拒字段一项，按请求字段顺序排列。
+      {
+        "field": "items[0].quantity", // 校验失败的请求字段路径。
+        "reason": "must be between 1 and 9999", // 按仓库策略可安全展示或作为国际化来源的原因。
+        "rejectedValue": 0 // 只有隐私策略允许时才返回被拒值。
+      }
+    ]
+  },
+  "traceId": "7fd3c950" // 用于诊断的关联 ID。
+}
+```
+
+#### 面向前端与调用方的接口逻辑
+
+1. 用户开始一次确认提交时，前端生成一个幂等 Key；只有同一标准化请求的重试复用该 Key。
+2. 认证、租户、权限、Header、Bean 和跨字段校验按已定义顺序在业务写入前完成；租户不能来自 Body。
+3. Service 加载权威客户/产品，拒绝不可访问或非法引用，锁定价格，按仓库精度计算行金额/总额并确定初始状态。
+4. Service 在已定义事务中写入幂等记录、订单和明细；DAO 不决定业务状态。
+5. 操作记录审计/关联信息，只发出其他章节明确设计的副作用；响应字段映射自已提交状态。
+6. 同载荷重复请求返回已保存结果；不同载荷复用 Key 返回冲突；失败回滚或进入明确的未知/对账状态。
+7. 前端 Pending 时禁止重复点击，成功后跳转详情并失效列表缓存；可重试失败保留表单，映射字段错误；除非契约明确返回异步状态，否则不得轮询。
+
+#### 文档契约
+
+| 关注点 | 决策/证据 |
+| --- | --- |
+| 文档权威来源 | Code-first Spring Mapping、Command/Response Type、Bean Validation、Jackson 和 OpenAPI 3 Annotation |
+| REST OpenAPI Operation / GraphQL SDL Operation | `POST /api/v1/orders` 使用显式 `createOrder` operationId |
+| 注解/Mapping 归属 | 已有 Controller 持有 Mapping、`@Operation`、`@ApiResponses` 和 `@SecurityRequirement`；不新增纯注解接口 |
+| 生成 Schema 元素 | Request Header/Body、`201`、Validation/Auth/Permission/Conflict/Failure Response、Header、Wrapper Schema 和 Bearer Security |
+| 兼容与漂移证明 | 生成/解析 OAS，并通过仓库聚焦契约测试断言 Operation、Schema、Security、Constraint 和 Code |
+
+| 目标 | 必需注解/配置 | 精确值/来源 | 生成 OAS 效果 | 校验 |
+| --- | --- | --- | --- | --- |
+| `OrderController#createOrder` | `@Operation`、`@ApiResponses`、`@SecurityRequirement`、Spring Mapping/Validation | 来自当前已核实契约；operationId 为 `createOrder` | 一个具有完整结果和 Bearer Security 的 POST Operation | 生成 OAS 断言 |
+| `CreateOrderCommand` 与 Response/Error Type | Bean Validation、Jackson 和按需 `@Schema` | 上述字段表与 Wire Example | 具体 Request/Wrapper/Component Schema | Serialization、Validation 和 Schema 断言 |
+
+#### 兼容与验证
+
+- 消费者：列出仓库中找到的所有前端 Client、外部 Client、Fixture、Mock 和 API 文档。
+- 兼容：路由、Method、Wrapper、现有字段、小数/时间序列化和业务码保持稳定；新增字段必须符合仓库未知字段行为。
+- 契约测试：验证状态、Header、完整成功/错误 Wrapper、枚举/日期/小数序列化，以及未知/缺失/`null` 字段。
+- 校验/安全测试：验证每个边界、跨字段规则、权限、租户隔离和信息泄露行为。
+- 幂等测试：首次、串行重复、并发重复、Key/载荷冲突、Key 过期和模拟响应丢失后的重试。
+- 前端测试：提交禁用、成功跳转/缓存失效、字段错误、拒绝状态、控制重试和 Trace ID 支持行为。
+
+## 列表查询展开示例
+
+列表端点必须使用独立接口 ID，不能被创建示例或共用 `OrderResult` 类名覆盖。详情还必须说明：
+
+| 参数 | 必须明确的规则 |
+| --- | --- |
+| `page`/`size` 或 Cursor | 从 0/1 开始、默认、最小/最大、非法处理、稳定 Cursor 含义 |
+| 过滤条件 | 准确枚举/时间/空值语义、组合规则、租户/权限范围 |
+| 排序 | 允许字段/方向、默认、确定性 Tie-breaker、非法字段行为 |
+| 搜索文本 | Trim/大小写/Escape/分词和空白字符串行为 |
+
+列表完整响应示例：
+
+```jsonc
+{
+  "code": "SUCCESS", // 稳定应用成功码。
+  "message": "ok", // 不用于程序分支的结果信息。
+  "data": { // 非空分页载荷，空页也保持非空。
+    "items": [ // 有序结果；无匹配时为空数组，不能为 null。
+      {
+        "orderId": 810001, // 行 Key 和详情导航使用的稳定 ID。
+        "orderNo": "O202608170001", // 租户可见订单号。
+        "status": "CREATED", // 当前状态，同时用于过滤和展示。
+        "totalAmount": "39.80", // 仓库精度的小数字符串。
+        "createdAt": "2026-08-17T10:15:30+08:00" // 与 orderId 共同构成稳定排序的服务器创建时间。
+      }
+    ],
+    "page": 1, // 仓库定义的页码起点，必须明确是 0 还是 1。
+    "size": 20, // 校验/默认后实际页大小。
+    "totalElements": 1, // 在已定义一致性语义下匹配过滤条件的总行数。
+    "totalPages": 1, // 按实际 Size 推导的总页数。
+    "hasNext": false // 查询时是否存在下一页。
+  },
+  "traceId": "7fd3c950" // 关联 ID。
+}
+```
+
+必须说明空页、Count Query 及成本、稳定排序、并发新增/删除影响、最大页大小、字段投影、权限过滤、查询索引、前端 Loading/Empty/Error/Pagination 状态和列表专项测试。
+
+## 非 HTTP 契约
+
+使用协议对应的标识保持同等完整度：
+
+- **RPC**：Service/Method 签名、发现/路由身份、Deadline、重试、Metadata/鉴权传递、序列化、错误、幂等和消费者。
+- **事件/消息**：Topic、Key/Partition、生产者、消费者、Envelope/Payload、Schema 版本、顺序、交付保证、去重、重试/DLQ、重放、兼容与可观测性。
+- **Job/CLI/内部 Service**：准确符号/命令/调度、调用者、输入、输出、副作用、并发/锁、重试、退出/错误语义和测试。
+
+非 HTTP 契约不得虚构 URL。
+
+每个非 HTTP 项仍使用稳定详情结构：身份/所有权、Input/Envelope、Output/Ack、错误/重试/DLQ 或退出语义、有序逻辑、兼容/Schema 演进、可观测性和测试。Java 方法签名或 Topic 名称本身只是清单信息。
+
+## 深度与一致性门禁
+
+接受一个接口详情前，逐项确认：
+
+- 七个必需标题按顺序存在，并包含仓库特定内容；
+- 外部 API 还必须具有两个 API 专项标题、准确 REST/GraphQL 与 CQE 分类、协议专项文档产物、生成契约证明和全部九项阻断型 API 门禁；
+- 必要性/交互小节相对直接方案证明 `Add/Keep`，并拒绝不变的“先查再转发”参数；
+- HTTP 身份只包含一个 Method 和一个经验证应用路由；
+- 每个入参都包含位置、类型/格式、必填/可空/默认、准确校验、含义、示例和来源；
+- 适用的请求、成功和错误 Body 均完整，每个 JSON 字段都有行尾含义注释；
+- 成功/错误传输状态、稳定业务码、可重试性和前端行为明确；
+- 调用方逻辑包含适用的校验、查询/写入、事务、副作用、失败、重复/并发和 UI 反应顺序；
+- 每个外部字段映射到 POJO/模型/数据库/派生来源与消费者用途，类型、精度、枚举、可空和时间规则一致；
+- 每个接口都有已命名的契约、校验、安全/租户、失败、兼容和消费者测试。
+
+不能用最低文字长度代替这些检查。简短的 `204 No Content` 操作可以完整；五页响应类清单仍可能不完整。
+
+## 契约复核失败条件
+
+存在以下任一问题时返回 `REVISE`：
+
+- 清单接口没有独立详细章节；
+- 新接口没有独立消费者目标，或只用于获取另一个请求可派生/复用的参数；
+- 一个 ID 合并了多个 Method、URL、RPC Method 或可独立调用的操作；
+- URL、Method、Wrapper、字段、错误、权限或消费者没有证据；
+- 入参缺少含义或准确校验行为；
+- 用类名代替响应 JSON、JSON 中使用 `...`，或字段缺少注释；
+- 前端可见逻辑、状态变化、副作用、重试或错误处理不清楚；
+- 接口字段与 POJO、数据库类型/可空性、前端用途或测试不一致。
+- 外部 REST API 缺少 OpenAPI 3 注解/生成 OAS 设计、GraphQL API 缺少 SDL/Root Field/Resolver/Schema Test 设计，或任意 `API-GATE-*` 缺失/不一致。

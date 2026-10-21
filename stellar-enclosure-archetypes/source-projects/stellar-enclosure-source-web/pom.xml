@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project child.project.url.inherit.append.path="false" xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>top.egon</groupId>
+        <artifactId>stellar-enclosure-archetypes-parent</artifactId>
+        <version>0.0.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>top.egon.internal.archetype.source</groupId>
+    <artifactId>stellar-enclosure-source-web</artifactId>
+    <version>${stellar-enclosure.version}</version>
+    <packaging>pom</packaging>
+    <name>stellar-enclosure-source-web</name>
+    <description>Student management organization sample based on Stellar Enclosure web architecture</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <stellar-enclosure.version>0.0.1</stellar-enclosure.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <lombok.version>1.18.46</lombok.version>
+        <lombok.mapstruct.binding.version>0.2.0</lombok.mapstruct.binding.version>
+        <mapstruct-plus.version>1.5.1</mapstruct-plus.version>
+        <exec.maven.plugin.version>3.5.0</exec.maven.plugin.version>
+        <!-- optional-peer-facade:start -->
+        <evaluation-facade.group-id>top.egon.internal.archetype.source</evaluation-facade.group-id>
+        <evaluation-facade.artifact-id>stellar-enclosure-source-service-facade</evaluation-facade.artifact-id>
+        <evaluation-facade.version>${stellar-enclosure.version}</evaluation-facade.version>
+        <evaluation-facade.package>top.egon.cola.archetype.source.service.facade</evaluation-facade.package>
+        <!-- optional-peer-facade:end -->
+        <!-- Shared defaults for Maven run and the external Java argument file. -->
+        <run.profile>dev</run.profile>
+        <run.jvm-args>-Xms256m -Xmx512m</run.jvm-args>
+        <run.server-port>8080</run.server-port>
+        <run.config-location>optional:file:./config/override.yml</run.config-location>
+    </properties>
+
+    <modules>
+        <module>stellar-enclosure-source-web-common</module>
+        <module>stellar-enclosure-source-web-facade</module>
+        <module>stellar-enclosure-source-web-domain</module>
+        <module>stellar-enclosure-source-web-application</module>
+        <module>stellar-enclosure-source-web-infrastructure</module>
+        <module>stellar-enclosure-source-web-adapter</module>
+        <module>stellar-enclosure-source-web-starter</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${native.grpc.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-bom</artifactId>
+                <version>${native.protobuf.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${native.protobuf.version}</version>
+            </dependency>
+            <!-- optional-peer-facade:start -->
+            <dependency>
+                <groupId>${evaluation-facade.group-id}</groupId>
+                <artifactId>${evaluation-facade.artifact-id}</artifactId>
+                <version>${evaluation-facade.version}</version>
+            </dependency>
+            <!-- optional-peer-facade:end -->
+            <dependency>
+                <groupId>top.egon.internal.archetype.source</groupId>
+                <artifactId>stellar-enclosure-source-web-facade</artifactId>
+                <version>${stellar-enclosure.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.egon.internal.archetype.source</groupId>
+                <artifactId>stellar-enclosure-source-web-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.egon.internal.archetype.source</groupId>
+                <artifactId>stellar-enclosure-source-web-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.egon.internal.archetype.source</groupId>
+                <artifactId>stellar-enclosure-source-web-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.egon.internal.archetype.source</groupId>
+                <artifactId>stellar-enclosure-source-web-infrastructure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.egon.internal.archetype.source</groupId>
+                <artifactId>stellar-enclosure-source-web-adapter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.egon.internal.archetype.source</groupId>
+                <artifactId>stellar-enclosure-source-web-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.linpeilie</groupId>
+                <artifactId>mapstruct-plus-spring-boot-starter</artifactId>
+                <version>${mapstruct-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <parameters>true</parameters>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>${lombok.mapstruct.binding.version}</version>
+                        </path>
+                        <path>
+                            <groupId>io.github.linpeilie</groupId>
+                            <artifactId>mapstruct-plus-processor</artifactId>
+                            <version>${mapstruct-plus.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <spring.profiles.active>test</spring.profiles.active>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <properties>
+                <run.profile>dev</run.profile>
+            </properties>
+        </profile>
+        <profile>
+            <id>test</id>
+            <properties>
+                <run.profile>test</run.profile>
+                <run.jvm-args>-Xms512m -Xmx1g</run.jvm-args>
+            </properties>
+        </profile>
+        <profile>
+            <id>prod</id>
+            <properties>
+                <run.profile>prod</run.profile>
+                <run.jvm-args>-Xms1g -Xmx2g -XX:+ExitOnOutOfMemoryError</run.jvm-args>
+            </properties>
+        </profile>
+    </profiles>
+</project>

@@ -1,0 +1,132 @@
+# Final Spec Conformance Audit
+
+Perform this audit after all Plan Steps have verified commits. Treat it as an independent review of the repository, not a confirmation of the Plan author's assumptions.
+
+## 1. Freeze the audit baseline
+
+- Record current branch and HEAD.
+- Record the exact Plan path, status, revision, and `Implements Spec` reference.
+- Resolve the complete final `Effective Specs` set, including amendments, supersessions, and dependencies.
+- Record every Step commit and any approved corrective commit.
+- Confirm unrelated work remains outside the delivery commits.
+
+## 2. Build a requirement inventory
+
+Extract individually auditable rows for:
+
+- user requirements and acceptance criteria;
+- architecture, module/package, and dependency boundaries;
+- interfaces, request/response fields, error semantics, and compatibility;
+- entities, invariants, state transitions, persistence, schema, migrations, and rollback;
+- frontend routes, pages, states, permissions, accessibility, and API integration;
+- unit, integration, contract, migration, UI, regression, and runtime verification;
+- security, performance, observability, concurrency, idempotency, deployment, and other non-functional constraints;
+- explicit non-goals and out-of-scope behavior.
+
+Do not merge unrelated requirements into one row merely to reduce the table size.
+
+## 3. Map evidence
+
+For business work on a generated project, reconcile every effective Spec §2.5 `EXAMPLE-*` with final paths, registration/configuration references, real-business/infrastructure evidence and immutable SQL history. Re-scan all target modules for the retired sample signatures, including unused domains outside the first implemented feature. A missing inventory, unresolved candidate, reference-only sample retention or deferred cleanup is a conformance finding; a validated Spec alone does not prove source deletion.
+
+Use this matrix:
+
+| Requirement ID | Effective Spec source | Expected behavior | Commit evidence | Code/symbol evidence | Test/validation evidence | Status | Gap/impact/next action |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+
+Evidence rules:
+
+- A commit hash alone does not prove behavior; include paths and symbols.
+- Source inspection alone does not prove a required test; include the actual command and result.
+- Unit/module evidence does not prove live integration, deployment, credentials, data, browser, or external-provider behavior.
+- Generated output is not authoritative when the repository defines a source configuration or generator input.
+- If a validation was skipped, timed out, lost, or only partially observed, do not mark it passed.
+
+## 4. Assign exactly one status
+
+- `Satisfied`: the implementation and all authorized non-runtime evidence required by the Spec are present and consistent.
+- `Partial`: only part of the behavior or evidence is present.
+- `Not satisfied`: the behavior is absent, contradicts the Spec, violates a boundary, or regresses a non-goal.
+- `Runtime unverified`: source/module evidence is present, but the Spec explicitly requires user-controlled live-system proof that was not performed.
+
+Do not downgrade a concrete implementation defect to `Runtime unverified`. That status is only for otherwise plausible implementation whose remaining proof is inherently runtime-bound.
+
+## 5. Run final gates
+
+- Run every safe, authorized final command listed by the Plan.
+- Add only the smallest repository-standard regression checks needed for affected consumers.
+- Inspect complete output, exit status, skips, warnings, and generated changes.
+- Do not start services, databases, browsers, deployment, or external systems without explicit authorization.
+- Recheck `git status --short` after validation and identify any generated or modified files.
+
+## 6. Audit delivery discipline
+
+- Every Plan Step has a verified non-empty commit.
+- Commit order matches Step order.
+- Each commit scope matches its Step paths.
+- Corrective commits are explicit and attributed; history was not silently rewritten.
+- No required Plan file or validation gate was skipped.
+- No unrelated work was committed.
+- Every scratch verification harness created during execution has a recorded disposition — promoted into a durable check suite, moved into the subsystem it guards, or deleted — and repository `scripts/work/` contains no undetermined script. A harness that was neither reused nor judged is a delivery-discipline finding, not a harmless leftover.
+- No immutable migration was edited.
+
+## 7. Re-run the blocking Manual Check
+
+First read `references/user-mandated-java-rules.md` and execute this literal-rule matrix against the final tree and all delivery commits. Do not copy Step results:
+
+| Literal rule | Applicability | Status | Final diff/path/symbol evidence | Final test/static evidence | Finding | Required action/exception |
+| --- | --- | --- | --- | --- | --- | --- |
+| Rule 1 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<type inventory>` | `<compile/name search>` | `<result>` | `None / action and owner` |
+| Rule 2 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<all layer handoffs>` | `<validation/group tests>` | `<result>` | `None / action and owner` |
+| Rule 3 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<models/converters>` | `<compile/mapping tests>` | `<result>` | `None / action and owner` |
+| Rule 4 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<business Beans/logging/injection>` | `<compile/wiring/review>` | `<result>` | `None / action and owner` |
+| Rule 5 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<imports/dependencies/helpers>` | `<allowlist search>` | `<result>` | `None / action and owner` |
+| Rule 6 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<external Jackson contracts>` | `<serialization tests>` | `<result>` | `None / action and owner` |
+| Rule 7 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<all profiles>` | `<key-parity/config tests>` | `<result>` | `None / action and owner` |
+| Rule 9 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<Complex patterns/Simple flows>` | `<behavior/branch tests>` | `<result>` | `None / action and owner` |
+| Rule 10 | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<time code/mappings>` | `<time tests/import search>` | `<result>` | `None / action and owner` |
+| Rule 11 | Applicable | PASS / FAIL / BLOCKED | `<final tree/archetype/verifier>` | `<architecture gate>` | `<result>` | `None / action and owner` |
+
+All applicable literal rules and Rule 11 must PASS before final PASS. Then read `references/java-spring-egon-coding-standards.md` and inspect the final tree plus all delivery commits. Do not copy the Plan's predicted statuses or merely aggregate Step assertions. Execute every Manual Check row independently with current evidence.
+
+| Check ID | Applicability | Status | Evidence | Finding | Required action/exception |
+| --- | --- | --- | --- | --- | --- |
+| `MC-ARCH-001` | `Applicable` | `PASS / FAIL / BLOCKED` | `<final tree/archetype/dependency evidence>` | `<architecture result>` | `<None or action/owner>` |
+| `MC-REUSE-001` | `Applicable` | `PASS / FAIL / BLOCKED` | `<reuse ledger plus final paths>` | `<reuse result>` | `<None or action/owner>` |
+| `MC-DEP-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<final manifests/gap approval>` | `<dependency result>` | `<None or action/owner>` |
+| `MC-NAME-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<changed Java types/search>` | `<naming result>` | `<None or action/owner>` |
+| `MC-VALID-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<boundaries/groups/tests>` | `<validation result>` | `<None or action/owner>` |
+| `MC-MODEL-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<value-object record/class complex Lombok inspection>` | `<model/conflict result>` | `<None or action/owner>` |
+| `MC-CONVERT-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<MapStruct + mandatory BaseConverter generation/search/tests>` | `<conversion/no-bypass result>` | `<None or action/owner>` |
+| `MC-LOG-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<business-class/log inspection>` | `<logging result>` | `<None or action/owner>` |
+| `MC-BEAN-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<Bean names/injection/Qualifier evidence>` | `<Bean result>` | `<None or action/owner>` |
+| `MC-UTIL-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<imports/dependencies/helper inventory>` | `<utility result>` | `<None or action/owner>` |
+| `MC-JSON-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<JSON imports/contracts/tests>` | `<JSON result>` | `<None or action/owner>` |
+| `MC-TIME-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<time types/boundaries/tests>` | `<time result>` | `<None or action/owner>` |
+| `MC-CONFIG-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<all profile key comparisons>` | `<configuration result>` | `<None or action/owner>` |
+| `MC-PATTERN-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<flow classification/pattern participant inspection>` | `<mandatory Complex pattern / Simple direct result>` | `<None or action/owner>` |
+| `MC-SCOPE-001` | `Applicable` | `PASS / FAIL / BLOCKED` | `<commit scopes/final diff/non-goals>` | `<scope result>` | `<None or action/owner>` |
+| `MC-TEST-001` | `Applicable` | `PASS / FAIL / BLOCKED` | `<commands/output/static checks>` | `<proof result>` | `<None or action/owner>` |
+| `MC-BLOCKER-001` | `Applicable` | `PASS / FAIL / BLOCKED` | `<all rows/requirements/open risks>` | `<closure result>` | `<None or exact unresolved action/owner>` |
+
+Gate rules:
+
+- every stable ID appears exactly once;
+- every applicable row is `PASS` with concrete final evidence;
+- `N/A` requires positive scope evidence and reason;
+- `MC-BLOCKER-001` is `PASS` only when every other row is `PASS` or valid `N/A`;
+- any failed/blocked/unknown/missing/unsupported Literal Rule or Manual Check row prohibits final PASS and must be reported, not silently fixed during the audit.
+
+## 8. Determine the verdict
+
+- `PASS — Implementation conforms to the effective Specs`: every requirement is `Satisfied`, no required runtime evidence is missing, every applicable Literal Rule is `PASS`, Rule 11 is `PASS`, and every applicable Manual Check is `PASS` with all other rows evidence-backed `N/A`.
+- `PARTIAL — Spec requirements are unmet or unverified`: one or more requirement rows are `Partial`, `Not satisfied`, or `Runtime unverified`, or one or more Literal Rules/Manual Checks are failed, blocked, unknown, missing, weakened, or unsupported.
+- `BLOCKED — Final verification could not be completed`: the effective baseline, repository evidence, or required safe validation cannot be determined.
+
+List every non-passing row with its evidence, impact, and recommended corrective Plan/Step. Do not silently implement a newly discovered gap during this audit.
+
+## Java / CQE contract review
+
+Read `references/egon-java-cqe-contract.md`. Record each applicable concern separately: POJO/value-object/enum; components and MP starter; annotation-driven validation; business columns + deleted_at uniqueness and NULL behavior; Command/Query/Event with actual outbox or MQ delivery; source-grounded DDD or preserved three-layer architecture. Use its existing MC ID mapping and record evidence, gaps and validation limits.
+
+For affected time boundaries, read `references/time-semantics.md` and compare effective Spec TIME decisions, Plan owning Steps and MC-TIME-001 results. Verify actual UTC persistence/wire conversion, pure-date stability, business-zone ranges/grouping, frontend display/submission, applicable DST/precision and legacy compatibility. Missing required runtime evidence is not PASS; do not start an application, database or browser without authorization.

@@ -1,0 +1,35 @@
+package top.egon.cola.archetype.source.lightopen.adapter.teaching.graphql;
+
+import lombok.extern.slf4j.Slf4j;
+import top.egon.cola.archetype.source.lightopen.adapter.teaching.pojo.convertor.TeachingAdapterConvertor;
+import top.egon.cola.archetype.source.lightopen.adapter.teaching.pojo.vo.CourseDetailVO;
+import top.egon.cola.archetype.source.lightopen.adapter.teaching.pojo.vo.SchoolClassDetailVO;
+import top.egon.cola.archetype.source.lightopen.application.teaching.manage.CourseManage;
+import top.egon.cola.archetype.source.lightopen.application.teaching.manage.SchoolClassManage;
+import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.query.GetCourseQuery;
+import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.query.GetSchoolClassQuery;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.stereotype.Controller;
+
+@Controller
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@Slf4j
+public class CourseResolver {
+    private final CourseManage courseManage;
+    private final SchoolClassManage schoolClassManage;
+    private final TeachingAdapterConvertor convertor;
+
+    @QueryMapping
+    public CourseDetailVO course(@Argument String id) {
+        return convertor.toTarget(courseManage.get(new GetCourseQuery(Long.valueOf(id))));
+    }
+
+    @QueryMapping
+    public SchoolClassDetailVO schoolClass(@Argument String id) {
+        return convertor.toSchoolClassDetail(
+                schoolClassManage.get(new GetSchoolClassQuery(Long.valueOf(id))));
+    }
+}

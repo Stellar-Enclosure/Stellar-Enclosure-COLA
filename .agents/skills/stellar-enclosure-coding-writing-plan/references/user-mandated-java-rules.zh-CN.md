@@ -1,0 +1,104 @@
+# 用户强制 Java 规则与 Plan 执行细则
+
+Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modeling, enum, MP, validation, uniqueness, CQE and architecture contract.
+
+本参考是每份 Java Plan 的强制规范。下方源区块逐字保留。Plan 必须把每条规则转成准确文件顺序、伪代码、验证和提交门禁，不能把强制规则缩成一般编码提示。
+
+## 逐字规范源
+
+```text
+1 类名规范，必须以 java的pojo规范命名。以dao po bo vo dto query command event等结尾
+2 每层之间必须被 springboot-validation 校验，复用对象使用分组校验；基于原生和自定义约束注解、@Valid、@Validated 及 ConstraintValidator 扩展实现。ValidationUtils 只承担通用手工校验，不承载全部业务校验；电话号码复用 libphonenumber。
+3 Java POJO 默认使用 class，注解为 @Data @NoArgsConstructor @AllArgsConstructor @Accessors(chain = true)，按构造目标选择 @Builder 或 @SuperBuilder；父类状态参与相等性时使用 @EqualsAndHashCode(callSuper = true)。只有不可变 value object 可以使用 record，并豁免 class 的 Lombok 规范；普通实体不能因简单而使用 record。使用 MapStruct、MapStructPlus 和 egon-cola-component-common-core 的 BaseConverter（双向）或 BaseForwardConverter（不可逆投影）进行转换。
+4业务类必须使用@Slf4j注解注入log对象。如果业务类被spring管理，必须指定名称，如果是单例的情况下，参考@Service("userService")。如果需要依赖注入，必须@RequiredArgsConstructor进行修饰，不要代码中写。且属性必须被@qualify修饰。
+5 工具类只允许使用jdk原生、Apache Commons(commons-lang3、commons-collections4、commons-io、commons-text、commons-codec、commons-beanutils)、Guava。针对Tika按需引入。
+6 JSON 使用 Spring Boot Jackson；持久化枚举值使用 @EnumValue，向前端输出的枚举值使用 @JsonValue，禁止 ordinal 作为业务编码。
+7 springboot 多环境配置文件，必须保持配置一致，但值不一定一致。
+9 复杂业务必须引入设计模式，不允许硬编码
+10 日期相关的必须使用java.time下的实体类，不允许使用java.util下的
+11 只允许现有三层结构或当前 egon-cola-archetypes 的 DDD 结构，三层结构保持现状。必须尽量复用 egon-cola-components；持久化模块必须使用 Egon COLA MP Starter，DDL 统一由 egon-mp-sdj-ext-starter 分布式管理。业务唯一键必须组合业务列与 deletedAt（数据库 deleted_at），并验证 NULL、租户及重复软删除语义。采用 CQE（Command Query Event）；Event 必须经 egon-cola-component-transactional-outbox-starter 或 MQ 中间件投递。
+```
+
+原文拼写保持不变。`@qualify` 落地为 Spring `@Qualifier`，`convertor` 落地为 Egon `BaseConverter<S,T>` / `BaseForwardConverter<S,T>` 体系，`SpringBoot-JackSon` 落地为 Spring Boot 管理的 Jackson。
+
+## 禁止弱化门禁
+
+有效 Spec 必须已定案这些规则。Spec 缺失时，Plan 返回 Spec，不能自行放松或发明。编译/框架/依赖冲突必须带准确证据阻断；不能借此删注解、跳过层间边界、使用本地 Converter、保留复杂分支或新增第三种架构。
+
+每份 Java Plan 在第 4 章按原编号包含规则 `1、2、3、4、5、6、7、9、10、11` 十行矩阵。每个 Step 写 `Literal Rules:`，每个受影响文件写 `Literal rule enforcement:`。
+
+## 规则 1——准确类型清单与后缀计划
+
+清单每个 Create/Rename/实质修改 Java 类型的路径、操作、职责、强制后缀、消费者和兼容影响。POJO 使用 PO、BO、VO、DTO、Query、Command、Event、Result、PageQuery、PageResult 或有依据 Entity；访问组件使用 DAO；行为类使用准确行为后缀。
+
+禁止规划 `Data`、`Info`、`Param`、`Bean` 或无后缀含糊载体。每个新类型必须证明独立边界/生命周期需要，避免后缀合规导致类爆炸。伪代码必须使用最终准确类型名。
+
+Archetype 与 code-gen 使用同一命名契约：纯协议入参使用 `*DTO`，读写意图使用 `*Query`/`*Command`，应用/协议输出保留 `*Result`/`*PageResult`（展示输出保留 `*VO`）。不新增项目自有 `*Request`/`*Response` 载体，不因后缀重复建类；保留框架/第三方契约、生成的协议类型（包括 Protobuf 消息）及范围外存量 API。生成 Java 路径必须匹配声明包与公开类型，编译、模板哈希和 `CLEAN` 不能替代该契约。
+
+## 规则 2——每个受影响交接独立校验
+
+Repository → DAO 只按数据库表结构约束校验：`NOT NULL`→`@NotNull`、长度、数值范围和 DDL 声明的枚举取值。PO/DAO 入参使用 Jakarta 注解、`@Valid`、`@Validated` 及已有 Insert（Create）/Update/Delete/Query/Persisted 分组。DAO 不重复领域/状态业务校验，不把 `ValidationUtils` 当规则来源；MP Mapper 拦截器负责继承 CRUD 的填充后校验。复杂 CHECK 与后续 ALTER 影响由 agent 决定。
+
+Plan 必须分别枚举并排序：外部输入 -> Controller/Adapter；Controller/Adapter -> Service/Application；Service/Application -> Domain Service/Component；Service/Application -> DAO/Repository/Gateway；Event/Job/内部重入。
+
+每个交接写准确输入、Jakarta 注解、`@Valid`、`@Validated`、Validation Group、非 Proxy 场景 `ValidationUtils`、规范化、错误和正反测试。复用对象必须在准确文件定义 Group Marker、Group Constraint 和调用。电话号码写 libphonenumber 依赖证据、地区、Parse、E.164、Validity、错误和测试。自定义约束注解及 ConstraintValidator 扩展应写明职责与测试，不受 ValidationUtils 能力缺口限制。
+
+## 规则 3——准确对象与 Converter 文件
+
+- 普通 POJO/实体使用 `class`，默认 `@Data`、`@NoArgsConstructor`、`@AllArgsConstructor`、`@Accessors(chain = true)`，按构造目标选择 `@Builder` 或 `@SuperBuilder`；父类状态参与相等性时使用 `@EqualsAndHashCode(callSuper = true)`。仅不可变值对象可以用 `record`；无父类等编译边界见 `references/egon-java-cqe-contract.md`。
+- 不可变值对象可用 `record`，不套用可变 class 注解；仅字段少不能证明值对象语义。
+
+
+核对构造目标、父类链与生成签名；按 `references/egon-java-cqe-contract.md` 的场景规则处理 Builder、无父类和零字段，其他实际框架/API 冲突记录为阻断。
+
+每个新增受影响 Converter 使用 MapStruct/MapStructPlus 并继承/实现 `BaseConverter<S,T>` / `BaseForwardConverter<S,T>`，写准确泛型、Mapper 注解、Bean 名、字段/Qualifier/空值/默认/枚举/时间/敏感字段和测试。不可逆投影使用 Common BaseForwardConverter，两种共享契约都不能表达时才报告缺口；禁止 Setter、BeanUtils、反射、JSON 或另建转换体系。
+
+## 规则 4——业务类注解与注入
+
+每个受影响 Service/ServiceImpl/Component/Domain/Application Service/Handler/Strategy/Factory/Orchestrator/Schedule/Message Processor 文件都规划：`@Slf4j` 与安全有效日志；显式稳定 Bean 名；Final 依赖；`@RequiredArgsConstructor`；每个依赖字段 `@Qualifier("exactBeanName")`；准确 `lombok.config` 检查/修改。Step 必须用 Wiring Test 或 Compile Gate 证明生成构造注入。
+
+## 规则 5——封闭工具白名单
+
+每个工具 Import/Dependency 只能是 JDK、指定 Apache Commons 模块或 Guava；Tika 必须有内容识别需求。其他工具依赖或重复 `*Utils` 返回 Spec。Commons BeanUtils 不能承担规则 3 转换。
+
+## 规则 6——Jackson 契约文件
+
+每个受影响外部 DTO/VO/Result/Command/Query/Event 文件写准确 Jackson 注解，或逐字段证明默认行为符合协议。增加字段名、Include、Enum/Time、Unknown、Polymorphism、Sensitive 与兼容序列化测试。禁止 Gson/Fastjson 与 JSON 对象转换。
+
+## 规则 7——所有 Profile 文件进入 Tree
+
+配置 Key 变化时，同一 Tree/Step 列出 Base 与每个环境文件，以及适用的 `@ConfigurationProperties`、Metadata 和 Test。Plan 写 Key 对齐命令/方法及“Key 集合完全相同”的预期；Value 可不同，核心 Key 缺失/多出不允许。
+
+## 规则 9——复杂业务强制模式文件
+
+每个受影响业务 Flow 用证据分类 Simple/Complex。Complex Flow 必须使用有效 Spec 已选 Strategy、Template Method、Factory、Chain of Responsibility、State、Specification、Domain Event 等模式，按依赖顺序列参与者、必要接口/抽象、实现、Registry/Selection/Wiring、Orchestration 和测试。
+
+伪代码禁止把变化保留为 `if/else`、`switch`、类型/字符串/反射分发，也不能写直接逻辑足够。Simple Flow 保持直接，禁止仪式性模式类。
+
+## 规则 10——java.time 文件与字段映射
+
+每个受影响日期时间符号使用准确 `java.time` 类型。文件块写时区、精度、Clock、DB/JDBC、JSON、Duration/Timeout、兼容转换和测试。静态门禁禁止新增 `Date`、`Calendar`、`SimpleDateFormat` Import。
+
+读取 `references/time-semantics.zh-CN.md`，落实 UTC/语义分类、显式业务及展示时区、历史 UTC 兼容和 `MC-TIME-001` 证据契约。新 Spec 写 §6.3，新 Plan 写 §4.9，Execute 验证有效决策及实际检查。
+
+## 规则 11——文件排序前确认架构
+
+推导 Step 前展示当前 Tree，并只选择传统分层或准确 Egon Archetype。记录证据、Verifier、依赖方向、目标 Tree 和每个新文件归属理由。混合/第三种结构、Archetype 模块改名或自创层会阻断。每个 Step 都列 Rule 11，因为每个文件位置都必须保持所选结构。
+
+## Plan 强制矩阵
+
+| 原文规则 | Spec 来源 | 仓库证据 | 准确文件与顺序 | 伪代码义务 | 验证门禁 | Steps | 状态/阻断 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Rule 1 | `<Spec 章节>` | `<路径/符号>` | `<有序文件>` | `<强制实施细节>` | `<准确命令/审核>` | `<Step N>` | PASS / N/A / BLOCKED |
+
+十行必须按原编号顺序出现。N/A 必须有正向证据。任何规则缺失、弱化、与 Step 矛盾或阻断时，Plan 禁止 PASS。
+
+
+## 构造器注入补充规则（2026-10-13）
+
+Spring 依赖注入构造器即使只有一个，也统一显式声明 `@Autowired`。保留 final 依赖字段，采用
+`@RequiredArgsConstructor(onConstructor_ = @Autowired)`；具名 Bean、每个 `@Qualifier` 和构造参数复制配置保持。
+多个构造器时，仅标注实际用于依赖注入的构造器。字段注入仍禁止。
+DTO、PO、异常、纯 Domain 值对象构造和 `@ConfigurationProperties` 构造绑定不适用本规则；给绑定构造器
+添加 `@Autowired` 会改变绑定语义。验证实际生成构造器的注解和参数 Qualifier，不能只检查 Lombok 文本。
+以 source-projects 和 CRUD 模板为生产来源，不手改生成 Java。本补充落实 Rule 4，保留历史用户原文。

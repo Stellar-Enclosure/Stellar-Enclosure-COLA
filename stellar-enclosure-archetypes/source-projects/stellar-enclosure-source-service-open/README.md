@@ -1,0 +1,159 @@
+# stellar-enclosure-source-service-open
+
+[English](README.md) | [中文](README.zh-CN.md)
+
+`stellar-enclosure-source-service-open` is a service-only Stellar Enclosure Open sample for Course, Schedule, Exam, Paper, and Score workflows. Business traffic enters through Dubbo Triple or RabbitMQ; HTTP is limited to Spring Boot Actuator management endpoints.
+
+## Maven Profiles and External Launch Arguments
+
+Use one environment profile at a time: `dev`, `test`, or `prod`; omitted profiles use
+`dev` defaults. These profiles configure application startup, while Surefire keeps
+its existing `test` profile. JVM heap sizes are examples to tune for the deployment.
+
+From the project root (install sibling modules first for a multi-module project):
+
+```bash
+mvn install
+mvn -pl stellar-enclosure-source-service-open-starter -Pdev spring-boot:run
+mvn -Pprod -Drun.jvm-args="-Xms1g -Xmx2g" \
+  -Drun.server-port=8081 \
+  -Drun.config-location=file:/etc/myapp/override.yml package
+```
+
+Maven generates `stellar-enclosure-source-service-open-starter/target/launch.args` during `process-resources`, including when
+packaging. Switching profiles or `-Drun.*` values rewrites it even without `clean`.
+Only `src/main/launch/launch.args` is filtered by this execution using `@...@`;
+existing YAML placeholders remain runtime values. The argument file stays outside the JAR.
+
+Deploy the executable JAR and `launch.args` together, optionally renaming the JAR to
+`app.jar`, then launch from the deployment directory:
+
+```bash
+java @launch.args -jar app.jar
+java @launch.args -Xmx3g -jar app.jar --server.port=9081
+```
+
+The file records JVM arguments, the Spring profile, port, and additional configuration
+location. These explicit system properties take precedence over corresponding environment
+variables; `-Drun.*` overrides Maven defaults, JVM options go before `-jar`, and Spring
+command-line overrides go after the JAR. Plain `java -jar` and IDE main-class runs do not
+read this file automatically. Relative configuration paths use the launch working directory,
+not the argument file directory; use an absolute `file:` path for deployment and forward
+slashes for Windows paths. Extra configuration supplements `application.yml` and the
+selected `application-{profile}.yml`; omit `optional:` when the file must exist. Keep
+credentials in the existing environment/secrets mechanism, never in `run.*` properties.
+
+## Build and Verification
+
+From the repository root:
+
+```bash
+./mvnw -B -ntp -f stellar-enclosure-archetypes/pom.xml \
+  -Pgenerated-archetypes -pl :stellar-enclosure-archetype-service-open -am clean integration-test
+```
+
+The generated tests cover Proto descriptors, Long identity, Common MyBatis-Plus DAOs and services, isolated H2 persistence and typed ShardingSphere routing contracts, manual SQL conventions, the 11 Triple unary methods exposed by three providers, standard gRPC unary interoperability, the dual-profile Organization client, DTP executor context, and ArchUnit dependency direction. ArchUnit replaces the internal bytecode Maven plugin and enforces service-only/no-JPA/no-Flyway/no-Gateway/no-Springdoc boundaries.
+
+These checks are source/generated-project and local-test evidence. They do not prove a live PostgreSQL schema, Redis DTP registry, Nacos topology, RabbitMQ, cross-Project provider, deployment network, or production authorization. Archetype generation and the commands above do not start the application or apply database SQL.
+
+Default tests do not bind a Triple listener. `EvaluationDubboTripleIntegrationTest` produces an explicit skipped report unless `egon.test.triple.enabled=true`; the generated verifier requires that report and rejects failures, unexpected skips, or a skipped enabled test. From the generated project root, manually run the existing 11-method Triple/gRPC interoperability test with:
+
+```bash
+mvn -B -ntp -Degon.test.triple.enabled=true \
+  -Dtest=EvaluationDubboTripleIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+The explicit command binds a local Triple port. A passing default build does not prove listener interoperability.
+
+## Modules
+
+The Evaluation contract is published by this project itself from its own `-facade` module, while the Organization contract is an externally published peer artifact that the generated POM resolves through the explicit `organization-facade.group-id`, `organization-facade.artifact-id`, `organization-facade.version` and `organization-facade.package` properties supplied at generation time. Publish the peer `parent`, `common` and `facade` before generating a consumer, and keep the two facades free of each other so the Maven graph stays acyclic.
+
+The generated Maven reactor contains one parent POM and seven modules:
+
+```text
+stellar-enclosure-source-service-open-common       local errors/constants/enums
+stellar-enclosure-source-service-open-facade       own Evaluation Proto wire contract and Triple codegen
+stellar-enclosure-source-service-open-domain       aggregates, value objects, domain services
+stellar-enclosure-source-service-open-application   use-case orchestration
+stellar-enclosure-source-service-open-infrastructure MyBatis-Plus, sharding, MQ and RPC clients
+stellar-enclosure-source-service-open-adapter       Proto RPC providers, converters and MQ consumers
+stellar-enclosure-source-service-open-starter        Boot composition, profiles and runtime governance
+```
+
+Domain-first packages remain `domain/<business-area>`, `application/<business-area>`, `infrastructure/<business-area>`, and `adapter/<business-area>`. The dependency direction is `facade` (contract only), `domain -> common`, `application -> domain`, `adapter -> application/facade`, `infrastructure -> domain + own facade + peer facade`, and `starter` as the composition root.
+
+## RPC Contracts
+
+`facade/src/main/proto` is the only RPC wire source this project owns. Three business files define three services and 11 unary methods under `egon.evaluation.v1`; Dubbo Maven plugin `3.3.6` generates `tri` stubs. The Organization protocol is not copied here: `infrastructure` consumes it from the peer Web Open facade artifact, so the same `egon.organization.v1` wire contract keeps exactly one Java owner. IDs are positive `int64`, instants are `Timestamp`, void responses are `google.protobuf.Empty`, and page responses use `records/current_page/total_pages/page_size/total_count`. A local wire-compatible `google/protobuf/empty.proto` support source is included for Dubbo 3.3.6 code generation.
+
+Evaluation exposes its 11 methods on one Triple port (`course`, `exam`, and `score` groups, version `1.0.0`). Organization directory calls keep the same wire names and resolve their stubs from the peer artifact. Standard gRPC unary calls are tested through `ManagedChannel`; the template does not start a second grpc-java server.
+
+The outbound Organization call is selected by the active Spring profile, not by a switch: `dev`/`prod` bind `DubboOrganizationDirectoryClientImpl` and `test` binds `LocalOrganizationDirectoryClientImpl`. Its two `@DubboReference` stubs read `app.integrations.organization.group` and `.version`, so `ORGANIZATION_FACADE_GROUP` (default `student-management-organization`) and `ORGANIZATION_FACADE_SERVICE_VERSION` (default `1.0.0`) are the live deployment overrides and must match the peer's hard-coded `ServiceBean` group and version. `ORGANIZATION_FACADE_ENABLED` (`app.integrations.organization.enabled`) is bound in `application.yml` as `false` and in `dev`/`prod` as `true`, but no production code reads it; setting it does not enable or disable the client.
+
+## IDs and Persistence
+
+All technical IDs are generated by the Common `LongIdGenerator`, stored as PostgreSQL `BIGINT`, and kept as positive `Long` in Domain, Application, PO, DAO, events, and sharding. Set a unique `EGON_ID_MACHINE_ID` for every runtime instance; there is no runtime default. UUID generators and UUID sharding are not part of this archetype.
+
+Persistence uses Common MP repositories and explicit Mapper XML; domain service ports do not inherit technical CRUD types.
+
+The initial evaluation topology uses `master_data`, `shard_0`, and `shard_1`. The logical tables are `evaluation_course`, `evaluation_course_schedule`, `evaluation_exam`, `evaluation_exam_paper`, and `evaluation_score`; all routed tables use positive `tenant_id` for both database and table selection, so one tenant remains on one database/table slot. Non-positive tenant IDs, missing sharding keys, range routing, unknown nodes, and inconsistent node maps fail fast.
+
+## Runtime Profiles and Integrations
+
+`dev` is the default profile for a workstation and uses environment-provided PostgreSQL, Nacos, RabbitMQ, Redis, and Dubbo. `prod` uses the same contracts with operator-owned secrets. `test` uses H2 PostgreSQL compatibility mode, the local Organization client implementation, and no live Nacos, Redis, RabbitMQ, or external provider.
+
+The sole asynchronous executor is the bounded Boot `applicationTaskExecutor` (`core=8`, `max=32`, `queue=1000`, `keep-alive=60s` by default). `DtpTaskDecorator` preserves and cleans execution context; Dynamic Thread Pool governs that same executor through Redis in `dev`/`prod`. `test` disables DTP reporting and Nacos.
+
+Every compose variant passes an explicit machine ID and DTP Redis/report settings. Nacos is pinned to `nacos/nacos-server:v3.0.3`; provide credentials and passwords through `deploy/env/.env.example` or an operator-owned production env file.
+
+Useful variables include:
+
+- Nacos: `NACOS_SERVER_ADDR`, `NACOS_NAMESPACE`, `NACOS_USERNAME`, `NACOS_PASSWORD`, `NACOS_CONFIG_ENABLED`, `NACOS_DISCOVERY_ENABLED`.
+- Dubbo: `DUBBO_REGISTRY_ADDRESS`, `DUBBO_PORT`, `DUBBO_CONSUMER_TIMEOUT`.
+- DTP/identity: `EGON_ID_MACHINE_ID`, `DTP_ENABLED`, `DTP_REPORT_ENABLED`, `DTP_REDIS_HOST`, `DTP_REDIS_PORT`, `DTP_REDIS_PASSWORD`.
+- Database: `EVALUATION_SHARDING_*` variables described in `deploy/env/.env.example`.
+- RabbitMQ: `SPRING_RABBITMQ_*`, `RABBITMQ_ENABLED`, and `RABBITMQ_LISTENER_AUTO_STARTUP`.
+
+## Repository, CQE and PostgreSQL
+
+This archetype uses MyBatis-Plus 3.5.16. Business service ports retain domain semantics; concrete repositories extend `EgonColaRepository` and mappers extend `EgonColaMapper`. Queries use explicit XML. `EgonModel` owns id, tenantId, creation/update actors and times, `LocalDateTime deletedAt` and `Long version`: NULL is active, deletion writes a UTC timestamp and increments the version. AR/QueryChain are disabled; technical filling is mandatory.
+
+`APP_DATASOURCE_MODE` supports `SHARDING` and `SHARDING_READWRITE` with LOCAL transactions. Single tables use explicit `!SINGLE group.schema.table`; broadcast tables are read-only. Default legacy tenant routing retains its old addresses. The optional `src/test/resources/sharding/two-level-readwrite.yml` example lives in infrastructure for multi-module projects. It hashes tenant_id into a tenant slot, then a business root ID into a bucket; order.id and item.order_id share the same root policy and physical group. This file is orphan reference material: no test, POM or configuration loads it, and its `CLASS_BASED` `algorithmClassName` entries name project classes that are not generated. The shipped `config-style: STRATEGY` topology reaches the same routing through the component's `EgonColaLongTenantShardingAlgorithm` and `EgonColaTenantBusinessComplexShardingAlgorithm` instead.
+
+mix64-v1 is fixed. T/B are powers of two up to 1024, with product at most 4096. Balanced databases also require a balanced slot map and tenant workload. There is no automatic redistribution. Query fanout is bounded; commands require exact keys. Changing topology requires matching DDL and a deliberate data migration/rebuild; the test example is not a drop-in production schema.
+
+The MP-SDJ starter owns datasource/topology setup and contributes the managed `EgonColaPostgreDdlRunner` bean. Called with explicit targets it applies `db/egon-mp/V20260913_001__initialize_repository_schema.sql` to physical PRIMARY schemas from `repository-manifest.json`: empty schemas initialize once, managed schemas verify checksums, prefix and route fingerprint, and non-empty unmanaged schemas fail with REBUILD_REQUIRED. Nothing in a generated project calls that bean, so startup creates no tables; wire the call, or apply the same SQL with an operator migration tool, before first use. The archived `db/manual/postgresql/**` scripts remain unchanged and are no longer the runtime entry point.
+
+PostgreSQL owns replication. Ordinary reads use ROUND_ROBIN replicas; transaction/locking/strong reads use PRIMARY. No replica provisioning or promotion is implemented. Business, single and broadcast tables carry tenant_id. Cross-group LOCAL writes are rejected and mark rollback-only.
+
+Set a unique `EGON_ID_MACHINE_ID` for each runtime; production uses the existing Common Snowflake generator. Profiles retain matching MP keys, diagnostics are dev-only and the raw recorder logger is OFF. Dynamic table names require explicit mappings. MybatisBatch runs inside the caller's transaction.
+
+Default tests use isolated H2 and controlled dependencies. This project ships no PostgreSQL-gated test: `-Degon.pg.*` and `EGON_TEST_PG_*` are read by no POM, YAML or test here, and no test starts or provisions a database. Real PG/SS routing, migration and EXPLAIN acceptance remains manual; the absence of a failure is not a pass.
+
+## Two-Level Cache
+
+`application.yml`, `application-dev.yml` and `application-prod.yml` ship the cache starter with `egon.cola.component.cache.enabled=true`; `test` keeps the same keys with
+`enabled: false` so unit and module runs never require Redis. `infrastructure/config/RedisConfig.java` carries `@EnableCaching` and
+publishes the `redissonClient` plus the two-level `cacheManager`, so a generated project is cache-ready once a Redis
+connection is configured. The mp-sd-ext base repository no longer depends on a cache port: concrete repositories declare
+Spring Cache annotations. The repository examples use `findCachedById` / `updateCachedById` (Agent defines its own business
+methods). Ordinary CRUD no longer evicts implicitly; annotate every relevant write/delete path. See
+the `stellar-enclosure-component-common-cache-spring-boot-starter` documentation in the Stellar-Enclosure repository
+for keys, conditions, combined operations, transactions and sync limitations. Every profile declares the same five TTL keys
+(`l1-expire`, `l1-jitter`, `l2-expire`, `l2-jitter`, `null-expire`) plus the shared `key-prefix`, `tenant-mdc-key` and batch/lock
+budgets; only values differ per environment.
+
+## Java and CQE Coding Requirements
+
+Normal entities use class; record is reserved for immutable value objects. Select @Builder for ordinary construction or compatible @SuperBuilder for inherited fields. Persisted enum codes use @EnumValue; frontend JSON codes use @JsonValue. Reuse Components and Common MP repositories. Validation uses native/custom constraint annotations, @Valid, @Validated and groups; ValidationUtils is a generic manual helper. Soft-delete business uniqueness must combine business columns + deleted_at with active-row NULL enforcement. Event delivery uses the Egon transactional outbox or actual MQ, with explicit transaction/failure and consumer-idempotency semantics. Existing source examples and old SQL must be reviewed against these new requirements; this documentation update does not migrate them.
+
+## UTC Time Contract
+
+All four profiles serialize Java time as ISO strings and declare Jackson UTC. The JVM launch arguments use `-Duser.timezone=UTC`; the existing container templates default to `TZ=UTC` and the same JVM flag. Agent has no container template. Business display zones belong to callers.
+
+Timeline values use `Instant`; scheduling and exam Commands truncate both non-null endpoints to microseconds before validation and persistence. Windows require `startsAt < endsAt` after truncation; adjacent half-open windows do not overlap. An example UTC value is `2026-10-13T01:00:00.123456Z`. `LocalDate` and `LocalTime` represent dates and wall-clock times without zone conversion. Existing `LocalDateTime deletedAt` remains a nullable legacy UTC token: NULL means active, and deletion/version/tenant rules remain unchanged.
+
+The undeployed Light/Service initialization sources use `TIMESTAMP(6) WITH TIME ZONE` for window columns; their existing manifest checksums match the source bytes. This does not migrate deployed data or repair existing SQL history. Existing scheduling uniqueness gaps are outside this change. Real PostgreSQL/JDBC acceptance is separate from offline and H2 tests.
+
+Open RPC retains standard `google.protobuf.Timestamp` seconds/nanos fields; canonical response nanos reflect the microsecond values, without changing the wire type or field numbers.

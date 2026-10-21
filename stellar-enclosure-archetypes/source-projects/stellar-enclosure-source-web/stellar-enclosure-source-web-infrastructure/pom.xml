@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project child.project.url.inherit.append.path="false" xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>top.egon.internal.archetype.source</groupId>
+        <artifactId>stellar-enclosure-source-web</artifactId>
+        <version>${stellar-enclosure.version}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>stellar-enclosure-source-web-infrastructure</artifactId>
+    <packaging>jar</packaging>
+    <name>stellar-enclosure-source-web-infrastructure</name>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>top.egon</groupId>
+                <artifactId>stellar-enclosure-tianquan-shoubing-starter</artifactId>
+                <version>${stellar-enclosure.tianquan-shoubing.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>top.egon</groupId>
+            <artifactId>stellar-enclosure-tianquan-shoubing-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>top.egon</groupId>
+            <artifactId>stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>top.egon</groupId>
+            <artifactId>stellar-enclosure-component-common-cache-spring-boot-starter</artifactId>
+        </dependency>
+        <!-- The cache starter keeps Redisson provided, so the host owns the client. -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>top.egon.internal.archetype.source</groupId>
+            <artifactId>stellar-enclosure-source-web-domain</artifactId>
+        </dependency>
+        <!-- optional-peer-facade:start -->
+        <dependency>
+            <groupId>${evaluation-facade.group-id}</groupId>
+            <artifactId>${evaluation-facade.artifact-id}</artifactId>
+        </dependency>
+        <!-- optional-peer-facade:end -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.linpeilie</groupId>
+            <artifactId>mapstruct-plus-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>top.egon</groupId>
+            <artifactId>stellar-enclosure-component-rpc-starter</artifactId>
+        </dependency>
+    </dependencies>
+    <properties>
+        <stellar-enclosure.tianquan-shoubing.version>0.0.1</stellar-enclosure.tianquan-shoubing.version>
+    </properties>
+</project>

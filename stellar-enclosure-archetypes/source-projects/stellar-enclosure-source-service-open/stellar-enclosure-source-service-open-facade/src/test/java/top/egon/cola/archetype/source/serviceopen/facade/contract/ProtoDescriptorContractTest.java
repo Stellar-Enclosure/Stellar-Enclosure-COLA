@@ -1,0 +1,96 @@
+package top.egon.cola.archetype.source.serviceopen.facade.contract;
+
+import com.google.protobuf.Descriptors;
+import top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.Course;
+import top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.CourseSchedule;
+import top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.Exam;
+import top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.ExamPaper;
+import top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.Score;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+class ProtoDescriptorContractTest {
+
+    @Test
+    void shouldExposeTheExactV1ServiceInventory() {
+        assertEquals("egon.evaluation.v1", Course.getDescriptor().getFile().getPackage());
+
+        assertServices(Course.getDescriptor().getFile(), Map.of(
+                "CourseService", List.of("CreateCourse", "ScheduleCourse", "GetCourse", "PageCourses")));
+        assertServices(Exam.getDescriptor().getFile(), Map.of(
+                "ExamService", List.of("CreateExam", "AttachPaper", "PublishExam", "GetExam")));
+        assertServices(Score.getDescriptor().getFile(), Map.of(
+                "ScoreService", List.of("RecordScore", "GetScore", "PageScores")));
+    }
+
+    @Test
+    void shouldKeepLongIdsTimesAndStablePageFields() {
+        assertLongFields(Course.getDescriptor(), "id");
+        assertLongFields(CourseSchedule.getDescriptor(), "id", "course_id", "class_id");
+        assertLongFields(Exam.getDescriptor(), "id", "course_id");
+        assertLongFields(ExamPaper.getDescriptor(), "id", "exam_id");
+        assertLongFields(Score.getDescriptor(), "id", "exam_id", "course_id", "student_id");
+
+        assertMessageField(CourseSchedule.getDescriptor(), "starts_at", "google.protobuf.Timestamp");
+        assertMessageField(CourseSchedule.getDescriptor(), "ends_at", "google.protobuf.Timestamp");
+        assertMessageField(Exam.getDescriptor(), "starts_at", "google.protobuf.Timestamp");
+        assertMessageField(Exam.getDescriptor(), "ends_at", "google.protobuf.Timestamp");
+
+        for (var descriptor : List.of(CourseSchedule.getDescriptor(), Exam.getDescriptor())) {
+            assertEquals(4, field(descriptor, "starts_at").getNumber());
+            assertEquals(5, field(descriptor, "ends_at").getNumber());
+            var timestamp = field(descriptor, "starts_at").getMessageType();
+            assertEquals(1, field(timestamp, "seconds").getNumber());
+            assertEquals(2, field(timestamp, "nanos").getNumber());
+            assertEquals(Descriptors.FieldDescriptor.Type.INT64, field(timestamp, "seconds").getType());
+            assertEquals(Descriptors.FieldDescriptor.Type.INT32, field(timestamp, "nanos").getType());
+        }
+
+        assertEquals(1, field(Course.getDescriptor(), "id").getNumber());
+        assertEquals(5, field(Course.getDescriptor(), "status").getNumber());
+        assertEquals(1, field(top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.PageCourseResponse.getDescriptor(), "records").getNumber());
+        assertEquals(2, field(top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.PageCourseResponse.getDescriptor(), "current_page").getNumber());
+        assertEquals(3, field(top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.PageCourseResponse.getDescriptor(), "total_pages").getNumber());
+        assertEquals(4, field(top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.PageCourseResponse.getDescriptor(), "page_size").getNumber());
+        assertEquals(5, field(top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.PageCourseResponse.getDescriptor(), "total_count").getNumber());
+        assertEquals("egon.evaluation.v1.Course",
+                Course.getDescriptor().getFile().findServiceByName("CourseService")
+                        .findMethodByName("CreateCourse").getOutputType().getFullName());
+    }
+
+    private static void assertServices(
+            Descriptors.FileDescriptor file, Map<String, List<String>> expected) {
+        assertEquals(expected.size(), file.getServices().size());
+        expected.forEach((serviceName, methods) -> {
+            Descriptors.ServiceDescriptor service = file.findServiceByName(serviceName);
+            assertNotNull(service, serviceName);
+            assertEquals(methods.size(), service.getMethods().size(), serviceName);
+            assertEquals(methods, service.getMethods().stream()
+                    .map(Descriptors.MethodDescriptor::getName).toList());
+        });
+    }
+
+    private static void assertLongFields(Descriptors.Descriptor message, String... names) {
+        for (String name : names) {
+            assertEquals(Descriptors.FieldDescriptor.Type.INT64, field(message, name).getType(), name);
+        }
+    }
+
+    private static void assertMessageField(
+            Descriptors.Descriptor message, String name, String fullName) {
+        Descriptors.FieldDescriptor descriptor = field(message, name);
+        assertEquals(Descriptors.FieldDescriptor.Type.MESSAGE, descriptor.getType(), name);
+        assertEquals(fullName, descriptor.getMessageType().getFullName(), name);
+    }
+
+    private static Descriptors.FieldDescriptor field(
+            Descriptors.Descriptor message, String name) {
+        Descriptors.FieldDescriptor field = message.findFieldByName(name);
+        assertNotNull(field, message.getFullName() + "." + name);
+        return field;
+    }
+}
