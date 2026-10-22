@@ -1,6 +1,19 @@
 # Stellar-Enclosure-COLA
 
-Stellar Enclosure Java modules. All first-party modules start at **0.0.1**.
+Application architecture templates, Maven archetypes and coding workflow skills for Stellar Enclosure. All first-party modules start at **0.0.1**.
+
+## 功能概览
+
+| 能力 | 当前实现与入口 |
+|---|---|
+| 轻量业务工程 | `light`、`light-open` 为单 Maven 模块，按业务域组织包，适合不需要拆分部署模块的应用。 |
+| 服务工程 | `service`、`service-open` 提供七模块工程，包含独立 Facade 合同和 RPC/MQ 适配；不承担业务 HTTP Controller。 |
+| Web 工程 | `web`、`web-open` 提供七模块工程，包含 HTTP/GraphQL/RPC/MQ 入口与跨服务调用示例。 |
+| Agent 工程 | `agent` 提供六模块工程，包含 Deep Research SSE、Knowledge API、Agent Flow、RAG 和 Outbox 集成。 |
+| Archetype 生产 | 从正常源工程与打包定义生成七族 archetype，支持确定性检查、边界检查与生成工程的 Groovy verifier。 |
+| 编码工作流 | `.agents/skills/stellar-enclosure-coding-*` 提供建模块、需求规格、实施计划和执行计划四个技能；Spec/Plan/Execute 内置离线 CRUD codegen 启动脚本。 |
+
+Native 与 Open 是已有集成边界不同的工程族，具体协议和依赖以所选源工程为准。模板与组件库分别维护：本仓库拥有源工程、打包规则和技能，实际通用运行时能力来自 [Components](https://github.com/Stellar-Enclosure/Stellar-Enclosure-Components) 及各平台 Starter。生成成功只证明模板打包与检查结果；现有实现与目标编码规范的差异见[架构总览](docs/architecture-overview.md)和[编码规范](docs/coding-standard.md)。
 
 ## Build
 
