@@ -42,7 +42,7 @@ java @launch.args -Xmx3g -jar app.jar --server.port=9081
 在仓库根目录执行：
 
 ```bash
-./mvnw -B -ntp -f stellar-enclosure-archetypes/pom.xml \
+./mvnw -B -ntp -f pom.xml \
   -Pgenerated-archetypes -pl :stellar-enclosure-archetype-service-open -am clean integration-test
 ```
 

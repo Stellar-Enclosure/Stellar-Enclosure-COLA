@@ -22,6 +22,13 @@ class SkillResourceValidationTest(unittest.TestCase):
         errors, _, _ = validate_skill_resources(root)
         return errors
 
+    def test_missing_shell_launcher_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.create_skill(root, "Run `scripts/missing.sh` before drafting.\n")
+            errors = self.validate(root)
+            self.assertTrue(any("missing resource: scripts/missing.sh" in error for error in errors))
+
     def test_missing_canonical_resource_fails_with_location(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

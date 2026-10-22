@@ -4,7 +4,7 @@ This file is the only selection table for `stellar-enclosure-coding-create-new-m
 
 Allowed coordinates, all `top.egon`:
 
-| Archetype | Choose when | Topology in `stellar-enclosure-archetypes/definitions/<artifactId>/archetype.properties` | Codegen `projectType` |
+| Archetype | Choose when | Topology in `definitions/<artifactId>/archetype.properties` | Codegen `projectType` |
 | --- | --- | --- | --- |
 | `stellar-enclosure-archetype-light` | One deployable module. HTTP/GraphQL stay in that module. No separate facade module. | `expectedTopology=root` | `light` |
 | `stellar-enclosure-archetype-web` | Seven-module HTTP/GraphQL/OpenAPI product. It publishes its own facade; an optional peer Evaluation facade adds a client integration. | `common,facade,domain,application,infrastructure,adapter,starter` | `web` |
@@ -45,7 +45,7 @@ Light and agent have no peer-facade properties.
 
 ## Version and catalog
 
-Read the archetype version from `stellar-enclosure-archetypes/pom.xml` (`parent` / `version`) at generation time. Do not invent a version.
+Read the archetype version from the Stellar-Enclosure-COLA checkout's root `pom.xml` (`parent` / `version`) at generation time. Do not invent a version.
 
 Generate from this checkout with `./mvnw`. Add `-DarchetypeCatalog=local` only after that version is already installed locally. If Maven cannot resolve the archetype, stop with the error and ask before any install. Do not publish, and do not run `scripts/generate_archetypes.sh`. That script packages archetypes; it does not create a business project.
 
@@ -55,21 +55,21 @@ Ask for the output parent directory when the user has not named one. Do not crea
 
 Never write under:
 
-- `stellar-enclosure-archetypes/source-projects`
-- `stellar-enclosure-archetypes/definitions`
-- `stellar-enclosure-archetypes/.generated`
+- `source-projects`
+- `definitions`
+- `.generated`
 
 Do not add the new project to an outer reactor POM unless the user asks. If requested, use `references/multi-project-parent.md`; include the generated project root path once, without rewriting its `<parent>` or listing its internal modules again.
 
 ## Command shape
 
-Run from the Egon-COLA repository root. Replace every angle-bracket field. Add the selected archetype's four peer flags only when the user supplied a real peer Facade.
+Run from the Stellar-Enclosure-COLA checkout's root. Replace every angle-bracket field. Add the selected archetype's four peer flags only when the user supplied a real peer Facade.
 
 ```bash
 ./mvnw -B -ntp archetype:generate \
   -DarchetypeGroupId=top.egon \
   -DarchetypeArtifactId=<stellar-enclosure-archetype-light|service|web|agent> \
-  -DarchetypeVersion=<version from stellar-enclosure-archetypes/pom.xml> \
+  -DarchetypeVersion=<version from pom.xml> \
   -DgroupId=<groupId> \
   -DartifactId=<artifactId> \
   -Dversion=<version> \

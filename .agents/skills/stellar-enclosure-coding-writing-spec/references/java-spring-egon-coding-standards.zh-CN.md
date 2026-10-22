@@ -54,7 +54,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 - Egon-COLA Archetype/common core 中的 MapStructPlus 依赖与 Processor；
 - 生成项目边界/Application 模块中的 `spring-boot-starter-validation`；
 - Archetype `lombok.config` 中的 `lombok.copyableAnnotations += org.springframework.beans.factory.annotation.Qualifier`；
-- `stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-{light,service,web}` 脚手架和对应 Open 变体；
+- `source-projects/stellar-enclosure-source-{light,service,web}` 脚手架和对应 Open 变体；
 - PostgreSQL + MyBatis-Plus + ShardingSphere-JDBC 持久化使用 `stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter`。拓扑、表类型、2n 布局、LOCAL 事务和受管 DDL 见 `references/database-design.zh-CN.md`。
 
 每次都必须在当前基线重新核实这些路径，不能因本参考提到某组件就假设目标项目已经可用。

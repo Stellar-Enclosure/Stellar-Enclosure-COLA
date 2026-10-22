@@ -103,7 +103,7 @@ CQE replaces the project's CQRS naming while preserving command/query separation
 
 ## Architecture and phase gates · 架构与分阶段检查
 
-Ground DDD in `stellar-enclosure-archetypes/source-projects` POMs, Java and architecture tests plus `definitions` packaging contracts. Light is one module with domain-first packages and `start`; Service/Web have common, facade, domain, application, infrastructure, adapter, starter; Agent has six modules without facade. Preserve the selected native/Open variant, actual protocol dependencies and port ownership. Domain owns business ports; Infrastructure implements them. Service has RPC/MQ entrypoints; Web/Light have HTTP/GraphQL as present in source. Do not copy a generic DDD tree.
+Ground DDD in the Stellar-Enclosure-COLA checkout's `source-projects` POMs, Java and architecture tests plus `definitions` packaging contracts. Light is one module with domain-first packages and `start`; Service/Web have common, facade, domain, application, infrastructure, adapter, starter; Agent has six modules without facade. Preserve the selected native/Open variant, actual protocol dependencies and port ownership. Domain owns business ports; Infrastructure implements them. Service has RPC/MQ entrypoints; Web/Light have HTTP/GraphQL as present in source. Do not copy a generic DDD tree.
 
 Traditional three-layer architecture retains its current package tree and Controller -> Service -> Repository -> Mapper boundaries. CQE and annotation rules do not authorize adding DDD layers.
 

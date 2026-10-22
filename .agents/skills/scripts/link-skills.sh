@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_NAME="${0##*/}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly SCRIPT_DIR
-readonly REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+readonly REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
 readonly SOURCE_ROOT="$REPO_ROOT/.agents/skills"
 
 DRY_RUN=false

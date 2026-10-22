@@ -28,7 +28,7 @@ If the work changes existing business code, stop and use `stellar-enclosure-codi
 2. Decide whether the request is for one standalone generated project, a pure outer reactor, or explicitly shared parent inheritance. A standalone generated project already has a root POM; the default outer reactor has no Maven `<parent>` and preserves each generated root's direct `stellar-enclosure-archetypes-parent` inheritance.
 3. For generation, pick exactly one allowed archetype from the selection table. If two fit, ask before generate. If the user already named one allowed archetype, use it. For a parent-only request, skip generation.
 4. If required identities for the requested action are missing, ask once. For generation these are `groupId`, `artifactId`, `version`, `package`, and output parent. Web and Service peer-facade coordinates are optional; when supplied, require all four together. For an outer reactor the required identities are its business GAV and exact child paths. Never invent a peer facade or default it to a `source-projects` sample.
-5. Read the archetype version from `stellar-enclosure-archetypes/pom.xml`. For generation run the command in `references/archetype-selection.md` with `./mvnw` from the Egon-COLA repository root. A parent-only answer does not run Maven generation.
+5. Read the archetype version from the Stellar-Enclosure-COLA checkout's root `pom.xml`. For generation run the command in `references/archetype-selection.md` with `./mvnw` from that checkout's root. A parent-only answer does not run Maven generation.
 6. If the archetype cannot be resolved, stop and show the Maven error. Ask before any local install. Do not publish or run `scripts/generate_archetypes.sh`.
 7. Run the applicable generation and optional outer-reactor checks in the references. A failure is reported with evidence; do not patch the generated tree to force a pass.
 8. Report the selected inheritance/aggregation relationship, and for generation the archetype GAV/version, output path, topology, codegen applicability, and the example-cleanup handoff below. Complete scaffold-only work; when business work was already requested, continue through the Spec skill instead of asking the user to invoke a separate cleanup skill.
@@ -39,7 +39,7 @@ Use the capability placement table in `references/multi-project-parent.md`. The 
 
 ## What the model does not write
 
-- Do not copy `stellar-enclosure-archetypes/source-projects`.
+- Do not copy `source-projects`.
 - Do not edit `definitions` or `.generated`.
 - Do not handwrite the archetype project's `pom.xml`, packages, or module skeleton when generate fails. An outer aggregation-only `pom.xml` is a separate, explicit user-requested artifact governed by `references/multi-project-parent.md`.
 - Do not select or rename an `-open` archetype.

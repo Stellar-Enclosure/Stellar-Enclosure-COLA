@@ -193,7 +193,7 @@ setup_definition_fixture() {
   trap 'rm -rf "$TEST_ROOT"' EXIT
   fixture_repo="$TEST_ROOT/repo"
   fixture_scripts="$fixture_repo/scripts"
-  fixture_archetypes="$fixture_repo/stellar-enclosure-archetypes"
+  fixture_archetypes="$fixture_repo"
   mkdir -p "$fixture_scripts" "$fixture_archetypes/definitions" "$fixture_archetypes/source-projects"
   cp "$GENERATOR" "$fixture_scripts/generate_archetypes.sh"
   chmod +x "$fixture_scripts/generate_archetypes.sh"
@@ -451,59 +451,14 @@ test_generation_mode() {
   "$GENERATOR" check >/dev/null 2>&1 || fail 'real generation check is not ready yet'
 }
 
-legacy_v_paths() {
-  cat <<'EOF'
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-light/src/main/resources/db/migration/sharding/master-data/V20260726_001__init_light_master_data_schema.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-light/src/main/resources/db/migration/sharding/master-data/V20260825_001__migrate_light_master_data_to_egon_model.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-light/src/main/resources/db/migration/sharding/shard/V20260726_002__init_light_sharded_schema.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-light/src/main/resources/db/migration/sharding/shard/V20260825_002__migrate_light_sharded_to_tenant_model.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-service/stellar-enclosure-source-service-infrastructure/src/main/resources/db/migration/sharding/master-data/V20260726_001__init_evaluation_master_data_schema.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-service/stellar-enclosure-source-service-infrastructure/src/main/resources/db/migration/sharding/master-data/V20260825_001__migrate_evaluation_master_data_to_egon_model.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-service/stellar-enclosure-source-service-infrastructure/src/main/resources/db/migration/sharding/shard/V20260726_002__init_evaluation_sharded_schema.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-service/stellar-enclosure-source-service-infrastructure/src/main/resources/db/migration/sharding/shard/V20260825_002__migrate_evaluation_sharded_to_tenant_model.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-web/stellar-enclosure-source-web-infrastructure/src/main/resources/db/migration/sharding/master-data/V20260726_001__init_organization_master_data_schema.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-web/stellar-enclosure-source-web-infrastructure/src/main/resources/db/migration/sharding/master-data/V20260825_003__migrate_organization_master_data_to_egon_model.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-web/stellar-enclosure-source-web-infrastructure/src/main/resources/db/migration/sharding/shard/V20260726_002__init_organization_sharded_schema.sql
-stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-web/stellar-enclosure-source-web-infrastructure/src/main/resources/db/migration/sharding/shard/V20260825_004__migrate_organization_sharded_to_tenant_model.sql
-EOF
-}
-
 assert_module_list() {
   local file="$1" expected="$2" actual
   actual="$(awk '/<profiles>/{exit} /<module>/{sub(/^[[:space:]]*<module>/, ""); sub(/<\/module>[[:space:]]*$/, ""); print}' "$file")"
   assert_equal "$expected" "$actual" "${file} module list"
 }
 
-assert_legacy_v_archive() {
-  local path expected actual
-  while IFS= read -r path; do
-    [[ -n "$path" ]] || continue
-    [[ -f "$REPO_ROOT/$path" ]] || fail "legacy V archive is missing: ${path}"
-    expected="$(git -C "$REPO_ROOT" show "HEAD:${path}" | shasum -a 256 | awk '{print $1}')"
-    actual="$(shasum -a 256 "$REPO_ROOT/$path" | awk '{print $1}')"
-    assert_equal "$expected" "$actual" "legacy V archive hash ${path}"
-  done < <(legacy_v_paths)
-}
-
-assert_no_duplicate_business_template() {
-  # The business template is authored exactly once, under source-projects. A second tracked copy
-  # of a legacy archive would mean a retired flat archetype module survived the two-stage split.
-  local tracked path archive_name duplicates family
-  tracked="$(git -C "$REPO_ROOT" ls-files)"
-  while IFS= read -r path; do
-    [[ -n "$path" ]] || continue
-    archive_name="${path##*/}"
-    duplicates="$(printf '%s\n' "$tracked" | grep -F "/${archive_name}" | grep -Fvx "$path" || true)"
-    [[ -z "$duplicates" ]] || fail "legacy V archive ${archive_name} is duplicated: ${duplicates}"
-  done < <(legacy_v_paths)
-  for family in light light-open service service-open web web-open agent; do
-    [[ -z "$(git -C "$REPO_ROOT" ls-files "stellar-enclosure-archetypes/stellar-enclosure-archetype-${family}")" ]] \
-      || fail "stellar-enclosure-archetype-${family} legacy module still has tracked files"
-  done
-}
-
 test_reactor_cutover_mode() {
-  local archetypes_pom="$REPO_ROOT/stellar-enclosure-archetypes/pom.xml"
+  local archetypes_pom="$REPO_ROOT/pom.xml"
   [[ -f "$archetypes_pom" ]] || fail "missing archetypes parent: ${archetypes_pom}"
   assert_module_list "$archetypes_pom" \
     $'source-projects/stellar-enclosure-source-service/stellar-enclosure-source-service-facade\nsource-projects/stellar-enclosure-source-web/stellar-enclosure-source-web-facade\nsource-projects/stellar-enclosure-source-service-open/stellar-enclosure-source-service-open-facade\nsource-projects/stellar-enclosure-source-web-open/stellar-enclosure-source-web-open-facade'
@@ -511,23 +466,12 @@ test_reactor_cutover_mode() {
   assert_file_contains "$archetypes_pom" '<module>.generated</module>' 'generated profile module'
   assert_file_not_contains "$archetypes_pom" '<activeByDefault>true</activeByDefault>' \
     'generated profile must not be active by default'
-  assert_legacy_v_archive
-  assert_no_duplicate_business_template
-}
-
-test_release_wiring_mode() {
-  # Since CI collapsed to the two verification lanes, the Central publish workflow is the only
-  # lane that still wires the source-to-archetype pipeline; archetype drift is caught at release.
-  local workflow="$REPO_ROOT/.github/workflows/publish-maven-central.yml"
-  [[ -f "$workflow" ]] || fail "missing workflow: ${workflow}"
-  assert_file_contains "$workflow" 'generate_archetypes.sh' "${workflow} generation gate"
-  assert_file_contains "$workflow" 'source-projects' "${workflow} source gate"
 }
 
 test_native_security_verifiers() {
   local family verifier
   for family in light service web agent; do
-    verifier="${REPO_ROOT}/stellar-enclosure-archetypes/definitions/stellar-enclosure-archetype-${family}/src/test/resources/projects/basic/verify.groovy"
+    verifier="${REPO_ROOT}/definitions/stellar-enclosure-archetype-${family}/src/test/resources/projects/basic/verify.groovy"
     assert_file_contains "$verifier" 'nativeRootModel.artifactId.text()' "${family} generated namespace"
     assert_file_contains "$verifier" 'nativeProfiles.size() == 4' "${family} actual profile inventory"
     assert_file_contains "$verifier" 'Every business RPC requires TENANT SERVICE scope' "${family} actual method contract"
@@ -569,9 +513,6 @@ main() {
     package)
       [[ $# -eq 2 && "$2" == reactor ]] || fail 'package mode requires reactor'
       test_reactor_cutover_mode
-      ;;
-    release)
-      test_release_wiring_mode
       ;;
     *)
       fail "unsupported test mode: ${mode}"

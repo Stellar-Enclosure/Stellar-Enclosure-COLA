@@ -54,7 +54,7 @@ Repository evidence currently includes:
 - MapStructPlus dependencies and processors in Egon-COLA archetypes/common core;
 - `spring-boot-starter-validation` in the generated boundary/application modules;
 - `lombok.copyableAnnotations += org.springframework.beans.factory.annotation.Qualifier` in archetype `lombok.config` files;
-- the `stellar-enclosure-archetypes/source-projects/stellar-enclosure-source-{light,service,web}` variants and their selected open variants;
+- the `source-projects/stellar-enclosure-source-{light,service,web}` variants and their selected open variants;
 - `stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter` for PostgreSQL + MyBatis-Plus + ShardingSphere-JDBC persistence. Topology, table types, 2n layout, LOCAL transactions, and managed DDL live in `references/database-design.md`.
 
 Reverify these paths in the current baseline; do not assume a component is available merely because this reference names it.

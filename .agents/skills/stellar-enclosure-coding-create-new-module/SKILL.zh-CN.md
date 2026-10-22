@@ -21,7 +21,7 @@ description: 用唯一的非 open Egon-COLA Maven archetype 生成一个真实�
 2. 先判断是独立生成项目、纯聚合外层 reactor，还是明确需要共享父 POM 的继承。独立生成项目已自带根 POM；默认外层 reactor 不设 `<parent>`，生成项目继续直接继承 `stellar-enclosure-archetypes-parent`。
 3. 要生成时从选型表选择且只选择一个 archetype；两个都合适才询问。只要求父 POM 时跳过 archetype 生成。
 4. 一次问齐实际创建所必需且无法从现有文件确定的信息：生成项目的 GAV、包名、输出父目录；外层 reactor 的业务 GAV 与准确子项目目录。Web/Service 的对端 Facade 四项坐标可以全不传；若要传入，必须四项齐全。不得编造对端 Facade。
-5. 从 `stellar-enclosure-archetypes/pom.xml` 读取版本。生成业务项目时在 Egon-COLA 仓库根使用 `./mvnw`；只回答父 POM 时不运行生成命令。
+5. 从 Stellar-Enclosure-COLA 仓库根的 `pom.xml` 读取版本。生成业务项目时在该仓库根使用 `./mvnw`；只回答父 POM 时不运行生成命令。
 6. archetype 无法解析时给出 Maven 错误；本地安装前询问用户。不要发布或运行 `scripts/generate_archetypes.sh`。
 7. 完成适用的生成检查及外层 reactor 检查；失败时报告证据，不靠改写生成项目的父 POM 强行通过。
 8. 报告聚合/继承关系；发生生成时再报告 archetype GAV/版本、输出路径、拓扑、codegen 适用范围以及下述样例清理交接。仅创建请求到此完成；已经要求业务工作时继续进入 Spec skill，不要求用户再调用一个清理 skill。
@@ -32,7 +32,7 @@ description: 用唯一的非 open Egon-COLA Maven archetype 生成一个真实�
 
 ## 模型不写这些
 
-- 不复制 `stellar-enclosure-archetypes/source-projects`。
+- 不复制 `source-projects`。
 - 不改 `definitions` 或 `.generated`。
 - generate 失败时不手写生成项目的 `pom.xml`、包或模块骨架。用户明确要求的外层纯聚合 `pom.xml` 按 `references/multi-project-parent.md` 单独处理。
 - 不选择、也不改名 `-open` archetype。

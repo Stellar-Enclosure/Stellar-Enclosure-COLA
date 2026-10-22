@@ -93,7 +93,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", type=Path, required=True, help="Built generated Service Open project with its default listener-gated report")
     parser.add_argument("--groovy-classpath", required=True, help="Existing groovy, groovy-xml and groovy-json jars")
-    parser.add_argument("--verifier", type=Path, default=ROOT / "stellar-enclosure-archetypes/definitions/stellar-enclosure-archetype-service-open/src/test/resources/projects/basic/verify.groovy")
+    parser.add_argument("--verifier", type=Path, default=ROOT / "definitions/stellar-enclosure-archetype-service-open/src/test/resources/projects/basic/verify.groovy")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="service-open-verifier-") as temporary:
         work = Path(temporary)

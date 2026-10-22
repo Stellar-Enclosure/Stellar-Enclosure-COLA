@@ -53,6 +53,8 @@ docs/egon/plan/YYYY-MM-DD-HH-MM-ABSTRACT.md
 
 ## 后端模板生成与依赖审批
 
-三个设计/实施 skill 各自带一份必须保持相同的 `references/backend-code-generation.md`：不允许自行引入依赖，缺口必须阻断并提交用户审批方案。后端生成器入口是 `scripts/stellar-enclosure-codegen.sh`，只负责 native Light/Web/Service 的初始 `CREATE TABLE` 建表模板；独立 `CREATE INDEX` 由 agent 审核，不参与生成器建模；`ALTER` 等后续结构变更由 agent 按获批 Spec/Plan 修改代码，不再用生成器刷新。FreeMarker 2.3.35 只属于生成器工具。Agent、Open 和传统三层不在 CLI 范围内，保持各自现有架构。Repository → DAO 只校验数据库表结构约束，业务规则在上层。脚手架自带代码仅供参考，真实业务实施 Step 必须删除或替换相应样例。每次 skill 驱动的初始生成还要把用到的 `src/main/resources/db/` SQL 追加到 `docs/egon/codegen/ddl-consumption-log.md`；该文件不是数据库执行记录。
+三个设计/实施 skill 各自带一份必须保持相同的 `references/backend-code-generation.md`：不允许自行引入依赖，缺口必须阻断并提交用户审批方案。三个 skill 各自内置后端生成器入口 `scripts/stellar-enclosure-codegen.sh`；从解析得到的 skill 绝对目录调用 `<skill-root>/scripts/stellar-enclosure-codegen.sh`，只负责 native Light/Web/Service 的初始 `CREATE TABLE` 建表模板；独立 `CREATE INDEX` 由 agent 审核，不参与生成器建模；`ALTER` 等后续结构变更由 agent 按获批 Spec/Plan 修改代码，不再用生成器刷新。FreeMarker 2.3.35 只属于生成器工具。Agent、Open 和传统三层不在 CLI 范围内，保持各自现有架构。Repository → DAO 只校验数据库表结构约束，业务规则在上层。脚手架自带代码仅供参考，真实业务实施 Step 必须删除或替换相应样例。每次 skill 驱动的初始生成还要把用到的 `src/main/resources/db/` SQL 追加到 `docs/egon/codegen/ddl-consumption-log.md`；该文件不是数据库执行记录。
 
 - 时间规范同步中英文：Spec Version 9 §6.3、Plan Version 5 §4.9 记录 TIME 契约，MC-TIME-001 验证发生时刻 UTC 存储/传输、纯日期语义、显式业务时区计算与前端展示转换；创建 skill 只交接真实模板证据。既有 UTC LocalDateTime 单列兼容，skill 更新不授权修改业务/数据库/历史迁移。旧版本文档按原结构契约校验。
+
+Skill 分发工具及其回归测试位于 `.agents/skills/scripts/`：用 `link-skills.sh` 向指定工程建立链接，用 `test-link-skills.sh` 在临时目录验证链接行为。

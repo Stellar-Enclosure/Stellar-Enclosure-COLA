@@ -83,7 +83,7 @@ jobs:
         working-directory: workspace/Stellar-Enclosure-COLA
         run: |
           ./mvnw -B -ntp -DskipTests=false -DskipITs -Dinvoker.skip=true -Darchetype.test.skip=true test
-          ./mvnw -B -ntp -DskipTests=false -DskipITs -Dinvoker.skip=true -Darchetype.test.skip=true -f stellar-enclosure-archetypes/source-projects/pom.xml test
+          ./mvnw -B -ntp -DskipTests=false -DskipITs -Dinvoker.skip=true -Darchetype.test.skip=true -f source-projects/pom.xml test
       - name: Validate skill resources
         run: |
           for script in workspace/Stellar-Enclosure-COLA/.agents/skills/*/scripts/validate_skill_resources.py; do

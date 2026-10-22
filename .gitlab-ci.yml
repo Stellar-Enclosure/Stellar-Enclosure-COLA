@@ -52,7 +52,7 @@ build-and-unit-tests:
       fi
       cd "$workspace/Stellar-Enclosure-COLA"
       ./mvnw -B -ntp "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" -DskipTests=false -DskipITs -Dinvoker.skip=true -Darchetype.test.skip=true test
-      ./mvnw -B -ntp "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" -DskipTests=false -DskipITs -Dinvoker.skip=true -Darchetype.test.skip=true -f stellar-enclosure-archetypes/source-projects/pom.xml test
+      ./mvnw -B -ntp "-Dmaven.repo.local=$MAVEN_REPO_LOCAL" -DskipTests=false -DskipITs -Dinvoker.skip=true -Darchetype.test.skip=true -f source-projects/pom.xml test
       for script in .agents/skills/*/scripts/validate_skill_resources.py; do
         python3 "$script"
       done

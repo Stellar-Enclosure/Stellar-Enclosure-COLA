@@ -14,5 +14,5 @@ coverage/
 __pycache__/
 *.py[cod]
 *.log
-stellar-enclosure-archetypes/.generated/
-stellar-enclosure-archetypes/.generated.*/
+/.generated/
+/.generated.*/

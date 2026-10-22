@@ -26,7 +26,7 @@ FROZEN_WIRE = re.compile(r"^\s*package\s+top\.egon\.cola\.(?:organization|evalua
 @lru_cache(maxsize=1)
 def frozen_wire_identifiers():
     identifiers = set()
-    source = ROOT / "stellar-enclosure-archetypes/source-projects"
+    source = ROOT / "source-projects"
     for family in ("light", "service", "web"):
         for proto in (source / ("stellar-enclosure-source-" + family)).rglob("*.proto"):
             if "target" in proto.parts:
@@ -87,7 +87,7 @@ def self_test():
 
 
 def check(family):
-    source = ROOT / "stellar-enclosure-archetypes/source-projects" / ("stellar-enclosure-source-" + family)
+    source = ROOT / "source-projects" / ("stellar-enclosure-source-" + family)
     failures = []
     dependencies = set()
     inspected = 0

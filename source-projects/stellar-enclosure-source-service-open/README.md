@@ -48,7 +48,7 @@ credentials in the existing environment/secrets mechanism, never in `run.*` prop
 From the repository root:
 
 ```bash
-./mvnw -B -ntp -f stellar-enclosure-archetypes/pom.xml \
+./mvnw -B -ntp -f pom.xml \
   -Pgenerated-archetypes -pl :stellar-enclosure-archetype-service-open -am clean integration-test
 ```
 

@@ -26,6 +26,12 @@ class ResourceIntegrityTest(unittest.TestCase):
         errors, _, _ = validate_skill_resources(root)
         self.assertEqual([], errors)
 
+    def test_missing_shell_launcher_is_rejected(self) -> None:
+        root = self.create_root()
+        (root / "SKILL.md").write_text("Run `scripts/missing.sh`.\n", encoding="utf-8")
+        errors, _, _ = validate_skill_resources(root)
+        self.assertTrue(any("missing resource: scripts/missing.sh" in error for error in errors))
+
     def test_missing_referenced_resource_is_rejected(self) -> None:
         root = self.create_root()
         (root / "SKILL.md").write_text(

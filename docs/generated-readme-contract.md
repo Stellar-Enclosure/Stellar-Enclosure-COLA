@@ -53,7 +53,7 @@
 **以 `verify.groovy` 为准**，下表只是阅读辅助，可能随测试演进而过时。改 README 前用下面的命令重新确认当前断言：
 
 ```bash
-grep -n 'README' stellar-enclosure-archetypes/definitions/stellar-enclosure-archetype-<family>/src/test/resources/projects/basic/verify.groovy
+grep -n 'README' definitions/stellar-enclosure-archetype-<family>/src/test/resources/projects/basic/verify.groovy
 ```
 
 下表中「MP 七项」指 `EgonColaRepository`、`SHARDING_READWRITE`、`tenant_id`、`mix64-v1`、`LOCAL`、`REBUILD_REQUIRED`、`repository-manifest.json`；「交付六项」指 `deploy/container/Dockerfile`、`compose.docker.yaml`、`compose.podman.yaml`、`compose.nerdctl.yaml`、`Jenkinsfile`、`PUBLISH_IMAGE`；「分支三项」指 `` `dev` is the default profile ``、`` `feature/*` ``、`` `dev`, `release/*`, and `hotfix/*` ``。

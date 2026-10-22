@@ -4,7 +4,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
-ARCHETYPES_ROOT="${PROJECT_ROOT}/stellar-enclosure-archetypes"
+ARCHETYPES_ROOT="${PROJECT_ROOT}"
 SOURCE_ROOT="${ARCHETYPES_ROOT}/source-projects"
 DEFINITIONS_ROOT="${ARCHETYPES_ROOT}/definitions"
 MAVEN_WRAPPER="${PROJECT_ROOT}/mvnw"

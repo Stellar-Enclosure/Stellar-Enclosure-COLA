@@ -203,7 +203,7 @@ def main():
         return 0
     failures = []
     for family in FAMILIES:
-        root = args.root / "stellar-enclosure-archetypes/source-projects" / ("stellar-enclosure-source-" + family)
+        root = args.root / "source-projects" / ("stellar-enclosure-source-" + family)
         poms = [ET.parse(p).getroot() for p in [root / "pom.xml", *sorted(root.glob("*/pom.xml"))]]
         coords = set().union(*(declarations(p) for p in poms))
         if family == "agent":
@@ -222,7 +222,7 @@ def main():
             failures.extend(violations(family, runtime_coordinates(text), runtime=True))
         print(f"CHECK {family}: {len(coords)} declared runtime coordinates; managed BOMs excluded")
     for family in ("light", "light-open", "service", "service-open", "web", "web-open", "agent"):
-        source = args.root / "stellar-enclosure-archetypes/source-projects" / ("stellar-enclosure-source-" + family)
+        source = args.root / "source-projects" / ("stellar-enclosure-source-" + family)
         failures.extend(module_violations(ET.parse(source / "pom.xml").getroot(), family))
         failures.extend(persistence_violations(source, family))
         if family in FACADE_FAMILIES:

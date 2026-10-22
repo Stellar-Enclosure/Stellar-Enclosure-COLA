@@ -3,9 +3,9 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd -P)"
 readonly PROJECT_ROOT
-readonly LINKER="${PROJECT_ROOT}/scripts/link-skills.sh"
+readonly LINKER="${SCRIPT_DIR}/link-skills.sh"
 readonly SOURCE_ROOT="${PROJECT_ROOT}/.agents/skills"
 FIXTURE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/egon-link-skills-test.XXXXXX")"
 readonly FIXTURE_ROOT

@@ -9,14 +9,14 @@ from pathlib import Path
 
 ROOT_RESOURCE_RE = re.compile(
     r"(?<![A-Za-z0-9_.-])(?P<path>(?:references|assets|scripts)/"
-    r"[A-Za-z0-9_.\-/]+\.(?:md|py|json|ya?ml))(?![A-Za-z0-9_.-])"
+    r"[A-Za-z0-9_.\-/]+\.(?:md|py|sh|json|ya?ml))(?![A-Za-z0-9_.-])"
 )
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\((?P<target>[^)]+)\)")
 LOAD_INSTRUCTION_RE = re.compile(
-    r"(?:Read|Apply|Run|读取|执行|运行|使用)[^\n`]*`(?P<path>[^`]+\.(?:md|py))`",
+    r"(?:Read|Apply|Run|读取|执行|运行|使用)[^\n`]*`(?P<path>[^`]+\.(?:md|py|sh))`",
     re.IGNORECASE,
 )
-BARE_FILE_RE = re.compile(r"`(?P<path>[A-Za-z0-9_.-]+\.(?:md|py|json|ya?ml))`")
+BARE_FILE_RE = re.compile(r"`(?P<path>[A-Za-z0-9_.-]+\.(?:md|py|sh|json|ya?ml))`")
 CORE_FILES = ("SKILL.md", "SKILL.zh-CN.md")
 ALLOWED_REPOSITORY_FILES = {"AGENTS.md"}
 
