@@ -363,8 +363,50 @@
                     <extensions>true</extensions>
                     <configuration>
                         <publishingServerId>${central.server.id}</publishingServerId>
+                        <skipPublishing>${maven.deploy.skip}</skipPublishing>
                         <autoPublish>true</autoPublish>
                         <waitUntil>published</waitUntil>
+                        <excludeArtifacts>
+                            <excludeArtifact>stellar-enclosure-archetype-source-projects</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-generated-archetypes-reactor</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-agent</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-agent-adapter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-agent-application</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-agent-common</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-agent-domain</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-agent-infrastructure</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-agent-starter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-light</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-light-open</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-adapter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-application</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-common</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-domain</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-infrastructure</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-open</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-open-adapter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-open-application</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-open-common</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-open-domain</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-open-infrastructure</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-open-starter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-service-starter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-adapter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-application</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-common</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-domain</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-infrastructure</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-open</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-open-adapter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-open-application</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-open-common</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-open-domain</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-open-infrastructure</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-open-starter</excludeArtifact>
+                            <excludeArtifact>stellar-enclosure-source-web-starter</excludeArtifact>
+                        </excludeArtifacts>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -404,7 +446,7 @@
                         <artifactId>maven-deploy-plugin</artifactId>
                         <inherited>false</inherited>
                         <configuration>
-                            <skip>false</skip>
+                            <skip>${maven.deploy.skip}</skip>
                         </configuration>
                     </plugin>
                     <plugin>
