@@ -10,14 +10,15 @@ import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 @Slf4j
 @EnableAsync
-@Configuration("asyncConfiguration")
+@Configuration("egonAsyncConfiguration")
 @RequiredArgsConstructor(onConstructor_ = @Autowired)
-public class AsyncConfiguration implements AsyncConfigurer {
+public class AsyncConfiguration {
 
     @Qualifier("dtpAsyncUncaughtExceptionHandler")
     private final ObjectProvider<AsyncUncaughtExceptionHandler> dtpExceptionHandler;
@@ -27,12 +28,20 @@ public class AsyncConfiguration implements AsyncConfigurer {
         this(null);
     }
 
-    @Override
+    @Bean("asyncConfiguration")
+    AsyncConfigurer asyncConfigurer() {
+        return new AsyncConfigurer() {
+            @Override public Executor getAsyncExecutor() { return AsyncConfiguration.this.getAsyncExecutor(); }
+            @Override public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+                return AsyncConfiguration.this.getAsyncUncaughtExceptionHandler();
+            }
+        };
+    }
+
     public Executor getAsyncExecutor() {
         return null;
     }
 
-    @Override
     public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
         if (dtpExceptionHandler != null) {
             AsyncUncaughtExceptionHandler handler = dtpExceptionHandler.getIfAvailable();

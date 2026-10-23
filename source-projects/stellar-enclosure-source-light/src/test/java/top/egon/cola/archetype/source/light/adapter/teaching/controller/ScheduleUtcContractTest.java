@@ -13,7 +13,7 @@ import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springdoc.core.properties.SpringDocConfigProperties;
 import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -73,8 +73,8 @@ class ScheduleUtcContractTest {
 
     @BeforeEach
     void prepareActualMapperAndVerifiedContext() throws Exception {
-        new ApplicationContextRunner().withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class))
-                .withPropertyValues("spring.jackson.time-zone=UTC", "spring.jackson.serialization.write-dates-as-timestamps=false")
+        new ApplicationContextRunner().withConfiguration(AutoConfigurations.of(Jackson2AutoConfiguration.class))
+                .withPropertyValues("spring.jackson2.time-zone=UTC", "spring.jackson2.serialization.write-dates-as-timestamps=false")
                 .run(context -> mapper = context.getBean(ObjectMapper.class));
         validators = Validation.buildDefaultValidatorFactory();
         manage = mock(SchoolClassManage.class);
@@ -182,7 +182,7 @@ class ScheduleUtcContractTest {
     @Configuration(proxyBeanMethods = false)
     @EnableWebMvc
     @EnableConfigurationProperties(SpringDocConfigProperties.class)
-    @Import({JacksonAutoConfiguration.class, SpringDocConfiguration.class, SpringDocWebMvcConfiguration.class, OpenApiConfig.class})
+    @Import({Jackson2AutoConfiguration.class, SpringDocConfiguration.class, SpringDocWebMvcConfiguration.class, OpenApiConfig.class})
     static class DocumentConfiguration {
         @Bean(destroyMethod = "close") ValidatorFactory validators() { return Validation.buildDefaultValidatorFactory(); }
         @Bean("schoolClassController") SchoolClassController schoolClassController(ValidatorFactory validators) {

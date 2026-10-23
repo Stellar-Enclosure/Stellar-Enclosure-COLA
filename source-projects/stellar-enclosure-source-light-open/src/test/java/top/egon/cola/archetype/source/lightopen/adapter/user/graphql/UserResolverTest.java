@@ -7,7 +7,7 @@ import top.egon.cola.archetype.source.lightopen.application.user.pojo.result.Per
 import top.egon.cola.archetype.source.lightopen.application.user.pojo.result.UserResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.graphql.GraphQlTest;
+import org.springframework.boot.graphql.test.autoconfigure.GraphQlTest;
 import org.springframework.graphql.test.tester.GraphQlTester;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;

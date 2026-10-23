@@ -148,11 +148,11 @@ def assertPortableDockerfile = { jarFile, exposedPorts, readinessPort ->
     ].each { assertMissing(it) }
 
     def text = assertFile("deploy/container/Dockerfile").text
-    assert text.contains("ARG BUILD_IMAGE=eclipse-temurin:21-jdk-jammy")
+    assert text.contains("ARG BUILD_IMAGE=eclipse-temurin:25-jdk-jammy")
     assert text.contains('FROM ${BUILD_IMAGE} AS builder')
     assert text.contains("chmod +x mvnw")
     assert text.contains("./mvnw -B -ntp -DskipTests package")
-    assert text.contains("ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-jammy")
+    assert text.contains("ARG RUNTIME_IMAGE=eclipse-temurin:25-jre-jammy")
     assert text.contains('FROM ${RUNTIME_IMAGE} AS extractor')
     assert text.contains("ARG JAR_FILE=${jarFile}")
     assert text.contains('COPY --from=builder /workspace/${JAR_FILE} app.jar')
@@ -475,7 +475,7 @@ def assertEgonColaBom = { pomModel ->
     }: "Components BOM is inherited from the published archetypes parent"
 }
 
-assert pomXml.properties.'java.version'.text() == "21"
+assert pomXml.properties.'java.version'.text() == "25"
 assert !pom.contains("<artifactId>shardingsphere-jdbc</artifactId>")
 assert !pom.contains("<artifactId>shardingsphere-sharding-core</artifactId>")
 assert pom.contains("<artifactId>stellar-enclosure-component-common-id-starter</artifactId>")
@@ -490,7 +490,7 @@ assertEgonColaBom(pomXml)
     "spring-boot-starter-graphql",
     "spring-boot-starter-amqp",
     "spring-boot-starter-data-redis",
-    "spring-boot-starter-aop",
+    "spring-boot-starter-aspectj",
     "stellar-enclosure-yuheng-starter-openapi-webmvc",
     "spring-boot-starter-test",
     "spring-graphql-test"
@@ -705,7 +705,7 @@ requiredPackagePaths.each { packagePath ->
     assertFile("src/main/java/it/pkg/${packagePath}/package-info.java")
 }
 def asyncConfigurationText = assertFile("src/main/java/it/pkg/start/config/async/AsyncConfiguration.java").text
-assert asyncConfigurationText.contains("implements AsyncConfigurer")
+assert asyncConfigurationText.contains("AsyncConfigurer asyncConfigurer()")
 assert asyncConfigurationText.contains("getAsyncUncaughtExceptionHandler")
 assert !asyncConfigurationText.contains("ThreadPoolTaskExecutorBuilder")
 assert !asyncConfigurationText.contains("applicationTaskExecutor(")
@@ -1442,7 +1442,7 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
-assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
 assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')

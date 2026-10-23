@@ -19,9 +19,9 @@
     <description>Deep Research sample based on the Stellar Enclosure Web architecture</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <stellar-enclosure.version>0.0.1</stellar-enclosure.version>
-        <spring-ai.version>1.1.8</spring-ai.version>
+        <spring-ai.version>2.0.2</spring-ai.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <lombok.version>1.18.46</lombok.version>

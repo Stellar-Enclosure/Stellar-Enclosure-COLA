@@ -36,7 +36,7 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
-import org.redisson.api.StreamMessageId;
+import org.redisson.api.stream.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamAddParams;
 import org.redisson.client.codec.StringCodec;
@@ -82,9 +82,10 @@ import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
@@ -143,7 +144,7 @@ class NativeSecurityContractTest {
 
     @org.junit.jupiter.api.Nested
     @org.springframework.test.context.ActiveProfiles("test")
-    @org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+    @org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
     @org.springframework.boot.test.context.SpringBootTest(
             classes = top.egon.cola.archetype.source.service.starter.EvaluationServiceApplication.class,
             properties = {"egon.cola.component.yuheng.openapi.enabled=true",
@@ -410,8 +411,8 @@ class NativeSecurityContractTest {
 
     @Test
     void infrastructureFallbackCannotMakeDisabledDocumentsPublic() {
-        new WebApplicationContextRunner()
-                .withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class,
+        new WebApplicationContextRunner().withPropertyValues("spring.http.converters.preferred-json-mapper=jackson2")
+                .withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class,
                         SecurityFilterAutoConfiguration.class, WebMvcAutoConfiguration.class))
                 .withUserConfiguration(NativeHttpSecurityConfiguration.class)
                 .run(context -> {

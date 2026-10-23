@@ -72,8 +72,8 @@ class KnowledgeRepositoryTest {
                     EgonColaMybatisPlusAutoConfiguration.class,
                     MybatisPlusInnerInterceptorAutoConfiguration.class,
                     MybatisPlusAutoConfiguration.class,
-                    org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration.class,
-                    org.springframework.boot.autoconfigure.transaction.TransactionAutoConfiguration.class))
+                    org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration.class,
+                    org.springframework.boot.transaction.autoconfigure.TransactionAutoConfiguration.class))
             .withPropertyValues("mybatis-plus.mapper-locations=classpath*:mybatis/mapper/**/*.xml",
                     "egon.cola.component.mybatis-plus.local-write-guard.allowed-root-statements.[top.egon.cola.archetype.source.agent.infrastructure.knowledge.dao.KnowledgeDocumentDAO.softDeleteByKnowledgeBaseId]=knowledge_base_id")
             .withUserConfiguration(KnowledgePersistenceConfiguration.class)

@@ -9,7 +9,7 @@ import java.time.LocalTime;
 import java.util.TimeZone;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.core.io.FileSystemResource;
@@ -27,16 +27,16 @@ class ArchetypeUtcConfigurationTest {
             var sources = loader.load(file, new FileSystemResource(MODULE.resolve("src/main/resources").resolve(file)));
             assertEquals(1, sources.size(), file);
             var source = sources.getFirst();
-            assertEquals("UTC", source.getProperty("spring.jackson.time-zone"), file);
-            assertEquals(false, source.getProperty("spring.jackson.serialization.write-dates-as-timestamps"), file);
-            assertNull(source.getProperty("spring.jackson.date-format"), file);
+            assertEquals("UTC", source.getProperty("spring.jackson2.time-zone"), file);
+            assertEquals(false, source.getProperty("spring.jackson2.serialization.write-dates-as-timestamps"), file);
+            assertNull(source.getProperty("spring.jackson2.date-format"), file);
             String text = Files.readString(MODULE.resolve("src/main/resources").resolve(file));
             assertFalse(text.contains("APP_TIME_ZONE"), file);
             new ApplicationContextRunner()
-                    .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class))
-                    .withPropertyValues("spring.jackson.time-zone=" + source.getProperty("spring.jackson.time-zone"),
-                            "spring.jackson.serialization.write-dates-as-timestamps="
-                                    + source.getProperty("spring.jackson.serialization.write-dates-as-timestamps"))
+                    .withConfiguration(AutoConfigurations.of(Jackson2AutoConfiguration.class))
+                    .withPropertyValues("spring.jackson2.time-zone=" + source.getProperty("spring.jackson2.time-zone"),
+                            "spring.jackson2.serialization.write-dates-as-timestamps="
+                                    + source.getProperty("spring.jackson2.serialization.write-dates-as-timestamps"))
                     .run(context -> {
                         ObjectMapper mapper = context.getBean(ObjectMapper.class);
                         TimeZone original = TimeZone.getDefault();

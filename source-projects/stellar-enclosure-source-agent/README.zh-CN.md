@@ -11,7 +11,7 @@ common -> domain -> application -> adapter -> starter
 
 项目通过 `stellar-enclosure-component-agent-flow-starter` 消费通用 Agent Flow 能力，并通过 RAG、transactional-outbox 与 MyBatis-Plus 组件支撑 knowledge 域。provider 配置、MCP 凭据、数据库凭据和 API secret 由 Starter 的环境配置提供。除 knowledge 三张表之外，项目不包含 MQ、RPC、GraphQL、UI、历史、恢复 API；二级缓存已接线但尚无查询接入。
 
-source reactor 使用 Java 21、Spring Boot 3.5.16、Spring AI 1.1.8、Springdoc 2.8.17，并通过 Components starter 使用 Google ADK 0.7.0。只有生成后的 `stellar-enclosure-archetype-agent` definition 会成为公共 Archetype archetype。
+source reactor 使用 Java 25、Spring Boot 4.1.2、Spring AI 2.0.2、Springdoc 3.1.1，并通过 Components starter 使用 Google ADK 0.7.0。只有生成后的 `stellar-enclosure-archetype-agent` definition 会成为公共 Archetype archetype。
 
 ## Maven Profiles 与外部启动参数
 

@@ -67,8 +67,8 @@ def modules = ["common", "domain", "application", "infrastructure", "adapter", "
 def moduleNames = modules.collect { "${prefix}-${it}" }
 def rootPom = new XmlSlurper(false, false).parse(file("pom.xml"))
 assert rootPom.modules.module*.text() == moduleNames
-assert rootPom.properties.'java.version'.text() == "21"
-assert rootPom.properties.'spring-ai.version'.text() == "1.1.8"
+assert rootPom.properties.'java.version'.text() == "25"
+assert rootPom.properties.'spring-ai.version'.text() == "2.0.2"
 assert rootPom.properties.'stellar-enclosure.version'.text()
 assert rootPom.dependencies.dependency.size() == 0
 
@@ -119,7 +119,7 @@ modules.each { module ->
             "shardingsphere-sharding-core must stay transitive in ${module}"
 }
 
-// flyway-core 与 mybatis-plus-spring-boot3-starter 是 knowledge 域的持久化依赖，
+// flyway-core 与 mybatis-plus-spring-boot4-starter 是 knowledge 域的持久化依赖，
 // 已由 Spec 2026-09-10-11-51 的 Amends 放开；其余禁项保持不变。
 def forbiddenDependencies = [
     "spring-boot-starter-data-jpa",
@@ -143,7 +143,7 @@ new java.util.jar.JarFile(agentArchive).withCloseable { archive ->
     }
 }
 ["stellar-enclosure-component-agent-flow-starter-", "spring-ai-openai-", "spring-ai-mcp-", "google-adk-",
- "stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter-", "mybatis-plus-spring-boot3-starter-",
+ "stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter-", "mybatis-plus-spring-boot4-starter-",
  "shardingsphere-jdbc-",
  "stellar-enclosure-component-rag-starter-", "stellar-enclosure-component-transactional-outbox-starter-",
  "spring-ai-pgvector-store-", "flyway-core-", "flyway-database-postgresql-", "postgresql-"].each { required ->
@@ -366,7 +366,7 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
-assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
 

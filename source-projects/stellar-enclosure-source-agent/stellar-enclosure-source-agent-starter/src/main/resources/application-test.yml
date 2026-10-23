@@ -4,9 +4,9 @@
 spring:
   autoconfigure:
     exclude:
-      - org.redisson.spring.starter.RedissonAutoConfigurationV2
-      - org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration
-      - org.springframework.boot.autoconfigure.security.oauth2.client.reactive.ReactiveOAuth2ClientAutoConfiguration
+      - org.redisson.spring.starter.RedissonAutoConfigurationV4
+      - org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientAutoConfiguration
+      - org.springframework.boot.security.oauth2.client.autoconfigure.reactive.ReactiveOAuth2ClientAutoConfiguration
   security:
     oauth2:
       client:
@@ -40,7 +40,7 @@ spring:
           native-tenant-two:
             token-uri: ${NATIVE_TENANT_TWO_TOKEN_URI:}
 
-  jackson:
+  jackson2:
     time-zone: UTC
     serialization:
       write-dates-as-timestamps: false

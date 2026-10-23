@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
@@ -303,7 +303,7 @@ class KnowledgeDocumentControllerTest {
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
     }
 
-    private MockHttpServletRequestBuilder authenticated(MockHttpServletRequestBuilder request) {
+    private AbstractMockHttpServletRequestBuilder<?> authenticated(AbstractMockHttpServletRequestBuilder<?> request) {
         return request.header("Authorization", "Bearer " + bearer)
                 .header(ResearchTraceFilter.TRACE_HEADER, TRACE_ID);
     }

@@ -3,7 +3,7 @@ package top.egon.cola.archetype.source.lightopen.adapter.pojo.convertor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.command.ScheduleCourseCommand;
 import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.convertor.TeachingApplicationConvertorImpl;
@@ -32,8 +32,8 @@ class ScheduleUtcConverterTest {
 
     @Test
     void actualMapperAndJavaFacadeCarrierUseTheCanonicalInstant() {
-        new ApplicationContextRunner().withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class))
-                .withPropertyValues("spring.jackson.serialization.write-dates-as-timestamps=false")
+        new ApplicationContextRunner().withConfiguration(AutoConfigurations.of(Jackson2AutoConfiguration.class))
+                .withPropertyValues("spring.jackson2.serialization.write-dates-as-timestamps=false")
                 .run(context -> {
                     ObjectMapper json = context.getBean(ObjectMapper.class);
                     var request = assertDoesNotThrow(() -> json.readValue("""

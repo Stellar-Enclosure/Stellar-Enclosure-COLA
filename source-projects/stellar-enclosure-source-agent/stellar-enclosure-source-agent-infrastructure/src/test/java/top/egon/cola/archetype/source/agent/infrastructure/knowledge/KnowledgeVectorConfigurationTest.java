@@ -8,18 +8,20 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.slf4j.MDC;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.validation.ValidationAutoConfiguration;
+import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import top.egon.cola.archetype.source.agent.domain.knowledge.service.KnowledgeVectorService;
 import top.egon.cola.archetype.source.agent.domain.knowledge.model.KnowledgeChunkBO;
 import top.egon.cola.archetype.source.agent.infrastructure.knowledge.config.KnowledgeEmbeddingConfiguration;
+import top.egon.cola.archetype.source.agent.infrastructure.knowledge.config.KnowledgeEmbeddingProperties;
 import top.egon.cola.archetype.source.agent.infrastructure.knowledge.config.KnowledgeVectorConfiguration;
 import top.egon.cola.archetype.source.agent.infrastructure.knowledge.service.impl.RagKnowledgeVectorServiceImpl;
 import top.egon.cola.archetype.source.agent.infrastructure.knowledge.metadata.KnowledgeVectorMetadata;
@@ -37,21 +39,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Locks the assembly contract the RAG component resolves by name, and the tenant filter the
  * knowledge domain forces on top of it.
  *
- * <p>Everything runs offline: the embedding model is built from typed properties against a name the
- * framework knows the dimension of, the vector store is built on a mocked {@code JdbcTemplate} whose
- * statements are inspected instead of executed, and the retrieval path uses an in-memory store. The
+ * <p>Everything runs offline: model construction is checked separately from the stubbed dimension
+ * probe, the vector store is built on a mocked {@code JdbcTemplate} whose statements are inspected
+ * instead of executed, and the retrieval path uses an in-memory store. The
  * real table and the real provider are exercised by the runtime acceptance, not here.
  */
 class KnowledgeVectorConfigurationTest {
 
     private static final int DIMENSIONS = 1536;
 
-    /** The OpenAI model whose dimension the framework resolves without calling the provider. */
+    /** Model identity whose dimension is supplied by the offline fixture. */
     private static final String EMBEDDING_MODEL_NAME = "text-embedding-ada-002";
 
     private static final String LOGICAL_MODEL_NAME = "openai-compatible";
@@ -66,16 +69,34 @@ class KnowledgeVectorConfigurationTest {
 
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 
+    private final OpenAiEmbeddingModel embeddingModel = mock(OpenAiEmbeddingModel.class);
+
     /** The rag component plus the host wiring every case needs; each case adds what it varies. */
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(RagAutoConfiguration.class, ValidationAutoConfiguration.class))
             .withBean(JdbcTemplate.class, () -> jdbcTemplate)
+            .withBean("knowledgeEmbeddingModel", EmbeddingModel.class, () -> {
+                when(embeddingModel.dimensions()).thenReturn(DIMENSIONS);
+                return embeddingModel;
+            })
             .withBean(Validator.class, VALIDATOR_FACTORY::getValidator)
             .withPropertyValues(enabledRagKeys());
 
     @AfterAll
     static void closeValidatorFactory() {
         VALIDATOR_FACTORY.close();
+    }
+
+    @Test
+    void retains_the_provider_path_and_content_only_embedding_contract() {
+        for (String baseUrl : List.of("http://test.invalid", "http://test.invalid/")) {
+            var properties = new KnowledgeEmbeddingProperties(baseUrl, "test-embedding-key", EMBEDDING_MODEL_NAME);
+            var model = (OpenAiEmbeddingModel) new KnowledgeEmbeddingConfiguration().knowledgeEmbeddingModel(properties);
+            assertThat(model.getOptions().getBaseUrl()).isEqualTo("http://test.invalid/v1");
+            assertThat(model.getOptions().getModel()).isEqualTo(EMBEDDING_MODEL_NAME);
+            assertThat(model.getEmbeddingContent(new Document("content", Map.of("tenant", TENANT))).strip())
+                    .isEqualTo("content");
+        }
     }
 
     @Test

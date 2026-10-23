@@ -65,7 +65,7 @@ def modules = ["common", "facade", "domain", "application", "infrastructure", "a
 def moduleNames = modules.collect { "${prefix}-${it}" }
 def rootPom = new XmlSlurper(false, false).parse(file("pom.xml"))
 assert rootPom.modules.module*.text() == moduleNames
-assert rootPom.properties.'java.version'.text() == "21"
+assert rootPom.properties.'java.version'.text() == "25"
 assert rootPom.properties.'stellar-enclosure.version'.text()
 assert rootPom.properties.'lombok.version'.text() == "1.18.46"
 assert rootPom.properties.'evaluation-facade.group-id'.text() == "top.egon.internal.archetype.source"
@@ -227,7 +227,7 @@ assert dependencyIds(poms.infrastructure).contains("${prefix}-domain".toString()
 assert dependencyIds(poms.infrastructure).contains("stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter")
 assert !dependencyIds(poms.infrastructure).contains("flyway-core")
 assert !dependencyIds(poms.infrastructure).contains("spring-boot-starter-data-jpa")
-assert !dependencyIds(poms.infrastructure).contains("mybatis-plus-spring-boot3-starter")
+assert !dependencyIds(poms.infrastructure).contains("mybatis-plus-spring-boot4-starter")
 // The own contract is protocol-only: no internal module, no published peer artifact.
 assert ["stellar-enclosure-component-rpc-starter", "protobuf-java", "grpc-protobuf", "grpc-stub",
         "jakarta.validation-api"].every { dependencyIds(poms.facade).contains(it) }
@@ -604,7 +604,7 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
-assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
 assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')

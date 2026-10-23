@@ -4,7 +4,6 @@ import org.springframework.ai.document.MetadataMode;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -30,11 +29,14 @@ public class KnowledgeEmbeddingConfiguration {
     @Bean("knowledgeEmbeddingModel")
     @ConditionalOnMissingBean(name = "knowledgeEmbeddingModel")
     public EmbeddingModel knowledgeEmbeddingModel(KnowledgeEmbeddingProperties properties) {
-        OpenAiApi api = OpenAiApi.builder()
-                .baseUrl(properties.baseUrl())
-                .apiKey(properties.apiKey())
+        // Spring AI 1 appended /v1; the SDK now expects it in the base URL.
+        return OpenAiEmbeddingModel.builder()
+                .metadataMode(MetadataMode.NONE)
+                .options(OpenAiEmbeddingOptions.builder()
+                        .baseUrl(properties.baseUrl().replaceAll("/+$", "") + "/v1")
+                        .apiKey(properties.apiKey())
+                        .model(properties.modelName())
+                        .build())
                 .build();
-        return new OpenAiEmbeddingModel(api, MetadataMode.NONE,
-                OpenAiEmbeddingOptions.builder().model(properties.modelName()).build());
     }
 }

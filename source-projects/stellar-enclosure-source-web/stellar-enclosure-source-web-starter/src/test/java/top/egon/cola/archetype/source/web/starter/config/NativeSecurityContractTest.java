@@ -14,9 +14,9 @@ import java.util.concurrent.TimeUnit;
 import org.assertj.core.api.Assertions;
 import org.redisson.client.RedisException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.graphql.GraphQlAutoConfiguration;
-import org.springframework.boot.autoconfigure.graphql.servlet.GraphQlWebMvcAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.graphql.GraphQlTest;
+import org.springframework.boot.graphql.autoconfigure.GraphQlAutoConfiguration;
+import org.springframework.boot.graphql.autoconfigure.servlet.GraphQlWebMvcAutoConfiguration;
+import org.springframework.boot.graphql.test.autoconfigure.GraphQlTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.graphql.server.WebGraphQlRequest;
 import org.springframework.http.HttpHeaders;
@@ -81,14 +81,14 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
-import org.redisson.api.StreamMessageId;
+import org.redisson.api.stream.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamAddParams;
 import org.redisson.client.codec.StringCodec;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.boot.autoconfigure.validation.ValidationAutoConfiguration;
+import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -183,11 +183,12 @@ import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
+import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import top.egon.cola.archetype.source.web.adapter.user.controller.UserController;
@@ -270,8 +271,8 @@ public class NativeSecurityContractTest {
         when(users.findCachedById(1001L)).thenReturn(row);
         try (var security = new SecurityFixture(temporary)) {
             hostRunner(users, security)
-                    .withConfiguration(AutoConfigurations.of(org.springframework.boot.autoconfigure.graphql.GraphQlAutoConfiguration.class,
-                            org.springframework.boot.autoconfigure.graphql.servlet.GraphQlWebMvcAutoConfiguration.class))
+                    .withConfiguration(AutoConfigurations.of(org.springframework.boot.graphql.autoconfigure.GraphQlAutoConfiguration.class,
+                            org.springframework.boot.graphql.autoconfigure.servlet.GraphQlWebMvcAutoConfiguration.class))
                     .withUserConfiguration(top.egon.cola.archetype.source.web.adapter.graphql.NativeGraphQlSecurityInterceptor.class,
                             top.egon.cola.archetype.source.web.adapter.graphql.NativeGraphQlSecurityInstrumentation.class,
                             top.egon.cola.archetype.source.web.adapter.handler.OrganizationGraphQlExceptionResolver.class)
@@ -306,8 +307,8 @@ public class NativeSecurityContractTest {
     }
 
     static WebApplicationContextRunner hostRunner(UserRepository users, SecurityFixture security) {
-        return new WebApplicationContextRunner().withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class,
-                        SecurityFilterAutoConfiguration.class, WebMvcAutoConfiguration.class, JacksonAutoConfiguration.class,
+        return new WebApplicationContextRunner().withBean("jacksonObjectMapper", ObjectMapper.class, () -> security.mapper).withPropertyValues("spring.http.converters.preferred-json-mapper=jackson2", "spring.graphql.schema.locations=classpath*:graphql/**/").withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class,
+                        SecurityFilterAutoConfiguration.class, WebMvcAutoConfiguration.class, Jackson2AutoConfiguration.class,
                         HttpMessageConvertersAutoConfiguration.class))
                 .withUserConfiguration(NativeHttpSecurityConfiguration.class,
                         top.egon.cola.archetype.source.web.adapter.handler.OrganizationGlobalExceptionHandler.class)
@@ -328,8 +329,9 @@ public class NativeSecurityContractTest {
 
     static WebApplicationContextRunner graphRunner(UserRepository users, SecurityFixture security) {
         return hostRunner(users, security)
-                .withConfiguration(AutoConfigurations.of(org.springframework.boot.autoconfigure.graphql.GraphQlAutoConfiguration.class,
-                        org.springframework.boot.autoconfigure.graphql.servlet.GraphQlWebMvcAutoConfiguration.class))
+                .withPropertyValues("spring.graphql.schema.locations=classpath*:graphql/**/")
+                .withConfiguration(AutoConfigurations.of(org.springframework.boot.graphql.autoconfigure.GraphQlAutoConfiguration.class,
+                        org.springframework.boot.graphql.autoconfigure.servlet.GraphQlWebMvcAutoConfiguration.class))
                 .withUserConfiguration(top.egon.cola.archetype.source.web.adapter.graphql.NativeGraphQlSecurityInterceptor.class,
                         top.egon.cola.archetype.source.web.adapter.graphql.NativeGraphQlSecurityInstrumentation.class,
                         top.egon.cola.archetype.source.web.adapter.handler.OrganizationGraphQlExceptionResolver.class)
@@ -640,8 +642,10 @@ public class NativeSecurityContractTest {
 
     /** Shared explicit test composition; production auto-configuration remains disabled in the external-free test profile. */
     @TestConfiguration(proxyBeanMethods = false)
+    @org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
     @EnableMethodSecurity
     public static class SecurityTestBeans {
+        @Bean("jacksonObjectMapper") ObjectMapper mapper(SecurityFixture fixture) { return fixture.mapper; }
         @Bean(name = "nativeSecurityFixture", destroyMethod = "close")
         SecurityFixture fixture() throws Exception { return new SecurityFixture(Files.createTempDirectory("web-security-test-")); }
         @Bean("idpJwtVerifier") IdpJwtVerifier verifier(SecurityFixture fixture) { return fixture.verifier; }

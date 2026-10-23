@@ -1,5 +1,5 @@
 spring:
-  jackson:
+  jackson2:
     time-zone: UTC
     serialization:
       write-dates-as-timestamps: false
@@ -42,7 +42,7 @@ spring:
       password: ${REDIS_PASSWORD:}
   autoconfigure:
     exclude:
-      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+      - org.redisson.spring.starter.RedissonAutoConfigurationV4
 management:
   endpoint:
     health:

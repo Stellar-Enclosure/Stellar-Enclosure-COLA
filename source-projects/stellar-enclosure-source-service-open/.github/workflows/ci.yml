@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
           cache: maven
       # `verify` runs the architecture-governance plugin, which is bound to that phase.
       - run: SPRING_PROFILES_ACTIVE=test bash ./mvnw -B -ntp clean verify

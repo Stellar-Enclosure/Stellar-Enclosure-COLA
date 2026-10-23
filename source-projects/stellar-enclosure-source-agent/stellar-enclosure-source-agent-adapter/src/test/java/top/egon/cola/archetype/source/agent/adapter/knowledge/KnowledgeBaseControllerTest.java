@@ -90,6 +90,7 @@ class KnowledgeBaseControllerTest {
         validator.afterPropertiesSet();
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
         mvc = MockMvcBuilders.standaloneSetup(new KnowledgeBaseController(security.fields, security.properties, manage))
+                .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(mapper))
                 .setValidator(validator)
                 .addFilters(
                         new ResearchTraceFilter(Clock.fixed(NOW, ZoneOffset.UTC), mapper)).addFilters(security.httpBoundary())

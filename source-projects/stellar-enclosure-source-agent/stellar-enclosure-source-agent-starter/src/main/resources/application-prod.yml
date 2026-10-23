@@ -34,9 +34,9 @@ spring:
 
   autoconfigure:
     exclude:
-      - org.redisson.spring.starter.RedissonAutoConfigurationV2
-      - org.redisson.spring.starter.RedissonAutoConfigurationV2
-  jackson:
+      - org.redisson.spring.starter.RedissonAutoConfigurationV4
+      - org.redisson.spring.starter.RedissonAutoConfigurationV4
+  jackson2:
     time-zone: UTC
     serialization:
       write-dates-as-timestamps: false

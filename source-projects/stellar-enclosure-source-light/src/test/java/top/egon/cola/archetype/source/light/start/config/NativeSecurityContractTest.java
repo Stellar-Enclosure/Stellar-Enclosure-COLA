@@ -43,7 +43,7 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
-import org.redisson.api.StreamMessageId;
+import org.redisson.api.stream.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamAddParams;
 import org.redisson.client.codec.StringCodec;
@@ -51,12 +51,13 @@ import org.slf4j.MDC;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
-import org.springframework.boot.autoconfigure.validation.ValidationAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
+import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -563,8 +564,8 @@ public class NativeSecurityContractTest {
                 mock(UserIdempotencyService.class), mock(UserApplicationValidator.class), new UserApplicationConvertorImpl());
     }
     public static WebApplicationContextRunner runner(SecurityFixture fixture, UserRepository repository) {
-        return new WebApplicationContextRunner().withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class,
-                WebMvcAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class,JacksonAutoConfiguration.class,ValidationAutoConfiguration.class))
+        return new WebApplicationContextRunner().withBean("jacksonObjectMapper", ObjectMapper.class, () -> fixture.mapper).withPropertyValues("spring.http.converters.preferred-json-mapper=jackson2").withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class,
+                WebMvcAutoConfiguration.class, HttpMessageConvertersAutoConfiguration.class,Jackson2AutoConfiguration.class,ValidationAutoConfiguration.class))
                 .withUserConfiguration(NativeHttpSecurityConfiguration.class, ReadChainConfiguration.class)
                 .withBean("userManageImpl", UserManage.class, () -> readManage(repository))
                 .withBean("domainRequestContextFilter", RequestContextFilter.class, () -> new RequestContextFilter(fixture.mapper, fixture.persistenceProperties))
@@ -578,8 +579,10 @@ public class NativeSecurityContractTest {
     }
     /** Shared explicit test composition; production auto-configuration remains disabled in the external-free test profile. */
     @TestConfiguration(proxyBeanMethods = false)
+    @org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
     @EnableMethodSecurity
     public static class SecurityTestBeans {
+        @Bean("jacksonObjectMapper") ObjectMapper mapper(SecurityFixture fixture) { return fixture.mapper; }
         @Bean(name = "nativeSecurityFixture", destroyMethod = "close")
         SecurityFixture fixture() throws Exception { return new SecurityFixture(Files.createTempDirectory("light-security-test-")); }
         @Bean("idpJwtVerifier") IdpJwtVerifier verifier(SecurityFixture fixture) { return fixture.verifier; }

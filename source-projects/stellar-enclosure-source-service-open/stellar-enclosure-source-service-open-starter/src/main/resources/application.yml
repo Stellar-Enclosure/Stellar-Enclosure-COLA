@@ -1,4 +1,9 @@
 spring:
+  http:
+    converters:
+      preferred-json-mapper: jackson2
+    codecs:
+      preferred-json-mapper: jackson2
   data:
     redis:
       host: ${REDIS_HOST}
@@ -34,7 +39,7 @@ spring:
       shutdown:
         await-termination: true
         await-termination-period: ${SCHEDULING_AWAIT_TERMINATION:30s}
-  jackson:
+  jackson2:
     time-zone: UTC
     default-property-inclusion: non_null
     serialization:

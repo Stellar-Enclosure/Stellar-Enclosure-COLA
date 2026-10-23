@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-`stellar-enclosure-source-light-open` is the open-source edition of the Stellar Enclosure Light archetype. It is one deployable Spring Boot 3.5.16 module. The package architecture remains the large-monolith, domain-first layout; `start`, `adapter`, `facade`, `application`, `domain`, `infrastructure`, and `common` are logical packages, not Maven modules.
+`stellar-enclosure-source-light-open` is the open-source edition of the Stellar Enclosure Light archetype. It is one deployable Spring Boot 4.1.2 module. The package architecture remains the large-monolith, domain-first layout; `start`, `adapter`, `facade`, `application`, `domain`, `infrastructure`, and `common` are logical packages, not Maven modules.
 
 ## Maven Profiles and External Launch Arguments
 
@@ -57,7 +57,7 @@ Springdoc exposes the OpenAPI document at `/v3/api-docs` and Swagger UI at `/swa
 
 ## Stack
 
-- Java 21, Spring Boot 3.5.16, Spring Cloud 2025.0.3, Spring Cloud Alibaba 2025.0.0.0, and Nacos 3.0.3.
+- Java 25, Spring Boot 4.1.2, Spring Cloud 2025.0.3, Spring Cloud Alibaba 2025.0.0.0, and Nacos 3.0.3.
 - MyBatis-Plus through the Stellar Enclosure Common MP starter, with DAO/XML SQL and EgonModel POs and ShardingSphere-JDBC 5.5.3.
 - Stellar Enclosure Common Core, Common ID, and Dynamic Thread Pool components.
 - Springdoc OpenAPI 2.8.17 for HTTP API documentation; the Gateway is an external platform and is not generated here.

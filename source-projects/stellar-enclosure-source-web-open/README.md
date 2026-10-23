@@ -60,9 +60,9 @@ Gateway topology; operators must provide those services and secrets for dev/prod
 
 ## Stack
 
-The runtime matrix is Spring Boot 3.5.16, Spring Cloud 2025.0.3, Spring Cloud Alibaba
+The runtime matrix is Spring Boot 4.1.2, Spring Cloud 2025.0.3, Spring Cloud Alibaba
 2025.0.0.0, Dubbo 3.3.6, Nacos 3.0.3 (Compose image), gRPC 1.73.0, Protobuf 3.x,
-ShardingSphere 5.5.3, and Springdoc 2.8.17. Direct Egon components are Common core/ID,
+ShardingSphere 5.5.3, and Springdoc 3.1.1. Direct Egon components are Common core/ID,
 the Common MyBatis-Plus starter, the Common two-level cache starter, and Dynamic Thread
 Pool starter.
 

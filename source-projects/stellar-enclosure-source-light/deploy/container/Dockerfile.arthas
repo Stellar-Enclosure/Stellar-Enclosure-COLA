@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG ARTHAS_IMAGE=hengyunabc/arthas:4.3.5
-ARG DIAGNOSTIC_JAVA_IMAGE=eclipse-temurin:21-jdk-jammy
+ARG DIAGNOSTIC_JAVA_IMAGE=eclipse-temurin:25-jdk-jammy
 
 FROM ${ARTHAS_IMAGE} AS arthas
 FROM ${DIAGNOSTIC_JAVA_IMAGE} AS diagnostics

@@ -54,9 +54,9 @@ docker compose --env-file deploy/env/.env.example \
 
 ## 技术栈
 
-技术矩阵为 Spring Boot 3.5.16、Spring Cloud 2025.0.3、Spring Cloud Alibaba
+技术矩阵为 Spring Boot 4.1.2、Spring Cloud 2025.0.3、Spring Cloud Alibaba
 2025.0.0.0、Dubbo 3.3.6、Nacos 3.0.3（Compose 镜像）、gRPC 1.73.0、Protobuf 3.x、
-MyBatis-Plus 3.5.16、ShardingSphere 5.5.3、Springdoc 2.8.17。直接使用的 Egon
+MyBatis-Plus 3.5.16、ShardingSphere 5.5.3、Springdoc 3.1.1。直接使用的 Egon
 组件为 Common core/ID、Common MyBatis-Plus starter、Common 二级缓存 starter 与 Dynamic
 Thread Pool starter。
 

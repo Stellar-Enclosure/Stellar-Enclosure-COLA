@@ -107,6 +107,7 @@ class KnowledgeQaControllerTest {
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         mvc = MockMvcBuilders.standaloneSetup(new KnowledgeQaController(manage, runtimeProperties()))
+                .setMessageConverters(new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(mapper))
                 .setValidator(validator)
                 .addFilters(new ResearchTraceFilter(clock, mapper)).addFilters(security.httpBoundary())
                 .setControllerAdvice(new KnowledgeGlobalExceptionHandler(new Rbac3AuthorizationExceptionHandler(), clock))

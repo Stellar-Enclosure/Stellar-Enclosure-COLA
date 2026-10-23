@@ -11,7 +11,7 @@ common -> domain -> application -> adapter -> starter
 
 The project consumes `stellar-enclosure-component-agent-flow-starter` for Agent Flow execution, and the RAG, transactional-outbox and MyBatis-Plus components for the knowledge domain. Provider configuration, MCP credentials, database credentials, and API secrets are supplied by environment-backed Starter configuration. It has no MQ, RPC, GraphQL, UI, history, or recovery API beyond the knowledge tables, and its two-level cache is wired but not yet used by a query.
 
-The source reactor is verified with Java 21, Spring Boot 3.5.16, Spring AI 1.1.8, Springdoc 2.8.17, and Google ADK 0.7.0 through the Components starter. Only the generated `stellar-enclosure-archetype-agent` definition becomes a public Archetype archetype.
+The source reactor targets Java 25, Spring Boot 4.1.2, Spring AI 2.0.2, Springdoc 3.1.1, and Google ADK 0.7.0 through the Components starter. Only the generated `stellar-enclosure-archetype-agent` definition becomes a public Archetype archetype.
 
 ## Maven Profiles and External Launch Arguments
 

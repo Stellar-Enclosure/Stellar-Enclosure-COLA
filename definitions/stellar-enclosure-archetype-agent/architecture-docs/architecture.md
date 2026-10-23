@@ -55,7 +55,7 @@ common <- domain <- application <- adapter <- starter
 
 ## CQE 与组件复用
 
-Agent 保留基于 Spring AI 1.1.8、Agent Flow 与 Google ADK 的六模块 Deep Research 应用，并为知识库领域消费 RAG、outbox 与 MyBatis-Plus 组件；复用现有的 Knowledge 事务 outbox。它不引入 Egon RPC/Tianshu、Nacos、Dubbo 或 ShardingSphere 运行时依赖。Google ADK 可能独立带入 gRPC/Protobuf；仅由 BOM 管理不等于运行时依赖。研究 / 回答 SSE 是响应流，不能证明 CQE 业务事件已持久投递。
+Agent 保留基于 Spring AI 2.0.2、Agent Flow 与 Google ADK 的六模块 Deep Research 应用，并为知识库领域消费 RAG、outbox 与 MyBatis-Plus 组件；复用现有的 Knowledge 事务 outbox。它不引入 Egon RPC/Tianshu、Nacos、Dubbo 或 ShardingSphere 运行时依赖。Google ADK 可能独立带入 gRPC/Protobuf；仅由 BOM 管理不等于运行时依赖。研究 / 回答 SSE 是响应流，不能证明 CQE 业务事件已持久投递。
 
 生成工程继承已发布的 `top.egon:stellar-enclosure-archetypes-parent`，使用具体版本且 `relativePath` 留空。parent 导入 Components BOM，管理 Common 依赖与 ShardingSphere 5.5.3，并把 Commons Lang 固定在 3.20.0；各消费模块继承自己工程的根 POM。验证未发布版本前，先在本地安装对应的 parent/BOM 与所需工件；本地安装不等于发布。
 

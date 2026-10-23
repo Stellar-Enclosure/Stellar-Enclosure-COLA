@@ -17,7 +17,7 @@ Native 与 Open 是已有集成边界不同的工程族，具体协议和依赖�
 
 ## Build
 
-Requires Java 21 and the included Maven Wrapper. Once the 0.0.1 dependencies are published:
+Requires Java 25 and the included Maven Wrapper. The shared parent manages Spring Boot 4.1.2. Once the 0.0.1 dependencies are published:
 
 ```bash
 ./mvnw -B -ntp test-compile

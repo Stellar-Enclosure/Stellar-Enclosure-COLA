@@ -9,6 +9,7 @@ import org.springframework.ai.tool.ToolCallback;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
+import java.net.http.HttpRequest;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -126,7 +127,7 @@ public class McpResearchToolFactory implements AutoCloseable {
     private static ClientAdapter connectSse(McpResearchToolProperties properties) {
         HttpClientSseClientTransport transport = HttpClientSseClientTransport.builder(properties.baseUri())
                 .sseEndpoint(properties.sseEndpoint())
-                .customizeRequest(builder -> builder.header("Authorization", "Bearer " + properties.apiKey()))
+                .requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + properties.apiKey()))
                 .connectTimeout(properties.requestTimeout())
                 .build();
         McpSyncClient client = null;

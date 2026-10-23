@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-ARG BUILD_IMAGE=eclipse-temurin:21-jdk-jammy
-ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-jammy
+ARG BUILD_IMAGE=eclipse-temurin:25-jdk-jammy
+ARG RUNTIME_IMAGE=eclipse-temurin:25-jre-jammy
 
 FROM ${BUILD_IMAGE} AS builder
 WORKDIR /workspace
@@ -52,4 +52,4 @@ EXPOSE 8081 50051
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
     CMD curl --fail --silent --show-error http://127.0.0.1:8081/actuator/health/readiness || exit 1
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -XX:+UseZGC -XX:+ZGenerational -Xlog:gc*,safepoint:file=/app/logs/gc.log:time,uptime,level,tags:filecount=5,filesize=20M org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -XX:+UseZGC -Xlog:gc*,safepoint:file=/app/logs/gc.log:time,uptime,level,tags:filecount=5,filesize=20M org.springframework.boot.loader.launch.JarLauncher"]

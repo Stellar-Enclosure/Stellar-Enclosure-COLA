@@ -68,7 +68,7 @@
         <stellar-enclosure.components.version>0.0.1</stellar-enclosure.components.version>
         <stellar-enclosure.tianshu.version>0.0.1</stellar-enclosure.tianshu.version>
         <stellar-enclosure.version>${project.version}</stellar-enclosure.version>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -80,8 +80,8 @@
         <maven.archetype.version>3.4.1</maven.archetype.version>
         <archetype.preflight.skip>true</archetype.preflight.skip>
         <archetype.groovy.version>4.0.28</archetype.groovy.version>
-        <spring-cloud.version>2025.0.3</spring-cloud.version>
-        <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
+        <spring-cloud.version>2025.1.4</spring-cloud.version>
+        <spring-cloud-alibaba.version>2025.1.0.0</spring-cloud-alibaba.version>
         <dubbo.version>3.3.6</dubbo.version>
         <shardingsphere.version>5.5.3</shardingsphere.version>
         <!-- Open contracts retain their existing external transport versions. -->
@@ -98,6 +98,13 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-bom</artifactId>
+                <version>${grpc.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>top.egon</groupId>
                 <artifactId>stellar-enclosure-components-bom</artifactId>
@@ -412,7 +419,7 @@
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.8.12</version>
+                    <version>0.8.14</version>
                 </plugin>
                 <plugin>
                     <groupId>pl.project13.maven</groupId>
@@ -464,7 +471,7 @@
                     <plugin>
                         <artifactId>maven-javadoc-plugin</artifactId>
                         <configuration>
-                            <source>21</source>
+                            <source>25</source>
                             <show>protected</show>
                             <charset>UTF-8</charset>
                             <encoding>UTF-8</encoding>
@@ -516,7 +523,7 @@
                                 <configuration>
                                     <rules>
                                         <requireJavaVersion>
-                                            <version>[21,)</version>
+                                            <version>[25,)</version>
                                         </requireJavaVersion>
                                     </rules>
                                 </configuration>

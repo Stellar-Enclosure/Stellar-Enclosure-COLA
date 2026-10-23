@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-`stellar-enclosure-source-light-open` 是 Stellar Enclosure Light 的开源版脚手架。它生成一个可部署的 Spring Boot 3.5.16 单模块应用；`start`、`adapter`、`facade`、`application`、`domain`、`infrastructure`、`common` 是单体内部的逻辑包，不是 Maven 子模块。
+`stellar-enclosure-source-light-open` 是 Stellar Enclosure Light 的开源版脚手架。它生成一个可部署的 Spring Boot 4.1.2 单模块应用；`start`、`adapter`、`facade`、`application`、`domain`、`infrastructure`、`common` 是单体内部的逻辑包，不是 Maven 子模块。
 
 ## Maven Profiles 与外部启动参数
 
@@ -51,7 +51,7 @@ Springdoc 在 `/v3/api-docs` 提供 OpenAPI 文档，在 `/swagger-ui.html` 提�
 
 ## 技术栈
 
-- Java 21、Spring Boot 3.5.16、Spring Cloud 2025.0.3、Spring Cloud Alibaba 2025.0.0.0、Nacos 3.0.3。
+- Java 25、Spring Boot 4.1.2、Spring Cloud 2025.0.3、Spring Cloud Alibaba 2025.0.0.0、Nacos 3.0.3。
 - 通过 Stellar Enclosure Common MP starter 使用 MyBatis-Plus，持久化采用 DAO/XML SQL 与 EgonModel PO；ShardingSphere-JDBC 5.5.3 负责分库分表。
 - Stellar Enclosure Common Core、Common ID、Dynamic Thread Pool 组件。
 - Springdoc OpenAPI 2.8.17 提供 HTTP API 文档；Gateway 属于外部平台，不在本工程内生成。

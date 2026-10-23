@@ -12,7 +12,7 @@ services:
 
   arthas:
     profiles: [ diagnostics ]
-    image: ${ARTHAS_SIDECAR_IMAGE:-egon-cola-arthas-sidecar:4.3.5-jdk21}
+    image: ${ARTHAS_SIDECAR_IMAGE:-egon-cola-arthas-sidecar:4.3.5-jdk25}
     build:
       context: ../..
       dockerfile: deploy/container/Dockerfile.arthas

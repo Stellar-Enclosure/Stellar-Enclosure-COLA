@@ -1,4 +1,9 @@
 spring:
+  http:
+    converters:
+      preferred-json-mapper: jackson2
+    codecs:
+      preferred-json-mapper: jackson2
   security:
     oauth2:
       client:
@@ -38,7 +43,7 @@ spring:
       password: ${REDIS_PASSWORD:}
   autoconfigure:
     exclude:
-      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+      - org.redisson.spring.starter.RedissonAutoConfigurationV4
   application:
     name: ${APP_NAME:stellar-enclosure-source-light}
   profiles:
@@ -67,7 +72,7 @@ spring:
       shutdown:
         await-termination: true
         await-termination-period: ${SCHEDULING_AWAIT_TERMINATION:30s}
-  jackson:
+  jackson2:
     time-zone: UTC
     default-property-inclusion: non_null
     serialization:

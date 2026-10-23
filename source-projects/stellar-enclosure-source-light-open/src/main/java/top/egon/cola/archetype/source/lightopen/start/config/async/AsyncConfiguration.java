@@ -20,9 +20,9 @@ import top.egon.cola.component.dtp.context.DtpTaskContextManager;
 
 @Slf4j
 @EnableAsync
-@Configuration("asyncConfiguration")
+@Configuration("egonAsyncConfiguration")
 @RequiredArgsConstructor(onConstructor_ = @Autowired)
-public class AsyncConfiguration implements AsyncConfigurer {
+public class AsyncConfiguration {
 
     @Lazy
     @Qualifier("applicationTaskExecutor")
@@ -49,12 +49,20 @@ public class AsyncConfiguration implements AsyncConfigurer {
         return executor -> executor.setTaskDecorator(decorator);
     }
 
-    @Override
+    @Bean("asyncConfiguration")
+    AsyncConfigurer asyncConfigurer() {
+        return new AsyncConfigurer() {
+            @Override public Executor getAsyncExecutor() { return AsyncConfiguration.this.getAsyncExecutor(); }
+            @Override public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+                return AsyncConfiguration.this.getAsyncUncaughtExceptionHandler();
+            }
+        };
+    }
+
     public Executor getAsyncExecutor() {
         return applicationTaskExecutor;
     }
 
-    @Override
     public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
         if (dtpExceptionHandler != null) {
             AsyncUncaughtExceptionHandler handler = dtpExceptionHandler.getIfAvailable();

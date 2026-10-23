@@ -1,7 +1,12 @@
 spring:
+  http:
+    converters:
+      preferred-json-mapper: jackson2
+    codecs:
+      preferred-json-mapper: jackson2
   autoconfigure:
     exclude:
-      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+      - org.redisson.spring.starter.RedissonAutoConfigurationV4
   security:
     oauth2:
       client:
@@ -35,7 +40,7 @@ spring:
           native-tenant-two:
             token-uri: ${NATIVE_TENANT_TWO_TOKEN_URI:}
 
-  jackson:
+  jackson2:
     time-zone: UTC
     serialization:
       write-dates-as-timestamps: false

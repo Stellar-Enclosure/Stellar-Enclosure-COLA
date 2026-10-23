@@ -64,7 +64,7 @@ def moduleNames = [
 def rootPomFile = file("pom.xml")
 def rootPom = new XmlSlurper(false, false).parse(rootPomFile)
 assert rootPom.modules.module*.text() == moduleNames
-assert rootPom.properties.'java.version'.text() == "21"
+assert rootPom.properties.'java.version'.text() == "25"
 assert !rootPom.properties.'mybatis-plus.version'.text()
 assert rootPom.properties.'archunit.version'.text() == "1.4.2"
 assert rootPom.properties.'organization-facade.group-id'.text() == "top.egon.internal.archetype.source"
@@ -111,7 +111,7 @@ def runtimeText = runtimeFiles.collect { it.getText("UTF-8") }.join("\n")
         "top.egon.cola.organization.facade",
         "top.egon.cola.evaluation.facade",
         "stellar-enclosure-component-bytecode-architecture"
-        ,"mybatis-plus-spring-boot3-starter"
+        ,"mybatis-plus-spring-boot4-starter"
         ,"com.baomidou.mybatisplus.core.mapper.BaseMapper"
         ,"repo.mapper"
 ].each { token ->
@@ -377,7 +377,7 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
-assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
 assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')

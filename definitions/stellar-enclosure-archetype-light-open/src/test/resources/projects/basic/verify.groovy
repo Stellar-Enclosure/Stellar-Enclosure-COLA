@@ -78,7 +78,7 @@ forbidden.each { token ->
 
 def rootPom = new XmlSlurper(false, false).parse(file("pom.xml"))
 assert rootPom.modules.module.isEmpty(): "Light Open must remain one generated Maven project"
-assert rootPom.properties.'java.version'.text() == "21"
+assert rootPom.properties.'java.version'.text() == "25"
 assert rootPom.properties.'mybatis-plus.version'.isEmpty()
 [
         "stellar-enclosure-component-common-core",
@@ -263,12 +263,12 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
-assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
 assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')
 assert !releasedLibraries.any { it.startsWith('stellar-enclosure-component-rpc-') || it.startsWith('stellar-enclosure-tianshu') }
-assert releasedLibraries.contains('springdoc-openapi-starter-webmvc-ui-2.8.17.jar')
+assert releasedLibraries.contains('springdoc-openapi-starter-webmvc-ui-3.1.1.jar')
 def openBoundaryFile = [new File(basedir, 'open-dependency-boundary.groovy'),
         new File(basedir, '../../open-dependency-boundary.groovy')].find { it.isFile() }
 assert openBoundaryFile: 'Expected curated Open dependency verifier'

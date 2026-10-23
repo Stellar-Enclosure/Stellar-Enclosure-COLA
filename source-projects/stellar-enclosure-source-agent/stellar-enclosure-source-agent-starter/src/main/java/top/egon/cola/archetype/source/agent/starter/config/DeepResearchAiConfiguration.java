@@ -3,7 +3,6 @@ package top.egon.cola.archetype.source.agent.starter.config;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -41,17 +40,15 @@ public class DeepResearchAiConfiguration {
             DeepResearchConfigurationProperties properties,
             @Qualifier("deepResearchSearchTools") ToolCallback[] searchTools) {
         DeepResearchConfigurationProperties.ModelProperties model = properties.model();
-        OpenAiApi api = OpenAiApi.builder()
-                .baseUrl(model.baseUrl())
-                .apiKey(model.apiKey())
-                .build();
+        // Spring AI 1 appended /v1; the SDK now expects it in the base URL.
         OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .baseUrl(model.baseUrl().replaceAll("/+$", "") + "/v1")
+                .apiKey(model.apiKey())
                 .model(model.modelName())
                 .toolCallbacks(Arrays.asList(searchTools.clone()))
                 .build();
         return OpenAiChatModel.builder()
-                .openAiApi(api)
-                .defaultOptions(options)
+                .options(options)
                 .build();
     }
 }

@@ -163,11 +163,11 @@ def assertPortableDockerfile = { jarFile, exposedPorts, readinessPort ->
     ].each { assertMissing(it) }
 
     def text = assertFile("deploy/container/Dockerfile").text
-    assert text.contains("ARG BUILD_IMAGE=eclipse-temurin:21-jdk-jammy")
+    assert text.contains("ARG BUILD_IMAGE=eclipse-temurin:25-jdk-jammy")
     assert text.contains('FROM ${BUILD_IMAGE} AS builder')
     assert text.contains("chmod +x mvnw")
     assert text.contains("./mvnw -B -ntp -DskipTests package")
-    assert text.contains("ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-jammy")
+    assert text.contains("ARG RUNTIME_IMAGE=eclipse-temurin:25-jre-jammy")
     assert text.contains('FROM ${RUNTIME_IMAGE} AS extractor')
     assert text.contains("ARG JAR_FILE=${jarFile}")
     assert text.contains('COPY --from=builder /workspace/${JAR_FILE} app.jar')
@@ -203,7 +203,7 @@ def assertEgonColaBom = { pomModel ->
     }: "Components BOM is inherited from the published archetypes parent"
 }
 
-assert rootPom.properties.'java.version'.text() == "21"
+assert rootPom.properties.'java.version'.text() == "25"
 assert !assertFile("student-management-evaluation-infrastructure/pom.xml").text.contains("<artifactId>shardingsphere-jdbc</artifactId>")
 assert !assertFile("student-management-evaluation-infrastructure/pom.xml").text.contains("<artifactId>shardingsphere-sharding-core</artifactId>")
 assert assertFile("student-management-evaluation-common/pom.xml").text
@@ -212,7 +212,7 @@ assert !assertFile("student-management-evaluation-domain/pom.xml").text
         .contains("stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter")
 assert assertFile("student-management-evaluation-infrastructure/pom.xml").text
         .contains("<artifactId>stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter</artifactId>")
-assert !rootPomText.contains("<artifactId>mybatis-plus-spring-boot3-starter</artifactId>")
+assert !rootPomText.contains("<artifactId>mybatis-plus-spring-boot4-starter</artifactId>")
 [
     "lombok.version",
     "lombok.mapstruct.binding.version",
@@ -1222,7 +1222,7 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
-assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
 assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')

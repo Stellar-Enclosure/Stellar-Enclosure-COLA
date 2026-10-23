@@ -60,12 +60,12 @@ def moduleNames = modules.collect { "${prefix}-${it}" }
 def rootPomFile = file("pom.xml")
 def rootPom = new XmlSlurper(false, false).parse(rootPomFile)
 assert rootPom.modules.module*.text() == moduleNames
-assert rootPom.properties.'java.version'.text() == "21"
+assert rootPom.properties.'java.version'.text() == "25"
 assert rootPom.properties.'lombok.version'.text() == "1.18.46"
 def rootPomText = rootPomFile.getText("UTF-8")
 assert !rootPomText.contains("spring-boot-starter-data-jpa")
 assert !rootPomText.contains("mybatis-plus.version")
-assert !rootPomText.contains("mybatis-plus-spring-boot3-starter")
+assert !rootPomText.contains("mybatis-plus-spring-boot4-starter")
 assert rootPomText.contains("<artifactId>lombok-mapstruct-binding</artifactId>")
 assert rootPom.properties.'evaluation-facade.group-id'.text() == "top.egon.internal.archetype.source"
 assert rootPom.properties.'evaluation-facade.artifact-id'.text() == "stellar-enclosure-source-service-open-facade"
@@ -175,7 +175,7 @@ assert !dependencyIds(poms.domain).contains("stellar-enclosure-component-common-
 assert dependencyIds(poms.infrastructure).contains("stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter")
 assert dependencyIds(poms.infrastructure).contains("${prefix}-domain".toString())
 assert !dependencyIds(poms.infrastructure).contains("spring-boot-starter-data-jpa")
-assert !dependencyIds(poms.infrastructure).contains("mybatis-plus-spring-boot3-starter")
+assert !dependencyIds(poms.infrastructure).contains("mybatis-plus-spring-boot4-starter")
 
 def javaSources = []
 javaModules.each { module -> javaSources.addAll(sourceFiles("${prefix}-${module}/src/main/java")) }
@@ -479,7 +479,7 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
-assert releasedLibraries.contains('spring-boot-3.5.16.jar')
+assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
 assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')
@@ -487,7 +487,7 @@ assert !releasedLibraries.any { it.startsWith('stellar-enclosure-component-rpc-'
 assert releasedLibraries.contains('grpc-api-1.73.0.jar')
 assert releasedLibraries.contains('protobuf-java-3.25.8.jar')
 assert releasedLibraries.contains('dubbo-3.3.6.jar')
-assert releasedLibraries.contains('springdoc-openapi-starter-webmvc-ui-2.8.17.jar')
+assert releasedLibraries.contains('springdoc-openapi-starter-webmvc-ui-3.1.1.jar')
 
 println 'Published parent and web-open runtime boundaries passed'
 true

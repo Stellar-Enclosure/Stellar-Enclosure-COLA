@@ -88,8 +88,8 @@ pipeline {
 
                     java_major="$(java -XshowSettings:properties -version 2>&1 |
                       awk -F= '/java.specification.version/ {gsub(/[[:space:]]/, "", $2); print $2; exit}')"
-                    test "$java_major" = "21" || {
-                      echo "JDK 21 is required; found ${java_major:-unknown}" >&2
+                    test "$java_major" = "25" || {
+                      echo "JDK 25 is required; found ${java_major:-unknown}" >&2
                       exit 1
                     }
 

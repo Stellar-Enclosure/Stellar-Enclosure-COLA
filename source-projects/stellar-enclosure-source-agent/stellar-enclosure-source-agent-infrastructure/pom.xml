@@ -13,6 +13,7 @@
     <packaging>jar</packaging>
     <name>stellar-enclosure-source-agent-infrastructure</name>
     <dependencies>
+
         <!-- The cache starter keeps Redisson provided, so the host owns the client. -->
         <dependency>
             <groupId>org.redisson</groupId>
@@ -44,8 +45,8 @@
             <artifactId>spring-ai-openai</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
         <!-- Flyway 10 起数据库支持按方言拆包；缺这个插件时 PostgreSQL 迁移在启动期报 Unsupported Database。 -->
         <dependency>

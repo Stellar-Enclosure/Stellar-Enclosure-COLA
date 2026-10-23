@@ -32,7 +32,7 @@ import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
-import org.redisson.api.StreamMessageId;
+import org.redisson.api.stream.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamAddParams;
 import org.redisson.client.codec.StringCodec;
@@ -106,19 +106,20 @@ import org.junit.jupiter.api.io.TempDir;
 import jakarta.servlet.Filter;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.http.HttpMessageConvertersAutoConfiguration;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
-import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
-import org.springframework.boot.autoconfigure.validation.ValidationAutoConfiguration;
-import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
+import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration;
+import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Role;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.mock.web.MockMultipartFile;
 import top.egon.cola.archetype.source.agent.adapter.filter.ResearchTraceFilter;
 import top.egon.cola.archetype.source.agent.adapter.knowledge.filter.KnowledgeTenantMdcFilter;
@@ -272,7 +273,7 @@ public class NativeSecurityContractTest {
         }
     }
 
-    private static MockHttpServletRequestBuilder request(int entry) {
+    private static AbstractMockHttpServletRequestBuilder<?> request(int entry) {
         return switch (entry) {
             case 0 -> post("/api/v1/deep-research/runs").accept("text/event-stream").contentType("application/json").content("{\"topic\":\"agent architecture\"}");
             case 1 -> post("/api/v1/knowledge-bases").contentType("application/json").content("{\"code\":\"docs\",\"name\":\"Docs\",\"embeddingModel\":\"model\",\"chunkStrategy\":\"TOKEN\",\"chunkConfig\":{\"maxTokensPerChunk\":512,\"overlapTokens\":64,\"minChunkChars\":1}}");
@@ -301,9 +302,9 @@ public class NativeSecurityContractTest {
         var manage = new KnowledgeBaseManageImpl(bases, mock(KnowledgeDocumentRepository.class), mock(KnowledgeRemovalService.class),
                 new KnowledgeRuntimeProperties(null, null), new ValidationUtils(security.validator));
         var documents = mock(KnowledgeDocumentManage.class); var qa = mock(KnowledgeQaManage.class); var research = mock(DeepResearchManage.class);
-        return new WebApplicationContextRunner().withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class,
+        return new WebApplicationContextRunner().withBean("jacksonObjectMapper", ObjectMapper.class, () -> security.mapper).withPropertyValues("spring.http.converters.preferred-json-mapper=jackson2").withConfiguration(AutoConfigurations.of(Jackson2AutoConfiguration.class,
                         HttpMessageConvertersAutoConfiguration.class, ValidationAutoConfiguration.class, WebMvcAutoConfiguration.class,
-                        SecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class))
+                        SecurityAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class))
                 .withUserConfiguration(NativeHttpSecurityConfiguration.class, KnowledgeGlobalExceptionHandler.class, DeepResearchGlobalExceptionHandler.class)
                 .withBean("agentClock", Clock.class, () -> security.clock)
                 .withBean("knowledgeBaseController", KnowledgeBaseController.class, () -> new KnowledgeBaseController(security.fields, security.properties, manage))
@@ -324,8 +325,10 @@ public class NativeSecurityContractTest {
 
     /** Shared explicit test composition; production auto-configuration remains disabled in the external-free test profile. */
     @TestConfiguration(proxyBeanMethods = false)
+    @org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
     @EnableMethodSecurity
     public static class SecurityTestBeans {
+        @Bean("jacksonObjectMapper") ObjectMapper mapper(SecurityFixture fixture) { return fixture.mapper; }
         @Bean(name = "nativeSecurityFixture", destroyMethod = "close")
         SecurityFixture fixture() throws Exception { return new SecurityFixture(Files.createTempDirectory("agent-security-test-")); }
         @Bean("idpJwtVerifier") IdpJwtVerifier verifier(SecurityFixture fixture) { return fixture.verifier; }

@@ -105,7 +105,7 @@ docker compose --env-file deploy/env/.env.example \
 Arthas attaches to the application JVM through a shared PID namespace and a
 tmpfs-backed `/tmp`, serves only the application loopback port `8563`, and keeps
 Telnet disabled. `ARTHAS_SIDECAR_IMAGE` defaults to
-`egon-cola-arthas-sidecar:4.3.5-jdk21`. The sidecar bind-mounts
+`egon-cola-arthas-sidecar:4.3.5-jdk25`. The sidecar bind-mounts
 `ARTHAS_PASSWORD_HOST_FILE` (default `deploy/secrets/arthas_password`, a path the
 operator creates and keeps out of version control) read-only at
 `/run/secrets/arthas_password`; the attach script rejects anything that is not a
