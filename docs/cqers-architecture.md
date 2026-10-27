@@ -31,4 +31,8 @@ Light 系列是单 Maven 模块，路径为该模块的包；Service/Web 和 Age
 
 保持 HTTP、GraphQL、RPC、MQ 的现有契约、Bean 名、租户及审计上下文。执行器拆分需要覆盖原用例行为、异常、幂等、事务回滚和事件边界；生成验证还应检查每个应用 Command/Query/接收侧 Event 对应的 Exe 是否存在并实际接入。源工程测试与 H2 不等于真实 PostgreSQL、MQ、Outbox 投递或集群运行验收。
 
-独立的 Components CRUD code generator 支持 native Light、Web 和 Service 的 CQERS Command/Query 执行器，并可根据显式事件定义生成 Event、转换器、EventExe 和不绑定消息中间件的 Adapter Handler。事件消费仍需接入已有的事务幂等 Bean 和具体传输；幂等 Bean 需要同步执行操作，按可信租户、消费方、事件类型、事件 ID 与内容指纹处理重复，并与业务写入使用兼容的事务。Agent 与 Open 不在生成器支持范围内。旧版平铺路径或被移除的已生成事件会触发冲突：审阅并自行保留或迁移源码后，可使用 `check` 输出的 `retirementReview` 和 `retire-legacy` 解除相应归属记录并重新规划；命令会备份状态，不移动或删除源码。不能删除状态或重置哈希来绕过保护。
+独立的 Components code generator 支持 native Light、Web 和 Service 的 CQERS Command/Query 执行器；领域端口方法名须由业务显式提供，生成的持久化实现仍需要业务规则审阅。生成 Light/Web HTTP 入口时，每表路径、操作 scope／权限／资源及字段资源均须显式配置，Controller 使用 Permission-as-Code 契约，并生成或复用接入 `PermissionJsonMapperFactory` 的 MVC JSON 配置；需要目标工程的权限清单、目录激活及可信身份上下文。登记资源不授予角色。结果包含乐观锁版本，部分更新保留未提交字段。
+
+显式事件定义可以映射已有 CRUD Command，也可以委托已有的 Application 业务处理端口；独立事件可以不依赖 DDL。生成 Event、EventExe 和传输无关的 Adapter Handler，CRUD 映射额外生成转换器。事件消费仍需接入已有的事务幂等 Bean 和具体传输；幂等 Bean 需要同步执行操作，按可信租户、消费方、事件类型、事件 ID 与内容指纹处理重复，并与业务写入使用兼容的事务。Agent 与 Open 不在生成器支持范围内。
+
+旧版平铺路径、业务端口方法变更或被移除的已生成事件会触发冲突：审阅调用方并自行保留或迁移源码后，可使用 `check` 输出的 `retirementReview` 和 `retire-legacy` 解除相应归属记录并重新规划；命令会备份状态，不移动或删除源码。不能删除状态或重置哈希来绕过保护。具体配置和兼容步骤以 Components 生成器 README 为准。

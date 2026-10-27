@@ -15,7 +15,7 @@ Application architecture templates, Maven archetypes and coding workflow skills 
 
 Native 与 Open 是已有集成边界不同的工程族，具体协议和依赖以所选源工程为准。模板与组件库分别维护：本仓库拥有源工程、打包规则和技能，实际通用运行时能力来自 [Components](https://github.com/Stellar-Enclosure/Stellar-Enclosure-Components) 及各平台 Starter。生成成功只证明模板打包与检查结果；现有实现与目标编码规范的差异见[架构总览](docs/architecture-overview.md)和[编码规范](docs/coding-standard.md)。
 
-Components 中独立维护的 CRUD code generator 已支持 native Light、Web 和 Service 的 CQERS 执行器及显式入站事件配置；Agent 和 Open 工程仍不在其生成范围内。旧版生成文件的迁移须保留所有权与冲突保护。详情见 [CQERS 架构](docs/cqers-architecture.md#兼容与验证)。
+Components 中独立维护的 code generator 支持 native Light、Web 和 Service 的 CQERS 执行器、按命令映射或委托业务端口的入站事件；独立事件可不依赖 DDL。生成领域端口和 HTTP 入口时须显式提供业务方法、权限及字段资源契约；Agent 和 Open 工程仍不在其生成范围内。旧版生成文件的迁移须保留所有权与冲突保护。详情见 [CQERS 架构](docs/cqers-architecture.md#兼容与验证)。
 
 ## COLA 架构
 
