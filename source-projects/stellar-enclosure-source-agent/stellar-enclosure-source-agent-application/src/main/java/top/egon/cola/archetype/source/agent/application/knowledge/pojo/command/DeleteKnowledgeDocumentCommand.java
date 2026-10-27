@@ -1,0 +1,17 @@
+package top.egon.cola.archetype.source.agent.application.knowledge.pojo.command;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import top.egon.cola.component.common.core.pojo.BasePojo;
+import lombok.experimental.Accessors;
+import lombok.Builder;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Accessors(chain = true)
+@Builder
+public class DeleteKnowledgeDocumentCommand implements BasePojo {
+    private Long documentId;
+}

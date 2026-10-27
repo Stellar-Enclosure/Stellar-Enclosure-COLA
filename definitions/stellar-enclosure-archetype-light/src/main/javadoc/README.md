@@ -13,3 +13,11 @@ This native variant uses Egon RPC unary Protobuf contracts (gRPC 1.75.0 / Protob
 Light carries its own ten-operation contract in `src/main/proto/teaching_user_facade.proto`. Existing business facade DTOs, HTTP/GraphQL/MQ behavior and database contracts are retained.
 
 Platform API document governance is opt-in. Controllers need explicit, unique `@Operation(operationId = ...)` values before enabling that catalog; existing business endpoints remain accessible with the default configuration. Live Tianshu/Tianquan-Shoubing/TLS discovery, cross-process RPC and production rollout require operator acceptance.
+
+## CQERS execution
+
+Generated projects retain the Manage entry point and place one `CmdExe`, `QueryExe`, or `EventExe`
+per Application Command, Query, or consumed business Event under the corresponding domain's
+`executor` package. Query executors are read-only. Event executors handle inbound business events;
+Domain ports and Infrastructure own outbound MQ/Outbox publication. Existing transactions and
+wire contracts remain in place. See the generated project README for the exact paths and boundaries.

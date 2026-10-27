@@ -11,13 +11,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import top.egon.cola.archetype.source.agent.common.exception.KnowledgeApplicationException;
 import top.egon.cola.archetype.source.agent.common.error.KnowledgeErrorCodeEnum;
-import top.egon.cola.archetype.source.agent.common.knowledge.KnowledgeIngestChannel;
 import top.egon.cola.archetype.source.agent.domain.knowledge.model.KnowledgeDocumentBO;
 import top.egon.cola.archetype.source.agent.domain.knowledge.repository.KnowledgeDocumentRepository;
-import top.egon.cola.component.outbox.api.OutboxMessage;
-import top.egon.cola.component.outbox.api.TransactionalOutbox;
+import top.egon.cola.archetype.source.agent.domain.knowledge.service.KnowledgeIngestPublisher;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -39,7 +36,7 @@ public class KnowledgeIngestQueueService {
 
     private final @Qualifier("knowledgeDocumentRepository") KnowledgeDocumentRepository documentRepository;
 
-    private final @Qualifier("transactionalOutbox") TransactionalOutbox transactionalOutbox;
+    private final @Qualifier("knowledgeIngestPublisher") KnowledgeIngestPublisher ingestPublisher;
 
     private final @Qualifier("egonColaMdcUserIdProvider") EgonColaUserIdProvider actorProvider;
 
@@ -80,14 +77,7 @@ public class KnowledgeIngestQueueService {
      */
     private void enqueue(KnowledgeDocumentBO document, String traceId, Map<String, String> headers) {
         try {
-            transactionalOutbox.enqueue(OutboxMessage.builder()
-                    .channel(KnowledgeIngestChannel.NAME)
-                    .destination(String.valueOf(document.documentId()))
-                    .schemaVersion(KnowledgeIngestChannel.SCHEMA_VERSION)
-                    .payload(payload(document))
-                    .headers(headers)
-                    .traceId(traceId)
-                    .build());
+            ingestPublisher.enqueue(document, traceId, headers);
         } catch (RuntimeException failure) {
             // The use case answers "queued", so a refused enqueue has to roll the row back with it
             // rather than surface as a document nothing will ever process.
@@ -114,11 +104,4 @@ public class KnowledgeIngestQueueService {
         return Map.of("egon.auth.actor-id", actor, "egon.auth.actor-kind", kind, "egon.auth.tenant-id", tenant.toString());
     }
 
-    private static Map<String, Object> payload(KnowledgeDocumentBO document) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put(KnowledgeIngestChannel.SCHEMA_VERSION_FIELD, KnowledgeIngestChannel.SCHEMA_VERSION);
-        payload.put(KnowledgeIngestChannel.DOCUMENT_ID_FIELD, document.documentId());
-        payload.put(KnowledgeIngestChannel.TENANT_ID_FIELD, document.tenantId());
-        return Map.copyOf(payload);
-    }
 }

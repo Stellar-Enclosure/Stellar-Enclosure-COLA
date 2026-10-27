@@ -1,6 +1,6 @@
 # Stellar-Enclosure 脚手架架构图
 
-更新：2026-09-22。准确的各产品直接 Maven 依赖见[架构总览](architecture-overview.md)；新增与修改代码遵循[编码规范](coding-standard.md)。下面箭头分别说明依赖或运行调用，不能混用。
+更新：2026-10-27。准确的各产品直接 Maven 依赖见[架构总览](architecture-overview.md)；新增与修改代码遵循[编码规范](coding-standard.md)。下面箭头分别说明依赖或运行调用，不能混用。
 
 ## 业务层依赖（箭头为依赖方指向被依赖方）
 
@@ -23,38 +23,42 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     participant A as Adapter
-    participant U as Application
-    participant D as Domain业务端口
+    participant U as Application Manage
+    participant X as CommandExe / QueryExe
     participant I as Infrastructure端口实现
     participant R as EgonColaRepository具体实现
     participant M as EgonColaMapper / XML
     A->>U: 校验后的 Command / Query
-    U->>D: 业务调用
-    D->>I: 绑定的实现
+    U->>X: 委托对应执行器
+    X->>I: 通过 Domain 业务端口调用
     I->>R: 转换后的持久化调用
     R->>M: 受保护写入 / 显式查询SQL
 ```
 
 PO、DAO、converter、repo 位于 Infrastructure 的对应业务域内并平级。业务端口由 Domain 持有。事务由实际 Application/use-case 边界协调，不能从示意图推导新增转发类。
 
-## CQE 事务事件
+## CQERS 事务事件
 
 ```mermaid
 sequenceDiagram
-    participant U as Command用例
+    participant U as CommandExe
     participant DB as 业务数据库
+    participant P as Infrastructure发布端口实现
     participant O as Egon事务Outbox
     participant W as 投递器
     participant Q as MQ或组件支持的传输
     participant C as 消费者
+    participant E as EventExe
     U->>DB: 开始事务并写业务状态
-    U->>O: enqueue(OutboxMessage)
+    U->>P: 通过 Domain 端口请求发布
+    P->>O: enqueue(OutboxMessage)
     O->>DB: 同事务持久化投递意图
     U->>DB: 提交
     W->>DB: 获取待投递记录
     W->>Q: 发送并处理结果
     Q->>C: Event
-    C->>C: 约束校验、幂等处理
+    C->>E: 校验后的业务事件
+    E->>E: 幂等业务处理
 ```
 
 此图描述采用 Outbox 时的目标交互，并不表示所有模板都已接入。直接 MQ 也是允许路径，但必须说明 DB/MQ 双写窗口与重试/恢复。Web 现有 afterCommit Rabbit 路径在失败时记录日志/指标，不能据此声称可靠恢复或 exactly-once。Query 无业务写入或事件副作用。

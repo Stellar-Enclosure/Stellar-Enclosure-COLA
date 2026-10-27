@@ -23,7 +23,6 @@ import top.egon.cola.archetype.source.agent.application.knowledge.service.Knowle
 import top.egon.cola.archetype.source.agent.application.knowledge.service.KnowledgeRemovalService;
 import top.egon.cola.component.common.mybatis.business.EgonColaTenantIdProvider;
 import top.egon.cola.archetype.source.agent.common.error.KnowledgeErrorCodeEnum;
-import top.egon.cola.archetype.source.agent.common.knowledge.KnowledgeIngestChannel;
 import top.egon.cola.archetype.source.agent.domain.knowledge.service.KnowledgeAnswerService;
 import top.egon.cola.archetype.source.agent.domain.knowledge.service.KnowledgeVectorService;
 import top.egon.cola.archetype.source.agent.domain.knowledge.model.ChunkingStrategyEnum;
@@ -39,9 +38,7 @@ import top.egon.cola.archetype.source.agent.domain.knowledge.repository.Knowledg
 import top.egon.cola.archetype.source.agent.domain.knowledge.service.KnowledgeAnswerRunService;
 import top.egon.cola.archetype.source.agent.domain.knowledge.service.KnowledgeQaEventObserverService;
 import top.egon.cola.component.common.core.validation.ValidationUtils;
-import top.egon.cola.component.outbox.api.OutboxMessage;
-import top.egon.cola.component.outbox.api.OutboxReceipt;
-import top.egon.cola.component.outbox.api.TransactionalOutbox;
+import top.egon.cola.archetype.source.agent.domain.knowledge.service.KnowledgeIngestPublisher;
 import top.egon.cola.component.rag.api.RagExtractionService;
 import top.egon.cola.component.rag.common.exception.RagExtractionException;
 import top.egon.cola.component.rag.extract.RagDocumentExtractor;
@@ -128,7 +125,7 @@ class KnowledgeManageTest {
     }
 
     @Test
-    void writes_document_and_outbox_in_one_transaction() {
+    void requests_ingest_for_the_stored_document() {
         Fixture fixture = new Fixture();
 
         KnowledgeDocumentBO uploaded = fixture.documents()
@@ -140,15 +137,8 @@ class KnowledgeManageTest {
         assertEquals(TENANT_ID, uploaded.tenantId());
         assertEquals(1, fixture.documentStorage.stored.size());
         assertEquals(1, fixture.documentRepository.stored.size());
-        assertEquals(1, fixture.outbox.messages.size());
-        OutboxMessage message = fixture.outbox.messages.getFirst();
-        assertEquals(KnowledgeIngestChannel.NAME, message.channel());
-        assertEquals(KnowledgeIngestChannel.SCHEMA_VERSION, message.schemaVersion());
-        assertEquals(String.valueOf(uploaded.documentId()), message.destination());
-        assertEquals(Map.of(
-                KnowledgeIngestChannel.SCHEMA_VERSION_FIELD, KnowledgeIngestChannel.SCHEMA_VERSION,
-                KnowledgeIngestChannel.DOCUMENT_ID_FIELD, uploaded.documentId(),
-                KnowledgeIngestChannel.TENANT_ID_FIELD, TENANT_ID), message.payload());
+        assertEquals(1, fixture.publisher.documents.size());
+        assertEquals(uploaded, fixture.publisher.documents.getFirst());
     }
 
     @Test
@@ -164,7 +154,7 @@ class KnowledgeManageTest {
         assertEquals(1, fixture.documentStorage.deleted.size());
         assertTrue(fixture.documentStorage.stored.isEmpty());
         assertTrue(fixture.documentRepository.stored.isEmpty());
-        assertTrue(fixture.outbox.messages.isEmpty());
+        assertTrue(fixture.publisher.documents.isEmpty());
     }
 
     @Test
@@ -180,7 +170,7 @@ class KnowledgeManageTest {
         assertEquals(KnowledgeErrorCodeEnum.KNOWLEDGE_DOCUMENT_BUSY, busy.code());
         assertEquals(DocumentIngestStatusEnum.PROCESSING,
                 fixture.documentRepository.stored.get(document.documentId()).status());
-        assertTrue(fixture.outbox.messages.isEmpty());
+        assertTrue(fixture.publisher.documents.isEmpty());
     }
 
     @Test
@@ -213,7 +203,7 @@ class KnowledgeManageTest {
         assertTrue(missing.fieldErrors().containsKey("file"));
         assertTrue(fixture.documentStorage.stored.isEmpty());
         assertTrue(fixture.documentRepository.stored.isEmpty());
-        assertTrue(fixture.outbox.messages.isEmpty());
+        assertTrue(fixture.publisher.documents.isEmpty());
     }
 
     @Test
@@ -228,7 +218,7 @@ class KnowledgeManageTest {
         assertEquals(KnowledgeErrorCodeEnum.KNOWLEDGE_FILE_TOO_LARGE, tooLarge.code());
         assertTrue(fixture.documentStorage.stored.isEmpty());
         assertTrue(fixture.documentRepository.stored.isEmpty());
-        assertTrue(fixture.outbox.messages.isEmpty());
+        assertTrue(fixture.publisher.documents.isEmpty());
     }
 
     @Test
@@ -244,7 +234,7 @@ class KnowledgeManageTest {
         assertEquals(1, fixture.documentStorage.deleted.size());
         assertTrue(fixture.documentStorage.stored.isEmpty());
         assertTrue(fixture.documentRepository.stored.isEmpty());
-        assertTrue(fixture.outbox.messages.isEmpty());
+        assertTrue(fixture.publisher.documents.isEmpty());
     }
 
     @Test
@@ -259,7 +249,7 @@ class KnowledgeManageTest {
         KnowledgeDocumentBO requeued = fixture.documents().reingest(failed.documentId());
 
         assertEquals(DocumentIngestStatusEnum.PENDING, requeued.status());
-        assertEquals(1, fixture.outbox.messages.size());
+        assertEquals(1, fixture.publisher.documents.size());
 
         KnowledgeApplicationException missing = assertThrows(KnowledgeApplicationException.class,
                 () -> fixture.documents().reingest(withoutText.documentId()));
@@ -479,7 +469,7 @@ class KnowledgeManageTest {
 
         private final RecordingAnswerService answerService = new RecordingAnswerService();
 
-        private final RecordingOutbox outbox = new RecordingOutbox();
+        private final RecordingPublisher publisher = new RecordingPublisher();
 
         private final FakeDocumentStorage documentStorage = new FakeDocumentStorage();
 
@@ -507,7 +497,7 @@ class KnowledgeManageTest {
         private Fixture(int qaMaxConcurrent) {
             this.qaMaxConcurrent = qaMaxConcurrent;
             this.capacity = new KnowledgeQaCapacityService(qaMaxConcurrent);
-            this.ingestQueueService = new KnowledgeIngestQueueService(documentRepository, outbox,
+            this.ingestQueueService = new KnowledgeIngestQueueService(documentRepository, publisher,
                     new top.egon.cola.component.common.mybatis.business.EgonColaMdcUserIdProvider(
                             new top.egon.cola.component.common.mybatis.autoconfigure.EgonColaMybatisPlusProperties()));
             this.removalService = new KnowledgeRemovalService(vectorService, documentRepository, baseRepository,
@@ -767,14 +757,13 @@ class KnowledgeManageTest {
         }
     }
 
-    private static final class RecordingOutbox implements TransactionalOutbox {
+    private static final class RecordingPublisher implements KnowledgeIngestPublisher {
 
-        private final List<OutboxMessage> messages = new ArrayList<>();
+        private final List<KnowledgeDocumentBO> documents = new ArrayList<>();
 
         @Override
-        public OutboxReceipt enqueue(OutboxMessage message) {
-            messages.add(message);
-            return new OutboxReceipt("message-" + messages.size(), "idempotency-" + messages.size(), true);
+        public void enqueue(KnowledgeDocumentBO document, String traceId, Map<String, String> auditHeaders) {
+            documents.add(document);
         }
     }
 

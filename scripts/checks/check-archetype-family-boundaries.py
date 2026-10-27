@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 
 
@@ -162,6 +163,43 @@ def module_violations(pom, family):
     return []
 
 
+def cqers_violations(root, family):
+    """Check real application inputs, matching executors and their entry-point calls."""
+    failures = []
+    sources = [p for p in root.rglob("*.java")
+               if "/src/main/java/" in p.as_posix() and "target" not in p.relative_to(root).parts]
+    callers = "\n".join(p.read_text(encoding="utf-8") for p in sources)
+    expected = set()
+    for path in sources:
+        if path.name == "package-info.java" or path.parent.name not in ("command", "query", "event"):
+            continue
+        if path.parent.parent.name != "pojo" or "application" not in path.parts:
+            continue
+        kind = path.parent.name
+        suffix = {"command": "Command", "query": "Query", "event": "Event"}[kind]
+        if not path.stem.endswith(suffix):
+            failures.append(f"{family}: unexpected {kind} input name {path}")
+            continue
+        exe_name = (path.stem[:-len("Command")] + "CmdExe" if kind == "command" else path.stem + "Exe")
+        exe = path.parent.parent.parent / "executor" / kind / (exe_name + ".java")
+        expected.add(exe)
+        if not exe.is_file():
+            failures.append(f"{family}: {path.name} has no matching {exe_name}")
+            continue
+        text = exe.read_text(encoding="utf-8")
+        if not re.search(r"\bexecute\s*\([^)]*\b" + re.escape(path.stem) + r"\b", text, re.DOTALL):
+            failures.append(f"{family}: {exe_name} does not execute {path.stem}")
+        bean = exe_name[0].lower() + exe_name[1:]
+        if not re.search(r"\b" + re.escape(bean) + r"\.execute\s*\(", callers):
+            failures.append(f"{family}: {exe_name} is not invoked by an entry point")
+    if not expected:
+        failures.append(f"{family}: no CQERS inputs found")
+    for path in sources:
+        if path.name.endswith("Exe.java") and "executor" in path.parts and path not in expected:
+            failures.append(f"{family}: executor without matching application input: {path}")
+    return failures
+
+
 def self_test():
     light = COMMON | EXTERNAL | {CORE, ("org.springdoc", "springdoc-openapi-starter-webmvc-ui")}
     assert not violations("light-open", light)
@@ -188,6 +226,20 @@ def self_test():
     assert not module_violations(agent, "agent"), "six-layer Agent passes"
     ET.SubElement(agent.find("m:modules", NS), "{" + NS["m"] + "}module").text = "fixture-agent-extra"
     assert module_violations(agent, "agent"), "extra module must fail"
+    with tempfile.TemporaryDirectory(prefix="cqers-check-") as temp:
+        fixture = Path(temp) / "src/main/java/example/application/user"
+        model = fixture / "pojo/command/CreateUserCommand.java"
+        model.parent.mkdir(parents=True)
+        model.write_text("class CreateUserCommand {}", encoding="utf-8")
+        assert cqers_violations(Path(temp), "fixture"), "missing executor must fail"
+        executor = fixture / "executor/command/CreateUserCmdExe.java"
+        executor.parent.mkdir(parents=True)
+        executor.write_text("class CreateUserCmdExe { void execute(CreateUserCommand command) {} }", encoding="utf-8")
+        assert cqers_violations(Path(temp), "fixture"), "uninvoked executor must fail"
+        caller = fixture / "manage/UserManage.java"
+        caller.parent.mkdir(parents=True)
+        caller.write_text("class UserManage { void call() { createUserCmdExe.execute(null); } }", encoding="utf-8")
+        assert not cqers_violations(Path(temp), "fixture"), "matched and invoked executor must pass"
     print("PASS: missing Common/native injection/Agent infrastructure/BOM/runtime parser/shared facade/extra-module fixtures")
 
 
@@ -225,6 +277,7 @@ def main():
         source = args.root / "source-projects" / ("stellar-enclosure-source-" + family)
         failures.extend(module_violations(ET.parse(source / "pom.xml").getroot(), family))
         failures.extend(persistence_violations(source, family))
+        failures.extend(cqers_violations(source, family))
         if family in FACADE_FAMILIES:
             failures.extend(facade_violations(source, family))
     for failure in failures:

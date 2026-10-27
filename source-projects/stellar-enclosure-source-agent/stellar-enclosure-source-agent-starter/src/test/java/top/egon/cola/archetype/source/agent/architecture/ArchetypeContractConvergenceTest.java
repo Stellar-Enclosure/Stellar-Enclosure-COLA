@@ -142,6 +142,14 @@ class ArchetypeContractConvergenceTest {
                 "application:knowledge/pojo/command/RetrieveKnowledgeCommand.java",
                 "application:knowledge/pojo/command/UpdateKnowledgeBaseCommand.java",
                 "application:knowledge/pojo/command/UploadKnowledgeDocumentCommand.java",
+                "application:knowledge/pojo/command/DeleteKnowledgeBaseCommand.java",
+                "application:knowledge/pojo/command/DeleteKnowledgeDocumentCommand.java",
+                "application:knowledge/pojo/command/ReingestKnowledgeDocumentCommand.java",
+                "application:knowledge/pojo/query/GetKnowledgeBaseQuery.java",
+                "application:knowledge/pojo/query/PageKnowledgeBasesQuery.java",
+                "application:knowledge/pojo/query/CountKnowledgeBaseDocumentsQuery.java",
+                "application:knowledge/pojo/query/GetKnowledgeDocumentQuery.java",
+                "application:knowledge/pojo/query/PageKnowledgeDocumentsQuery.java",
                 "application:research/pojo/command/StartDeepResearchCommand.java")) {
             int separator = path.indexOf(':');
             assertExists(path.substring(0, separator), path.substring(separator + 1));
@@ -163,7 +171,7 @@ class ArchetypeContractConvergenceTest {
                 .filter(path -> !path.getFileName().toString().endsWith("Convertor.java"))
                 .filter(path -> !path.getFileName().toString().equals("package-info.java"))
                 .toList();
-        assertEquals(18, carriers.size(), "every reviewed inbound or outbound carrier");
+        assertEquals(26, carriers.size(), "every reviewed inbound or outbound carrier");
         for (Path path : carriers) {
             assertTrue(read(path).contains("implements BasePojo"),
                     "hand-written carrier must implement the common carrier contract: " + path);
@@ -327,12 +335,13 @@ class ArchetypeContractConvergenceTest {
 
     @Test
     void useCasesReachEveryCollaboratorByName() throws IOException {
-        String qa = read("application", "knowledge/manage/impl/KnowledgeQaManageImpl.java");
+        String qa = read("application", "knowledge/executor/command/AskKnowledgeBaseCmdExe.java");
+        String retrieval = read("application", "knowledge/service/KnowledgeRetrievalService.java");
         String removal = read("application", "knowledge/service/KnowledgeRemovalService.java");
-        String research = read("application", "research/manage/impl/DeepResearchManageImpl.java");
+        String research = read("application", "research/executor/command/StartDeepResearchCmdExe.java");
 
         assertTrue(qa.contains("@Qualifier(\"knowledgeAnswerService\")"));
-        assertTrue(qa.contains("@Qualifier(\"knowledgeVectorService\")"));
+        assertTrue(retrieval.contains("@Qualifier(\"knowledgeVectorService\")"));
         assertTrue(removal.contains("@Qualifier(\"knowledgeVectorService\")"));
         assertTrue(research.contains("@Qualifier(\"deepResearchAgentService\")"));
 
@@ -348,7 +357,7 @@ class ArchetypeContractConvergenceTest {
             assertTrue(text.contains("@Qualifier("), "every collaborator is injected by name: " + path);
         }
 
-        String validation = read("application", "knowledge/manage/impl/KnowledgeBaseManageImpl.java");
+        String validation = read("application", "knowledge/executor/command/CreateKnowledgeBaseCmdExe.java");
         assertTrue(validation.contains("@Qualifier(\"agentValidationUtils\")"),
                 "the hand-off into the domain is validated through the common validator bean");
 

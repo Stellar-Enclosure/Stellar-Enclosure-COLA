@@ -5,6 +5,8 @@ import org.mapstruct.BeforeMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.ReportingPolicy;
 import org.springframework.stereotype.Component;
+import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.event.CourseImportedEvent;
+import top.egon.cola.archetype.source.lightopen.facade.teaching.dto.CreateCourseDTO;
 import top.egon.cola.archetype.source.lightopen.adapter.teaching.pojo.vo.CourseDetailVO;
 import top.egon.cola.archetype.source.lightopen.adapter.teaching.pojo.vo.SchoolClassDetailVO;
 import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.result.CourseResult;
@@ -17,6 +19,8 @@ import java.util.Objects;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 @AnnotateWith(value = Component.class, elements = @AnnotateWith.Element(strings = "teachingAdapterConvertorImpl"))
 public interface TeachingAdapterConvertor extends BaseForwardConverter<CourseResult, CourseDetailVO> {
+
+    CourseImportedEvent toImportedEvent(CreateCourseDTO source);
 
     @Override
     CourseDetailVO toTarget(CourseResult source);

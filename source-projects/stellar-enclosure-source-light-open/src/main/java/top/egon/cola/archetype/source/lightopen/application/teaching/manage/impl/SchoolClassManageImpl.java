@@ -14,89 +14,54 @@ import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.conver
 import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.query.GetSchoolClassQuery;
 import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.result.SchoolClassResult;
 import top.egon.cola.archetype.source.lightopen.application.teaching.validators.TeachingApplicationValidator;
-import top.egon.cola.archetype.source.lightopen.common.exception.TeachingDomainException;
-import top.egon.cola.archetype.source.lightopen.common.exception.TeachingUseCaseException;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.aggregates.SchoolClassAggregate;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.entities.Course;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.entities.SchoolClass;
 import top.egon.cola.archetype.source.lightopen.domain.teaching.service.CourseDomainService;
 import top.egon.cola.archetype.source.lightopen.domain.teaching.service.CourseIdempotencyService;
 import top.egon.cola.archetype.source.lightopen.domain.teaching.service.SchoolClassDomainService;
 import top.egon.cola.archetype.source.lightopen.domain.teaching.service.TeachingEventService;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.vos.CourseScheduleBO;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.vos.SchoolClassId;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.vos.Semester;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.vos.TeachingEvent;
+import top.egon.cola.archetype.source.lightopen.application.teaching.executor.command.CreateSchoolClassCmdExe;
+import top.egon.cola.archetype.source.lightopen.application.teaching.executor.command.ScheduleCourseCmdExe;
+import top.egon.cola.archetype.source.lightopen.application.teaching.executor.query.GetSchoolClassQueryExe;
 
 @Service("schoolClassManageImpl")
 @Lazy
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
 @Slf4j
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class SchoolClassManageImpl implements SchoolClassManage {
-    @Qualifier("schoolClassDomainService")
-    private final SchoolClassDomainService schoolClassDomainService;
-    @Qualifier("courseDomainService")
-    private final CourseDomainService courseDomainService;
-    @Qualifier("teachingEventService")
-    private final TeachingEventService teachingEventService;
-    @Qualifier("courseIdempotencyService")
-    private final CourseIdempotencyService courseIdempotencyService;
-    @Qualifier("teachingApplicationValidator")
-    private final TeachingApplicationValidator applicationValidator;
-    @Qualifier("teachingApplicationConvertorImpl")
-    private final TeachingApplicationConvertor convertor;
+    @Qualifier("createSchoolClassCmdExe")
+    private final CreateSchoolClassCmdExe createSchoolClassCmdExe;
+
+    @Qualifier("scheduleCourseCmdExe")
+    private final ScheduleCourseCmdExe scheduleCourseCmdExe;
+
+    @Qualifier("getSchoolClassQueryExe")
+    private final GetSchoolClassQueryExe getSchoolClassQueryExe;
+
+    public SchoolClassManageImpl(SchoolClassDomainService schoolClassDomainService,
+            CourseDomainService courseDomainService,
+            TeachingEventService teachingEventService,
+            CourseIdempotencyService courseIdempotencyService,
+            TeachingApplicationValidator applicationValidator,
+            TeachingApplicationConvertor convertor) {
+        this(new CreateSchoolClassCmdExe(schoolClassDomainService, teachingEventService, courseIdempotencyService, applicationValidator, convertor),
+                new ScheduleCourseCmdExe(schoolClassDomainService, courseDomainService, teachingEventService, courseIdempotencyService, applicationValidator, convertor),
+                new GetSchoolClassQueryExe(schoolClassDomainService, convertor));
+    }
 
     @Override
     @Transactional
     public SchoolClassResult create(CreateSchoolClassCommand command) {
-        applicationValidator.validate(command);
-        claim(command.idempotencyKey());
-        try {
-            SchoolClass saved = schoolClassDomainService.save(
-                    schoolClassDomainService.createSchoolClass(command.name(), new Semester(command.semester())));
-            teachingEventService.publish(TeachingEvent.classCreated(saved.id().value()));
-            return convertor.toSchoolClassResult(saved);
-        } catch (TeachingDomainException exception) {
-            throw translate(exception);
-        }
+        return createSchoolClassCmdExe.execute(command);
     }
 
     @Override
     @Transactional
     public SchoolClassResult schedule(ScheduleCourseCommand command) {
-        applicationValidator.validate(command);
-        claim(command.idempotencyKey());
-        SchoolClassAggregate aggregate = schoolClassDomainService
-                .findAggregateById(new SchoolClassId(command.schoolClassId()))
-                .orElseThrow(() -> new TeachingUseCaseException("CLASS_NOT_FOUND", "class not found"));
-        Course course = courseDomainService.findById(command.courseId())
-                .orElseThrow(() -> new TeachingUseCaseException("COURSE_NOT_FOUND", "course not found"));
-        CourseScheduleBO schedule = convertor.toSchedule(command, course);
-        try {
-            SchoolClassAggregate scheduled = schoolClassDomainService.schedule(aggregate, course, schedule);
-            schoolClassDomainService.saveAggregate(scheduled);
-            teachingEventService.publish(TeachingEvent.courseScheduled(command.schoolClassId()));
-            return convertor.toSchoolClassResult(scheduled);
-        } catch (TeachingDomainException exception) {
-            throw translate(exception);
-        }
+        return scheduleCourseCmdExe.execute(command);
     }
 
     @Override
     public SchoolClassResult get(GetSchoolClassQuery query) {
-        SchoolClassAggregate aggregate = schoolClassDomainService
-                .findAggregateById(new SchoolClassId(query.schoolClassId()))
-                .orElseThrow(() -> new TeachingUseCaseException("CLASS_NOT_FOUND", "class not found"));
-        return convertor.toSchoolClassResult(aggregate);
+        return getSchoolClassQueryExe.execute(query);
     }
 
-    private void claim(String idempotencyKey) {
-        if (!courseIdempotencyService.claim(idempotencyKey)) {
-            throw new TeachingUseCaseException("DUPLICATE_REQUEST", "request was already processed");
-        }
-    }
-
-    private TeachingUseCaseException translate(TeachingDomainException exception) {
-        return new TeachingUseCaseException(exception.getStatus(), exception.getMessage(), exception);
-    }
 }

@@ -1,6 +1,6 @@
 # Stellar-Enclosure Archetype Architecture
 
-Updated: 2026-09-22. This overview is grounded in normal source-project POMs and Java, with Native and Open as the named variants. Exact dependency versions are owned by the root POM, Components BOM and archetypes parent; resolve those files rather than copying old version tables.
+Updated: 2026-10-27. This overview is grounded in normal source-project POMs and Java, with Native and Open as the named variants. Exact dependency versions are owned by the root POM, Components BOM and archetypes parent; resolve those files rather than copying old version tables.
 
 ## Source of truth
 
@@ -107,9 +107,9 @@ Source: [stellar-enclosure-source-web-open](../source-projects/stellar-enclosure
 
 ## Responsibilities
 
-Domain owns business entities/value objects, rules and service ports. Application owns use-case coordination and transactions. Infrastructure implements Domain ports and owns persistence adapters, external clients, cache and MQ. Adapter owns transport binding, validation, mapping and providers/consumers. Starter/start owns composition. Common carries shared contracts; facade is this product's protocol leaf, not a business service locator.
+Domain owns business entities/value objects, rules and service ports. Application keeps Manage as the use-case entry and delegates each Command, Query and consumed business Event to its matching CQERS executor. Transaction boundaries remain with the actual use case; executor beans do not change the existing delivery guarantee. Infrastructure implements Domain ports and owns persistence adapters, external clients, cache and MQ/Outbox publication. Adapter owns transport binding, validation, mapping and providers/consumers. Starter/start owns composition. Common carries shared contracts; facade is this product's protocol leaf, not a business service locator.
 
-Use domain-first placement such as `application/user/pojo/command`, `domain/teaching/service`, `infrastructure/user/{dao,po,converter,repo}`, `adapter/user/facade/impl`. Root-level shared concerns and explicit cross-project client packages follow current source. Do not introduce a generic Gateway layer or technical CRUD domain service.
+Use domain-first placement such as `application/user/pojo/command`, `application/user/executor/{command,query,event}`, `domain/teaching/service`, `infrastructure/user/{dao,po,converter,repo}`, `adapter/user/facade/impl`. Root-level shared concerns and explicit cross-project client packages follow current source. Do not introduce a generic Gateway layer or technical CRUD domain service. Executor naming, event direction and the existing CRUD generator boundary are described in [CQERS architecture](cqers-architecture.md).
 
 The three-layer skill profile stays unchanged; this DDD map is not a migration instruction for existing `biz.*` projects.
 

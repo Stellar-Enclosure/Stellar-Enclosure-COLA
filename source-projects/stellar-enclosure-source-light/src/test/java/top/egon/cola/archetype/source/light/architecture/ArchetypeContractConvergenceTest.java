@@ -170,9 +170,9 @@ class ArchetypeContractConvergenceTest {
         assertTrue(claim.contains("\":idempotency:course:\""));
         assertTrue(read(modulePath("infrastructure/user/service/impl/UserIdempotencyServiceImpl.java"))
                 .contains("\":idempotency:user:\""));
-        String manage = read(modulePath("application/teaching/manage/impl/CourseManageImpl.java"));
-        assertTrue(manage.contains("courseIdempotencyService.claim("));
-        assertTrue(manage.contains("DUPLICATE_REQUEST"));
+        String executor = read(modulePath("application/teaching/executor/command/CreateCourseCmdExe.java"));
+        assertTrue(executor.contains("courseIdempotencyService.claim("));
+        assertTrue(executor.contains("DUPLICATE_REQUEST"));
     }
 
     @Test
@@ -188,7 +188,7 @@ class ArchetypeContractConvergenceTest {
                         "Manage must not reach infrastructure: " + forbidden + " in " + path);
             }
         }
-        String teaching = read(modulePath("application/teaching/manage/impl/CourseManageImpl.java"));
+        String teaching = read(modulePath("application/teaching/executor/command/CreateCourseCmdExe.java"));
         assertTrue(teaching.contains("teachingEventService.publish("));
         assertTrue(teaching.contains("teachingQueryService.findExternalCourse("));
     }

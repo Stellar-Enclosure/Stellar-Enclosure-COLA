@@ -6,6 +6,8 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 import org.springframework.stereotype.Component;
+import top.egon.cola.archetype.source.light.application.user.pojo.event.UserImportedEvent;
+import top.egon.cola.archetype.source.light.facade.user.dto.CreateUserDTO;
 import top.egon.cola.archetype.source.light.adapter.user.pojo.vo.PermissionTreeVO;
 import top.egon.cola.archetype.source.light.adapter.user.pojo.vo.UserDetailVO;
 import top.egon.cola.archetype.source.light.application.user.pojo.result.PermissionDetailResult;
@@ -19,6 +21,8 @@ import java.util.Objects;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR, imports = List.class)
 @AnnotateWith(value = Component.class, elements = @AnnotateWith.Element(strings = "userAdapterConvertorImpl"))
 public interface UserAdapterConvertor extends BaseForwardConverter<UserResult, UserDetailVO> {
+
+    UserImportedEvent toImportedEvent(CreateUserDTO source);
 
     @Override
     UserDetailVO toTarget(UserResult source);

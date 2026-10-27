@@ -5,6 +5,8 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 import org.springframework.stereotype.Component;
+import top.egon.cola.archetype.source.light.application.user.pojo.command.CreateUserCommand;
+import top.egon.cola.archetype.source.light.application.user.pojo.event.UserImportedEvent;
 import top.egon.cola.archetype.source.light.application.user.pojo.result.PermissionResult;
 import top.egon.cola.archetype.source.light.application.user.pojo.result.UserResult;
 import top.egon.cola.archetype.source.light.domain.user.entities.Permission;
@@ -16,6 +18,9 @@ import top.egon.cola.component.common.core.converter.BaseForwardConverter;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 @AnnotateWith(value = Component.class, elements = @AnnotateWith.Element(strings = "userApplicationConvertorImpl"))
 public interface UserApplicationConvertor extends BaseForwardConverter<User, UserResult> {
+
+    @Mapping(target = "idempotencyKey", source = "requestId")
+    CreateUserCommand toImportedCommand(UserImportedEvent event);
 
     @Override
     @Mapping(target = "id", expression = "java(source.id().value())")

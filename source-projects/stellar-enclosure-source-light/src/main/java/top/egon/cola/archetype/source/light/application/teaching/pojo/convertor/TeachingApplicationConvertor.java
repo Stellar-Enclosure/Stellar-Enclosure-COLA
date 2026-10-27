@@ -5,6 +5,8 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 import org.springframework.stereotype.Component;
+import top.egon.cola.archetype.source.light.application.teaching.pojo.command.CreateCourseCommand;
+import top.egon.cola.archetype.source.light.application.teaching.pojo.event.CourseImportedEvent;
 import top.egon.cola.archetype.source.light.application.teaching.pojo.command.ScheduleCourseCommand;
 import top.egon.cola.archetype.source.light.application.teaching.pojo.result.CourseResult;
 import top.egon.cola.archetype.source.light.application.teaching.pojo.result.SchoolClassResult;
@@ -18,6 +20,9 @@ import top.egon.cola.component.common.core.converter.BaseForwardConverter;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.ERROR)
 @AnnotateWith(value = Component.class, elements = @AnnotateWith.Element(strings = "teachingApplicationConvertorImpl"))
 public interface TeachingApplicationConvertor extends BaseForwardConverter<Course, CourseResult> {
+
+    @Mapping(target = "idempotencyKey", source = "requestId")
+    CreateCourseCommand toImportedCommand(CourseImportedEvent event);
 
     @Override
     @Mapping(target = "id", source = "id")

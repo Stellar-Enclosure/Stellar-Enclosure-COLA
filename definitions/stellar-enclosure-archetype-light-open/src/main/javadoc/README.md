@@ -9,3 +9,11 @@ Use the public `top.egon:stellar-enclosure-archetype-light-open` coordinate with
 Generated projects inherit the released `top.egon:stellar-enclosure-archetypes-parent` at a concrete version with an empty `relativePath`. The parent imports the Components BOM, manages Common dependencies and ShardingSphere 5.5.3, and keeps Commons Lang at 3.20.0. Consumer modules inherit their own project root. Install the matching parent/BOM and required artifacts locally before validating an unpublished release; a local install does not publish artifacts.
 
 Open retains its existing Spring Cloud/Nacos stack and consumed Common Core, ID, MyBatis-Plus ShardingSphere-JDBC extension, two-level cache (Redisson) and Dynamic Thread Pool components. Light Open retains Springdoc, is a single Maven module, and has no Dubbo or RPC contract of any kind — no facade artifact, no `.proto` source, and no Triple/gRPC listener.
+
+## CQERS execution
+
+Generated projects retain the Manage entry point and place one `CmdExe`, `QueryExe`, or `EventExe`
+per Application Command, Query, or consumed business Event under the corresponding domain's
+`executor` package. Query executors are read-only. Event executors handle inbound business events;
+Domain ports and Infrastructure own outbound MQ/Outbox publication. Existing transactions and
+wire contracts remain in place. See the generated project README for the exact paths and boundaries.

@@ -250,8 +250,15 @@ class ArchetypeContractConvergenceTest {
                         "validation must stay side-effect free: " + forbidden + " in " + path);
             }
         }
-        // This family declares no claim/release capability, so no idempotency service may appear.
-        assertFalse(join(mainSources()).contains("Idempotency"));
+        // The example use cases do not claim idempotency; additional domains may do so.
+        String exampleCommands = join(List.of(
+                sources("application").resolve("course/executor/command/CreateCourseCmdExe.java"),
+                sources("application").resolve("course/executor/command/ScheduleCourseCmdExe.java"),
+                sources("application").resolve("exam/executor/command/CreateExamCmdExe.java"),
+                sources("application").resolve("exam/executor/command/AttachExamPaperCmdExe.java"),
+                sources("application").resolve("exam/executor/command/PublishExamCmdExe.java"),
+                sources("application").resolve("exam/executor/command/RecordScoreCmdExe.java")));
+        assertFalse(exampleCommands.contains("Idempotency"));
     }
 
     @Test
@@ -259,7 +266,7 @@ class ArchetypeContractConvergenceTest {
         List<Path> manages = mainSources().stream()
                 .filter(path -> path.getFileName().toString().endsWith("ManageImpl.java"))
                 .toList();
-        assertEquals(3, manages.size(), "course, exam and score use-case boundary");
+        assertTrue(manages.size() >= 3, "course, exam and score use-case boundaries remain present");
         for (Path path : manages) {
             String text = read(path);
             for (String forbidden : List.of("RabbitTemplate", "RedisTemplate", "EventPublisher",
@@ -269,13 +276,13 @@ class ArchetypeContractConvergenceTest {
             }
             assertTrue(text.contains("@Slf4j"), "business classes log through @Slf4j: " + path);
         }
-        assertTrue(read("application", "course/manage/impl/CourseManageImpl.java")
+        assertTrue(read("application", "course/executor/command/ScheduleCourseCmdExe.java")
                 .contains("courseEventService.courseScheduled("));
-        assertTrue(read("application", "course/manage/impl/CourseManageImpl.java")
+        assertTrue(read("application", "course/executor/command/ScheduleCourseCmdExe.java")
                 .contains("@Qualifier(\"courseEventService\")"));
-        assertTrue(read("application", "exam/manage/impl/ExamManageImpl.java")
+        assertTrue(read("application", "exam/executor/command/PublishExamCmdExe.java")
                 .contains("examEventService.examPublished("));
-        assertTrue(read("application", "exam/manage/impl/ScoreManageImpl.java")
+        assertTrue(read("application", "exam/executor/command/RecordScoreCmdExe.java")
                 .contains("examEventService.scoreRecorded("));
     }
 

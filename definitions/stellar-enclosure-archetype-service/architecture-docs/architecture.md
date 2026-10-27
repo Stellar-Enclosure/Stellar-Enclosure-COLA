@@ -1,6 +1,6 @@
 # service 脚手架架构
 
-更新：2026-09-22。以 `stellar-enclosure-source-service` 的 POM、Java 和架构测试为事实来源。Evaluation RPC/MQ，保留 Service-only 边界。
+更新：2026-10-27。以 `stellar-enclosure-source-service` 的 POM、Java 和架构测试为事实来源。Evaluation RPC/MQ，保留 Service-only 边界。
 
 ## 项目与模块
 
@@ -63,6 +63,14 @@ Domain service 不继承技术 CRUD 接口，Infrastructure 不反向依赖 Appl
 普通 POJO/实体用 class；只有不可变值对象可用 record，且集合/元素仍需不可变。class 通用注解为 @Data、@NoArgsConstructor、@AllArgsConstructor、@Accessors(chain = true)。普通构造目标用 @Builder；需要构建父类字段时用 @SuperBuilder 并检查整条父类链，两者不能混用。父类状态参与相等性时用 @EqualsAndHashCode(callSuper = true)，直接 Object 子类不能强用。核对全参目标和零字段重复构造器，不为注解添加无意义继承。
 
 持久化枚举用 @EnumValue，前端编码用 @JsonValue，按当前 EgonEnum 和 Jackson 契约处理未知值。转换复用 MapStruct/MapStructPlus 和 BaseConverter。校验基于原生/自定义 @Constraint、ConstraintValidator、@Valid、@Validated、分组与级联；ValidationUtils 只作通用手工触发，不能集中承载全部业务校验。
+
+## CQERS 执行层
+
+Application 保留 Manage 作为入口，每个 Command、Query 和本服务消费的业务 Event 分别交给
+`application/<业务域>/executor/command` 下的 `XxxCmdExe`、`executor/query` 下的 `XxxQueryExe`、
+`executor/event` 下的 `XxxEventExe`。Query 保持只读；EventExe 负责消费后的业务处理，出站发布通过
+Domain 端口进入 Infrastructure 的 MQ/Outbox 实现。事务、幂等和失败处理沿用用例及传输契约；
+仅发布的事件和 SSE 流不需要空的消费执行器。
 
 ## CQE 与组件复用
 

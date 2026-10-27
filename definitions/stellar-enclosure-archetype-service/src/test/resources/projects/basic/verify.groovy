@@ -1368,4 +1368,41 @@ projectDir.traverse(type: FileType.FILES) { candidate ->
             "Generated security behavior must pass without skips: ${testName}"
 }
 
+// Every application input has an invoked executor in the same business domain.
+def cqersSources = []
+projectDir.eachFileRecurse(FileType.FILES) { source ->
+    def relative = projectDir.toPath().relativize(source.toPath()).toString().replace('\\', '/')
+    if (!relative.tokenize('/').any { it in ['target', '.egon', '.git'] } &&
+            source.name.endsWith('.java') && relative.contains('src/main/java/')) {
+        cqersSources << [file: source, relative: relative.split('src/main/java/', 2)[1]]
+    }
+}
+def cqersCallerText = cqersSources.collect { it.file.getText('UTF-8') }.join('\n')
+def cqersExpected = [] as Set
+cqersSources.each { entry ->
+    def input = entry.relative =~ /^(.*\/application\/[^\/]+)\/pojo\/(command|query|event)\/([A-Za-z0-9_]+)\.java$/
+    if (input.matches()) {
+        def domain = input.group(1)
+        def kind = input.group(2)
+        def type = input.group(3)
+        def suffix = [command: 'Command', query: 'Query', event: 'Event'][kind]
+        assert type.endsWith(suffix): "Invalid CQERS input ${entry.relative}"
+        def executorName = kind == 'command' ? type.substring(0, type.length() - suffix.length()) + 'CmdExe' : type + 'Exe'
+        def expected = "${domain}/executor/${kind}/${executorName}.java".toString()
+        cqersExpected << expected
+        def executor = cqersSources.find { it.relative == expected }
+        assert executor: "Missing CQERS executor ${expected}"
+        def execution = executor.file.getText('UTF-8') =~ /(?s)\bexecute\s*\([^)]*\b${type}\b/
+        assert execution.find(): "${expected} does not accept ${type}"
+        def bean = executorName.substring(0, 1).toLowerCase() + executorName.substring(1)
+        assert cqersCallerText.contains(bean + '.execute('): "${expected} is never invoked"
+    }
+}
+assert !cqersExpected.empty: 'No CQERS application inputs found'
+cqersSources.findAll { it.relative.contains('/application/') && it.relative.contains('/executor/') && it.file.name.endsWith('Exe.java') }.each {
+    assert cqersExpected.contains(it.relative): "Executor without matching input ${it.relative}"
+}
+assert new File(projectDir, 'README.md').getText('UTF-8').contains('CQERS Architecture')
+assert new File(projectDir, 'README.zh-CN.md').getText('UTF-8').contains('CQERS 架构')
+
 return true

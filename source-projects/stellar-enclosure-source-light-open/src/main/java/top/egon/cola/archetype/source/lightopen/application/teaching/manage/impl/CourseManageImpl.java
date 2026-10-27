@@ -13,66 +13,43 @@ import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.conver
 import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.query.GetCourseQuery;
 import top.egon.cola.archetype.source.lightopen.application.teaching.pojo.result.CourseResult;
 import top.egon.cola.archetype.source.lightopen.application.teaching.validators.TeachingApplicationValidator;
-import top.egon.cola.archetype.source.lightopen.common.exception.TeachingDomainException;
-import top.egon.cola.archetype.source.lightopen.common.exception.TeachingUseCaseException;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.entities.Course;
 import top.egon.cola.archetype.source.lightopen.domain.teaching.service.CourseDomainService;
 import top.egon.cola.archetype.source.lightopen.domain.teaching.service.CourseIdempotencyService;
 import top.egon.cola.archetype.source.lightopen.domain.teaching.service.TeachingEventService;
 import top.egon.cola.archetype.source.lightopen.domain.teaching.service.TeachingQueryService;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.vos.CourseCode;
-import top.egon.cola.archetype.source.lightopen.domain.teaching.vos.TeachingEvent;
+import top.egon.cola.archetype.source.lightopen.application.teaching.executor.command.CreateCourseCmdExe;
+import top.egon.cola.archetype.source.lightopen.application.teaching.executor.query.GetCourseQueryExe;
 
 @Service("courseManageImpl")
 @Lazy
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
 @Slf4j
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class CourseManageImpl implements CourseManage {
-    @Qualifier("courseDomainService")
-    private final CourseDomainService courseDomainService;
-    @Qualifier("teachingQueryService")
-    private final TeachingQueryService teachingQueryService;
-    @Qualifier("teachingEventService")
-    private final TeachingEventService teachingEventService;
-    @Qualifier("courseIdempotencyService")
-    private final CourseIdempotencyService courseIdempotencyService;
-    @Qualifier("teachingApplicationValidator")
-    private final TeachingApplicationValidator applicationValidator;
-    @Qualifier("teachingApplicationConvertorImpl")
-    private final TeachingApplicationConvertor convertor;
+    @Qualifier("createCourseCmdExe")
+    private final CreateCourseCmdExe createCourseCmdExe;
+
+    @Qualifier("getCourseQueryExe")
+    private final GetCourseQueryExe getCourseQueryExe;
+
+    public CourseManageImpl(CourseDomainService courseDomainService,
+            TeachingQueryService teachingQueryService,
+            TeachingEventService teachingEventService,
+            CourseIdempotencyService courseIdempotencyService,
+            TeachingApplicationValidator applicationValidator,
+            TeachingApplicationConvertor convertor) {
+        this(new CreateCourseCmdExe(courseDomainService, teachingQueryService, teachingEventService, courseIdempotencyService, applicationValidator, convertor),
+                new GetCourseQueryExe(courseDomainService, convertor));
+    }
 
     @Override
     @Transactional
     public CourseResult create(CreateCourseCommand command) {
-        applicationValidator.validate(command);
-        claim(command.idempotencyKey());
-        CourseCode code = new CourseCode(command.code());
-        teachingQueryService.findExternalCourse(code)
-                .orElseThrow(() -> new TeachingUseCaseException(
-                        "EXTERNAL_COURSE_NOT_FOUND", "external course not found"));
-        try {
-            Course saved = courseDomainService.save(courseDomainService.createCourse(code, command.name()));
-            teachingEventService.publish(TeachingEvent.courseCreated(saved.id()));
-            return convertor.toTarget(saved);
-        } catch (TeachingDomainException exception) {
-            throw translate(exception);
-        }
+        return createCourseCmdExe.execute(command);
     }
 
     @Override
     public CourseResult get(GetCourseQuery query) {
-        return courseDomainService.findById(query.courseId())
-                .map(convertor::toTarget)
-                .orElseThrow(() -> new TeachingUseCaseException("COURSE_NOT_FOUND", "course not found"));
+        return getCourseQueryExe.execute(query);
     }
 
-    private void claim(String idempotencyKey) {
-        if (!courseIdempotencyService.claim(idempotencyKey)) {
-            throw new TeachingUseCaseException("DUPLICATE_REQUEST", "request was already processed");
-        }
-    }
-
-    private TeachingUseCaseException translate(TeachingDomainException exception) {
-        return new TeachingUseCaseException(exception.getStatus(), exception.getMessage(), exception);
-    }
 }

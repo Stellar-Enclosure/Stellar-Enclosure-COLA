@@ -10,34 +10,35 @@
 |---|---|---|---|
 | 1 | Maven Profiles and External Launch Arguments | Maven Profiles 与外部启动参数 | 全部 |
 | 2 | Build and Verification | 构建与验证 | 全部 |
-| 3 | Stack | 技术栈 | light-open、web-open |
-| 4 | Modules | 模块 | service、service-open、web、web-open |
-| 5 | Domain-First Structure | 领域优先结构 | light、light-open、service、web |
-| 6 | Dependency Graph | 依赖图 | light、light-open、web |
-| 7 | Shared Contracts | 公共契约 | light、light-open |
-| 8 | RPC Contracts | RPC 契约 | service-open、web-open |
-| 9 | API Endpoints | API 端点 | web-open |
-| 10 | Domains | 领域 | web |
-| 11 | Runtime Contract | 运行契约 | agent |
-| 12 | Knowledge Contract | 知识库契约 | agent |
-| 13 | Knowledge Ingest States | 知识库摄取状态 | agent |
-| 14 | Knowledge Configuration | 知识库配置 | agent |
-| 15 | Environment Contract | 环境配置契约 | agent |
-| 16 | Primary Workflows | 主要业务流程 | light、service |
-| 17 | IDs and Persistence | ID 与持久化 | light-open、service-open、web-open |
-| 18 | Runtime Profiles and Integrations | 运行 Profile 与集成 | light、service、service-open、web |
-| 19 | Integration Ownership | 集成职责 | web |
-| 20 | Runtime Governance | 运行治理 | light-open、web-open |
-| 21 | Error Contract | 错误契约 | web |
-| 22 | Native RPC and Tianshu | 原生 RPC 与 Tianshu | light、service、web |
-| 23 | Xingyuan Identity and Authorization | 星垣身份与授权 | service、web、agent |
-| 24 | Repository, CQE and PostgreSQL | Repository、CQE 与 PostgreSQL | 除 agent 外全部 |
-| 25 | Knowledge Repository Migration | 知识库 Repository 迁移 | agent |
-| 26 | Two-Level Cache | 二级缓存 | 全部 |
-| 27 | Java and CQE Coding Requirements | Java 与 CQE 编码规范 | 除 agent 外全部 |
-| 28 | UTC Time Contract | UTC 时间契约 | 全部 |
-| 29 | Container Delivery | 容器交付 | light、light-open、service、web |
-| 30 | Scope Boundary | 范围边界 | service |
+| 3 | CQERS Architecture | CQERS 架构 | 全部 |
+| 4 | Stack | 技术栈 | light-open、web-open |
+| 5 | Modules | 模块 | service、service-open、web、web-open |
+| 6 | Domain-First Structure | 领域优先结构 | light、light-open、service、web |
+| 7 | Dependency Graph | 依赖图 | light、light-open、web |
+| 8 | Shared Contracts | 公共契约 | light、light-open |
+| 9 | RPC Contracts | RPC 契约 | service-open、web-open |
+| 10 | API Endpoints | API 端点 | web-open |
+| 11 | Domains | 领域 | web |
+| 12 | Runtime Contract | 运行契约 | agent |
+| 13 | Knowledge Contract | 知识库契约 | agent |
+| 14 | Knowledge Ingest States | 知识库摄取状态 | agent |
+| 15 | Knowledge Configuration | 知识库配置 | agent |
+| 16 | Environment Contract | 环境配置契约 | agent |
+| 17 | Primary Workflows | 主要业务流程 | light、service |
+| 18 | IDs and Persistence | ID 与持久化 | light-open、service-open、web-open |
+| 19 | Runtime Profiles and Integrations | 运行 Profile 与集成 | light、service、service-open、web |
+| 20 | Integration Ownership | 集成职责 | web |
+| 21 | Runtime Governance | 运行治理 | light-open、web-open |
+| 22 | Error Contract | 错误契约 | web |
+| 23 | Native RPC and Tianshu | 原生 RPC 与 Tianshu | light、service、web |
+| 24 | Xingyuan Identity and Authorization | 星垣身份与授权 | service、web、agent |
+| 25 | Repository, CQE and PostgreSQL | Repository、CQE 与 PostgreSQL | 除 agent 外全部 |
+| 26 | Knowledge Repository Migration | 知识库 Repository 迁移 | agent |
+| 27 | Two-Level Cache | 二级缓存 | 全部 |
+| 28 | Java and CQE Coding Requirements | Java 与 CQE 编码规范 | 除 agent 外全部 |
+| 29 | UTC Time Contract | UTC 时间契约 | 全部 |
+| 30 | Container Delivery | 容器交付 | light、light-open、service、web |
+| 31 | Scope Boundary | 范围边界 | service |
 
 写作约定：
 

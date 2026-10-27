@@ -66,6 +66,17 @@ Run locally after configuring the `dev` integrations:
 ./mvnw spring-boot:run
 ```
 
+## CQERS Architecture
+
+Application keeps the existing Manage entry points and delegates each Command, Query, and consumed
+business Event to a matching `XxxCmdExe`, `XxxQueryExe`, or `XxxEventExe` under
+`application/<domain>/executor/{command,query,event}`. Query execution is read-only. Event executors
+handle incoming business events; outbound events go through Domain ports to Infrastructure MQ/Outbox
+publishers. Keep the existing transaction, validation, idempotency, and delivery semantics; SSE stream
+events are not message-consumption events. The independent Components CRUD generator supports CQERS executors and explicitly configured
+inbound events for native Light, Web and Service; Agent and Open profiles are not supported. Review
+legacy generated-file ownership and conflicts instead of bypassing them.
+
 ## Domain-First Structure
 
 Business domains come before protocol or technical details so `user` and `teaching` remain cohesive and can later be extracted into independent services without reversing package order.

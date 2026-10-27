@@ -62,6 +62,17 @@ Run the source checks without starting a service:
 
 The generated archetype is validated separately by the repository archetype scripts. The source project contains no message broker, RPC, GraphQL endpoint, or UI; its durable surface is the knowledge schema with its migrations and the outbox queue, over the two-level cache that no query has opted into yet.
 
+## CQERS Architecture
+
+Application keeps the existing Manage entry points and delegates each Command, Query, and consumed
+business Event to a matching `XxxCmdExe`, `XxxQueryExe`, or `XxxEventExe` under
+`application/<domain>/executor/{command,query,event}`. Query execution is read-only. Event executors
+handle incoming business events; outbound events go through Domain ports to Infrastructure MQ/Outbox
+publishers. Keep the existing transaction, validation, idempotency, and delivery semantics; SSE stream
+events are not message-consumption events. The independent Components CRUD generator supports CQERS executors and explicitly configured
+inbound events for native Light, Web and Service; Agent and Open profiles are not supported. Review
+legacy generated-file ownership and conflicts instead of bypassing them.
+
 ## Runtime Contract
 
 The research operation is `POST /api/v1/deep-research/runs`. It consumes JSON and produces `text/event-stream`. The request body accepts `topic`, optional `reportLanguage` (`ZH_CN` or `EN_US`, default `ZH_CN`), and optional `maxSources` (default `8`, bounded to `3..20`). An authenticated USER `Authorization: Bearer` header is required; `X-Trace-Id` is optional and is generated when absent.

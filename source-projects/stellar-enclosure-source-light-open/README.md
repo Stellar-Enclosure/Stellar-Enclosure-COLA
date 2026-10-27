@@ -55,6 +55,17 @@ Springdoc exposes the OpenAPI document at `/v3/api-docs` and Swagger UI at `/swa
 
 `verify` runs `OpenArchitectureTest`, which reads source text: `archunit-junit5` is on the test classpath but no test imports `com.tngtech`, so layer direction is checked by file inspection, not by bytecode analysis. `test` and `verify` are static/generated-project checks; they do not prove a live Nacos, Redis, PostgreSQL, RabbitMQ, or external service topology.
 
+## CQERS Architecture
+
+Application keeps the existing Manage entry points and delegates each Command, Query, and consumed
+business Event to a matching `XxxCmdExe`, `XxxQueryExe`, or `XxxEventExe` under
+`application/<domain>/executor/{command,query,event}`. Query execution is read-only. Event executors
+handle incoming business events; outbound events go through Domain ports to Infrastructure MQ/Outbox
+publishers. Keep the existing transaction, validation, idempotency, and delivery semantics; SSE stream
+events are not message-consumption events. The independent Components CRUD generator supports CQERS executors and explicitly configured
+inbound events for native Light, Web and Service; Agent and Open profiles are not supported. Review
+legacy generated-file ownership and conflicts instead of bypassing them.
+
 ## Stack
 
 - Java 25, Spring Boot 4.1.2, Spring Cloud 2025.0.3, Spring Cloud Alibaba 2025.0.0.0, and Nacos 3.0.3.

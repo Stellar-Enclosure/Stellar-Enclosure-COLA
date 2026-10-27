@@ -59,6 +59,15 @@ mvn -B -ntp -Degon.test.triple.enabled=true \
 
 该显式命令会绑定本地 Triple 端口。默认构建通过不证明真实监听互操作通过。
 
+## CQERS 架构
+
+Application 保留已有 Manage 入口，将每个 Command、Query 和需要消费的业务 Event 委托给对应的
+`XxxCmdExe`、`XxxQueryExe`、`XxxEventExe`，位置为 `application/<业务域>/executor/{command,query,event}`。
+Query 保持只读；EventExe 处理收到的业务事件，出站事件通过 Domain 端口交给 Infrastructure 的
+MQ/Outbox 实现发布。事务、校验、幂等与投递语义保持原有用例约束；SSE 流事件不是消息消费事件。
+独立的 Components CRUD code generator 已支持 native Light、Web、Service 的 CQERS 执行器与
+显式入站事件；Agent 和 Open 不在支持范围。旧版生成文件须审阅迁移，不能绕过所有权与冲突保护。
+
 ## 模块
 
 Evaluation 契约由本工程自己的 `-facade` 模块发布，Organization 契约则是独立发布的对端工件，生成的 POM 通过 generation 时显式提供的 `organization-facade.group-id`、`organization-facade.artifact-id`、`organization-facade.version` 和 `organization-facade.package` 属性解析它。生成消费方之前必须先发布对端的 `parent`、`common` 与 `facade`，且两个 facade 互不依赖，Maven 图因此保持无环。

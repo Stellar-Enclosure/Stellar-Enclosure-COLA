@@ -49,6 +49,15 @@ Springdoc 在 `/v3/api-docs` 提供 OpenAPI 文档，在 `/swagger-ui.html` 提�
 
 `verify` 执行 `OpenArchitectureTest`，它按源码文本检查：`archunit-junit5` 虽在测试 classpath 上，但没有任何测试 import `com.tngtech`，因此分层方向是靠文件内容审查而非字节码分析得出的。`test`/`verify` 是静态和生成工程检查，不代表真实 Nacos、Redis、PostgreSQL、RabbitMQ 或外部服务拓扑已经可用。
 
+## CQERS 架构
+
+Application 保留已有 Manage 入口，将每个 Command、Query 和需要消费的业务 Event 委托给对应的
+`XxxCmdExe`、`XxxQueryExe`、`XxxEventExe`，位置为 `application/<业务域>/executor/{command,query,event}`。
+Query 保持只读；EventExe 处理收到的业务事件，出站事件通过 Domain 端口交给 Infrastructure 的
+MQ/Outbox 实现发布。事务、校验、幂等与投递语义保持原有用例约束；SSE 流事件不是消息消费事件。
+独立的 Components CRUD code generator 已支持 native Light、Web、Service 的 CQERS 执行器与
+显式入站事件；Agent 和 Open 不在支持范围。旧版生成文件须审阅迁移，不能绕过所有权与冲突保护。
+
 ## 技术栈
 
 - Java 25、Spring Boot 4.1.2、Spring Cloud 2025.0.3、Spring Cloud Alibaba 2025.0.0.0、Nacos 3.0.3。

@@ -65,6 +65,17 @@ mvn -B -ntp -Degon.test.triple.enabled=true \
 
 The explicit command binds a local Triple port. A passing default build does not prove listener interoperability.
 
+## CQERS Architecture
+
+Application keeps the existing Manage entry points and delegates each Command, Query, and consumed
+business Event to a matching `XxxCmdExe`, `XxxQueryExe`, or `XxxEventExe` under
+`application/<domain>/executor/{command,query,event}`. Query execution is read-only. Event executors
+handle incoming business events; outbound events go through Domain ports to Infrastructure MQ/Outbox
+publishers. Keep the existing transaction, validation, idempotency, and delivery semantics; SSE stream
+events are not message-consumption events. The independent Components CRUD generator supports CQERS executors and explicitly configured
+inbound events for native Light, Web and Service; Agent and Open profiles are not supported. Review
+legacy generated-file ownership and conflicts instead of bypassing them.
+
 ## Modules
 
 The Evaluation contract is published by this project itself from its own `-facade` module, while the Organization contract is an externally published peer artifact that the generated POM resolves through the explicit `organization-facade.group-id`, `organization-facade.artifact-id`, `organization-facade.version` and `organization-facade.package` properties supplied at generation time. Publish the peer `parent`, `common` and `facade` before generating a consumer, and keep the two facades free of each other so the Maven graph stays acyclic.

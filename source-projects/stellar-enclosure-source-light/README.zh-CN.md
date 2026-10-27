@@ -59,6 +59,15 @@ java @launch.args -Xmx3g -jar app.jar --server.port=9080
 ./mvnw spring-boot:run
 ```
 
+## CQERS 架构
+
+Application 保留已有 Manage 入口，将每个 Command、Query 和需要消费的业务 Event 委托给对应的
+`XxxCmdExe`、`XxxQueryExe`、`XxxEventExe`，位置为 `application/<业务域>/executor/{command,query,event}`。
+Query 保持只读；EventExe 处理收到的业务事件，出站事件通过 Domain 端口交给 Infrastructure 的
+MQ/Outbox 实现发布。事务、校验、幂等与投递语义保持原有用例约束；SSE 流事件不是消息消费事件。
+独立的 Components CRUD code generator 已支持 native Light、Web、Service 的 CQERS 执行器与
+显式入站事件；Agent 和 Open 不在支持范围。旧版生成文件须审阅迁移，不能绕过所有权与冲突保护。
+
 ## 领域优先结构
 
 业务领域位于协议或技术细节之前，使 `user` 和 `teaching` 保持内聚，未来可以在不反转包顺序的情况下拆分为独立服务。

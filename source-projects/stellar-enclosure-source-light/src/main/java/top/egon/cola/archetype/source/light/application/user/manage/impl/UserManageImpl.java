@@ -13,66 +13,43 @@ import top.egon.cola.archetype.source.light.application.user.pojo.convertor.User
 import top.egon.cola.archetype.source.light.application.user.pojo.query.GetUserQuery;
 import top.egon.cola.archetype.source.light.application.user.pojo.result.UserResult;
 import top.egon.cola.archetype.source.light.application.user.validators.UserApplicationValidator;
-import top.egon.cola.archetype.source.light.common.exception.UserDomainException;
-import top.egon.cola.archetype.source.light.common.exception.UserUseCaseException;
-import top.egon.cola.archetype.source.light.domain.user.entities.User;
 import top.egon.cola.archetype.source.light.domain.user.service.UserDomainService;
 import top.egon.cola.archetype.source.light.domain.user.service.UserEventService;
 import top.egon.cola.archetype.source.light.domain.user.service.UserIdempotencyService;
 import top.egon.cola.archetype.source.light.domain.user.service.UserQueryService;
-import top.egon.cola.archetype.source.light.domain.user.vos.UserEvent;
-import top.egon.cola.archetype.source.light.domain.user.vos.UserId;
+import top.egon.cola.archetype.source.light.application.user.executor.command.CreateUserCmdExe;
+import top.egon.cola.archetype.source.light.application.user.executor.query.GetUserQueryExe;
 
 @Service("userManageImpl")
 @Lazy
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
 @Slf4j
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class UserManageImpl implements UserManage {
-    @Qualifier("userDomainService")
-    private final UserDomainService userDomainService;
-    @Qualifier("userQueryService")
-    private final UserQueryService userQueryService;
-    @Qualifier("userEventService")
-    private final UserEventService userEventService;
-    @Qualifier("userIdempotencyService")
-    private final UserIdempotencyService userIdempotencyService;
-    @Qualifier("userApplicationValidator")
-    private final UserApplicationValidator applicationValidator;
-    @Qualifier("userApplicationConvertorImpl")
-    private final UserApplicationConvertor convertor;
+    @Qualifier("createUserCmdExe")
+    private final CreateUserCmdExe createUserCmdExe;
+
+    @Qualifier("getUserQueryExe")
+    private final GetUserQueryExe getUserQueryExe;
+
+    public UserManageImpl(UserDomainService userDomainService,
+            UserQueryService userQueryService,
+            UserEventService userEventService,
+            UserIdempotencyService userIdempotencyService,
+            UserApplicationValidator applicationValidator,
+            UserApplicationConvertor convertor) {
+        this(new CreateUserCmdExe(userDomainService, userQueryService, userEventService, userIdempotencyService, applicationValidator, convertor),
+                new GetUserQueryExe(userDomainService, convertor));
+    }
 
     @Override
     @Transactional
     public UserResult create(CreateUserCommand command) {
-        applicationValidator.validate(command);
-        claim(command.idempotencyKey());
-        userQueryService.findExternalUser(command.externalId())
-                .orElseThrow(() -> new UserUseCaseException(
-                        "EXTERNAL_USER_NOT_FOUND", "external user not found"));
-        try {
-            User saved = userDomainService.save(userDomainService.createUser(
-                    command.externalId(), command.name(), command.email()));
-            userEventService.publish(UserEvent.created(saved.id().value()));
-            return convertor.toTarget(saved);
-        } catch (UserDomainException exception) {
-            throw translate(exception);
-        }
+        return createUserCmdExe.execute(command);
     }
 
     @Override
     public UserResult get(GetUserQuery query) {
-        return userDomainService.findById(new UserId(query.userId()))
-                .map(convertor::toTarget)
-                .orElseThrow(() -> new UserUseCaseException("USER_NOT_FOUND", "user not found"));
+        return getUserQueryExe.execute(query);
     }
 
-    private void claim(String idempotencyKey) {
-        if (!userIdempotencyService.claim(idempotencyKey)) {
-            throw new UserUseCaseException("DUPLICATE_REQUEST", "request was already processed");
-        }
-    }
-
-    private UserUseCaseException translate(UserDomainException exception) {
-        return new UserUseCaseException(exception.getStatus(), exception.getMessage(), exception);
-    }
 }

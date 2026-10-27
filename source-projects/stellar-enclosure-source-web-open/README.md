@@ -58,6 +58,17 @@ The first command runs module tests, generated Proto/Triple tests, OpenAPI/DTP c
 tests, and ArchUnit. It does not prove a live Nacos/Redis/PostgreSQL/RabbitMQ or external
 Gateway topology; operators must provide those services and secrets for dev/prod.
 
+## CQERS Architecture
+
+Application keeps the existing Manage entry points and delegates each Command, Query, and consumed
+business Event to a matching `XxxCmdExe`, `XxxQueryExe`, or `XxxEventExe` under
+`application/<domain>/executor/{command,query,event}`. Query execution is read-only. Event executors
+handle incoming business events; outbound events go through Domain ports to Infrastructure MQ/Outbox
+publishers. Keep the existing transaction, validation, idempotency, and delivery semantics; SSE stream
+events are not message-consumption events. The independent Components CRUD generator supports CQERS executors and explicitly configured
+inbound events for native Light, Web and Service; Agent and Open profiles are not supported. Review
+legacy generated-file ownership and conflicts instead of bypassing them.
+
 ## Stack
 
 The runtime matrix is Spring Boot 4.1.2, Spring Cloud 2025.0.3, Spring Cloud Alibaba

@@ -14,67 +14,43 @@ import top.egon.cola.archetype.source.lightopen.application.user.pojo.query.GetU
 import top.egon.cola.archetype.source.lightopen.application.user.pojo.result.PermissionDetailResult;
 import top.egon.cola.archetype.source.lightopen.application.user.pojo.result.PermissionResult;
 import top.egon.cola.archetype.source.lightopen.application.user.validators.UserApplicationValidator;
-import top.egon.cola.archetype.source.lightopen.common.exception.UserDomainException;
-import top.egon.cola.archetype.source.lightopen.common.exception.UserUseCaseException;
-import top.egon.cola.archetype.source.lightopen.domain.user.aggregates.RolePermissionAggregate;
-import top.egon.cola.archetype.source.lightopen.domain.user.entities.Permission;
-import top.egon.cola.archetype.source.lightopen.domain.user.entities.Role;
 import top.egon.cola.archetype.source.lightopen.domain.user.service.PermissionDomainService;
 import top.egon.cola.archetype.source.lightopen.domain.user.service.RoleDomainService;
 import top.egon.cola.archetype.source.lightopen.domain.user.service.UserEventService;
 import top.egon.cola.archetype.source.lightopen.domain.user.service.UserIdempotencyService;
-import top.egon.cola.archetype.source.lightopen.domain.user.vos.PermissionCode;
-import top.egon.cola.archetype.source.lightopen.domain.user.vos.RoleCode;
-import top.egon.cola.archetype.source.lightopen.domain.user.vos.UserEvent;
-import top.egon.cola.archetype.source.lightopen.domain.user.vos.UserId;
-
 import java.util.List;
+import top.egon.cola.archetype.source.lightopen.application.user.executor.command.GrantPermissionCmdExe;
+import top.egon.cola.archetype.source.lightopen.application.user.executor.query.GetUserPermissionsQueryExe;
 
 @Service("permissionManageImpl")
 @Lazy
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
 @Slf4j
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class PermissionManageImpl implements PermissionManage {
-    @Qualifier("permissionDomainService")
-    private final PermissionDomainService permissionDomainService;
-    @Qualifier("roleDomainService")
-    private final RoleDomainService roleDomainService;
-    @Qualifier("userEventService")
-    private final UserEventService userEventService;
-    @Qualifier("userIdempotencyService")
-    private final UserIdempotencyService userIdempotencyService;
-    @Qualifier("userApplicationValidator")
-    private final UserApplicationValidator applicationValidator;
-    @Qualifier("userApplicationConvertorImpl")
-    private final UserApplicationConvertor convertor;
+    @Qualifier("grantPermissionCmdExe")
+    private final GrantPermissionCmdExe grantPermissionCmdExe;
+
+    @Qualifier("getUserPermissionsQueryExe")
+    private final GetUserPermissionsQueryExe getUserPermissionsQueryExe;
+
+    public PermissionManageImpl(PermissionDomainService permissionDomainService,
+            RoleDomainService roleDomainService,
+            UserEventService userEventService,
+            UserIdempotencyService userIdempotencyService,
+            UserApplicationValidator applicationValidator,
+            UserApplicationConvertor convertor) {
+        this(new GrantPermissionCmdExe(permissionDomainService, roleDomainService, userEventService, userIdempotencyService, applicationValidator, convertor),
+                new GetUserPermissionsQueryExe(permissionDomainService));
+    }
 
     @Override
     @Transactional
     public PermissionResult grantPermission(GrantPermissionCommand command) {
-        applicationValidator.validate(command);
-        if (!userIdempotencyService.claim(command.idempotencyKey())) {
-            throw new UserUseCaseException("DUPLICATE_REQUEST", "request was already processed");
-        }
-        Role role = roleDomainService.findByCode(new RoleCode(command.roleCode()))
-                .orElseThrow(() -> new UserUseCaseException("ROLE_NOT_FOUND", "role not found"));
-        Permission permission = permissionDomainService.findByCode(new PermissionCode(command.permissionCode()))
-                .orElseThrow(() -> new UserUseCaseException("PERMISSION_NOT_FOUND", "permission not found"));
-        try {
-            RolePermissionAggregate aggregate = permissionDomainService.grantPermission(
-                    new RolePermissionAggregate(role), permission);
-            roleDomainService.savePermissions(aggregate);
-            userEventService.publish(UserEvent.permissionGranted());
-            return convertor.toPermissionResult(role, permission);
-        } catch (UserDomainException exception) {
-            throw new UserUseCaseException(exception.getStatus(), exception.getMessage(), exception);
-        }
+        return grantPermissionCmdExe.execute(command);
     }
 
     @Override
     public List<PermissionDetailResult> getByUser(GetUserPermissionsQuery query) {
-        return permissionDomainService.findByUserId(new UserId(query.userId())).stream()
-                .map(permission -> new PermissionDetailResult(
-                        permission.code().value(), permission.name()))
-                .toList();
+        return getUserPermissionsQueryExe.execute(query);
     }
 }

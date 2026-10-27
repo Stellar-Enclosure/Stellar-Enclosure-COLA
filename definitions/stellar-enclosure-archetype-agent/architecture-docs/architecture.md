@@ -1,6 +1,6 @@
 # agent 脚手架架构
 
-更新：2026-10-17。以 `stellar-enclosure-source-agent` 的 POM、Java 和架构测试为事实来源。Agent 六模块工程，承载 Deep Research 与 Knowledge 两项业务能力，不创建 facade 模块。
+更新：2026-10-27。以 `stellar-enclosure-source-agent` 的 POM、Java 和架构测试为事实来源。Agent 六模块工程，承载 Deep Research 与 Knowledge 两项业务能力，不创建 facade 模块。
 
 ## 项目与模块
 
@@ -52,6 +52,14 @@ common <- domain <- application <- adapter <- starter
 ## Java 对象与校验
 
 普通实体用 class；只有不可变值对象可用 record。普通构造选 @Builder，兼容的继承构造选 @SuperBuilder，不能机械地互相替换。持久化枚举用 @EnumValue，前端枚举用 @JsonValue。校验基于注解驱动，复用 Components 与 Common MP repository。
+
+## CQERS 执行层
+
+Application 保留 Manage 作为入口，每个 Command、Query 和本服务消费的业务 Event 分别交给
+`application/<业务域>/executor/command` 下的 `XxxCmdExe`、`executor/query` 下的 `XxxQueryExe`、
+`executor/event` 下的 `XxxEventExe`。Query 保持只读；EventExe 负责消费后的业务处理，出站发布通过
+Domain 端口进入 Infrastructure 的 MQ/Outbox 实现。事务、幂等和失败处理沿用用例及传输契约；
+仅发布的事件和 SSE 流不需要空的消费执行器。
 
 ## CQE 与组件复用
 

@@ -301,13 +301,13 @@ class ArchetypeContractConvergenceTest {
             }
             assertTrue(text.contains("@Slf4j"), "business classes log through @Slf4j: " + path);
         }
-        assertTrue(read("application", "course/manage/impl/CourseManageImpl.java")
+        assertTrue(read("application", "course/executor/command/ScheduleCourseCmdExe.java")
                 .contains("courseEventService.courseScheduled("));
-        assertTrue(read("application", "course/manage/impl/CourseManageImpl.java")
+        assertTrue(read("application", "course/executor/command/ScheduleCourseCmdExe.java")
                 .contains("@Qualifier(\"courseEventService\")"));
-        assertTrue(read("application", "exam/manage/impl/ExamManageImpl.java")
+        assertTrue(read("application", "exam/executor/command/PublishExamCmdExe.java")
                 .contains("examEventService.examPublished("));
-        assertTrue(read("application", "exam/manage/impl/ScoreManageImpl.java")
+        assertTrue(read("application", "exam/executor/command/RecordScoreCmdExe.java")
                 .contains("examEventService.scoreRecorded("));
     }
 

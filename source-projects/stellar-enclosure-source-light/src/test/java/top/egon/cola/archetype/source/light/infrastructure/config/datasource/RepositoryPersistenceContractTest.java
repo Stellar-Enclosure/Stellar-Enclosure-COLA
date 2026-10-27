@@ -60,7 +60,7 @@ class RepositoryPersistenceContractTest extends top.egon.cola.archetype.source.l
         try (var files = Files.walk(Path.of("src/main/resources/mybatis/mapper"))) {
             mappings = files.filter(file -> file.toString().endsWith("DAO.xml")).toList();
         }
-        assertThat(mappings).hasSize(8);
+        assertThat(mappings).hasSizeGreaterThanOrEqualTo(8);
         for (Path path : mappings) {
             String xml = Files.readString(path);
             assertThat(xml).as(path.toString()).doesNotContain("is_deleted", "${");

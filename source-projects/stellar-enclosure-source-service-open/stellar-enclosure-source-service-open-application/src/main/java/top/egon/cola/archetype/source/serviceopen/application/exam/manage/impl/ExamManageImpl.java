@@ -1,7 +1,5 @@
 package top.egon.cola.archetype.source.serviceopen.application.exam.manage.impl;
 
-import top.egon.cola.archetype.source.serviceopen.common.enums.ApplicationErrorCode;
-import top.egon.cola.archetype.source.serviceopen.common.exception.ApplicationException;
 import top.egon.cola.archetype.source.serviceopen.application.exam.pojo.command.AttachExamPaperCommand;
 import top.egon.cola.archetype.source.serviceopen.application.exam.pojo.command.CreateExamCommand;
 import top.egon.cola.archetype.source.serviceopen.application.exam.pojo.command.PublishExamCommand;
@@ -11,14 +9,9 @@ import top.egon.cola.archetype.source.serviceopen.application.exam.pojo.query.Ge
 import top.egon.cola.archetype.source.serviceopen.application.exam.pojo.result.ExamDetailResult;
 import top.egon.cola.archetype.source.serviceopen.application.exam.pojo.result.ExamPaperResult;
 import top.egon.cola.archetype.source.serviceopen.application.exam.validators.ExamApplicationValidator;
-import top.egon.cola.archetype.source.serviceopen.domain.course.entities.Course;
 import top.egon.cola.archetype.source.serviceopen.domain.course.service.CourseDomainService;
-import top.egon.cola.archetype.source.serviceopen.domain.course.vos.CourseId;
-import top.egon.cola.archetype.source.serviceopen.domain.exam.entities.Exam;
-import top.egon.cola.archetype.source.serviceopen.domain.exam.entities.ExamPaper;
 import top.egon.cola.archetype.source.serviceopen.domain.exam.service.ExamEventService;
 import top.egon.cola.archetype.source.serviceopen.domain.exam.service.ExamDomainService;
-import top.egon.cola.archetype.source.serviceopen.domain.exam.vos.ExamId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +19,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
+import top.egon.cola.archetype.source.serviceopen.application.exam.executor.command.CreateExamCmdExe;
+import top.egon.cola.archetype.source.serviceopen.application.exam.executor.command.AttachExamPaperCmdExe;
+import top.egon.cola.archetype.source.serviceopen.application.exam.executor.command.PublishExamCmdExe;
+import top.egon.cola.archetype.source.serviceopen.application.exam.executor.query.GetExamQueryExe;
 
 @Service("evaluationExamManage")
 @Validated
@@ -33,64 +30,50 @@ import org.springframework.validation.annotation.Validated;
 @RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class ExamManageImpl implements ExamManage {
 
-    @Qualifier("courseDomainService")
-    private final CourseDomainService courseDomainService;
-    @Qualifier("examDomainService")
-    private final ExamDomainService examDomainService;
-    @Qualifier("examEventService")
-    private final ExamEventService examEventService;
-    @Qualifier("examApplicationConverterImpl")
-    private final ExamApplicationConverter converter;
-    @Qualifier("examApplicationValidator")
-    private final ExamApplicationValidator validator;
+    @Qualifier("createExamCmdExe")
+    private final CreateExamCmdExe createExamCmdExe;
+
+    @Qualifier("attachExamPaperCmdExe")
+    private final AttachExamPaperCmdExe attachExamPaperCmdExe;
+
+    @Qualifier("publishExamCmdExe")
+    private final PublishExamCmdExe publishExamCmdExe;
+
+    @Qualifier("getExamQueryExe")
+    private final GetExamQueryExe getExamQueryExe;
+
+    public ExamManageImpl(CourseDomainService courseDomainService,
+            ExamDomainService examDomainService,
+            ExamEventService examEventService,
+            ExamApplicationConverter converter,
+            ExamApplicationValidator validator) {
+        this(new CreateExamCmdExe(courseDomainService, examDomainService, converter, validator),
+                new AttachExamPaperCmdExe(examDomainService, converter, validator),
+                new PublishExamCmdExe(examDomainService, examEventService, converter, validator),
+                new GetExamQueryExe(examDomainService, converter, validator));
+    }
 
     @Override
     @Transactional
     public ExamDetailResult create(CreateExamCommand command) {
-        validator.positive(command.courseId(), "courseId");
-        Course course = courseDomainService.findById(new CourseId(command.courseId()))
-                .orElseThrow(() -> failure(ApplicationErrorCode.COURSE_NOT_FOUND, "course not found"));
-        Exam exam = examDomainService.createExam(
-                course, command.title(), command.startsAt(), command.endsAt());
-        return converter.toResult(examDomainService.save(exam));
+        return createExamCmdExe.execute(command);
     }
 
     @Override
     @Transactional
     public ExamPaperResult attachPaper(AttachExamPaperCommand command) {
-        validator.positive(command.examId(), "examId");
-        Exam exam = requireExam(command.examId());
-        ExamPaper paper = examDomainService.attachPaper(exam, command.title(), command.totalPoints());
-        return converter.toResult(examDomainService.savePaper(paper));
+        return attachExamPaperCmdExe.execute(command);
     }
 
     @Override
     @Transactional
     public ExamDetailResult publish(PublishExamCommand command) {
-        validator.positive(command.examId(), "examId");
-        Exam exam = requireExam(command.examId());
-        ExamPaper paper = examDomainService.findPaperByExamId(exam.getId())
-                .orElseThrow(() -> failure(
-                        ApplicationErrorCode.EXAM_PAPER_NOT_FOUND, "exam paper not found"));
-        examDomainService.publishExam(exam, paper);
-        Exam saved = examDomainService.save(exam);
-        examDomainService.savePaper(paper);
-        examEventService.examPublished(saved, paper);
-        return converter.toResult(saved);
+        return publishExamCmdExe.execute(command);
     }
 
     @Override
     public ExamDetailResult get(GetExamQuery query) {
-        validator.positive(query.examId(), "examId");
-        return converter.toResult(requireExam(query.examId()));
+        return getExamQueryExe.execute(query);
     }
 
-    private Exam requireExam(Long examId) {
-        return examDomainService.findById(new ExamId(examId))
-                .orElseThrow(() -> failure(ApplicationErrorCode.EXAM_NOT_FOUND, "exam not found"));
-    }
-
-    private static ApplicationException failure(ApplicationErrorCode code, String message) {
-        return new ApplicationException(code, message);
-    }
 }

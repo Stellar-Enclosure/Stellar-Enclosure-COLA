@@ -1,6 +1,6 @@
 # Stellar-Enclosure Java、组件与 CQE 编码规范
 
-更新：2026-09-22。本文规定新增及本次实际修改代码的目标规范；现有代码是模块结构与 API 的事实来源，旧实现不自动豁免新规范。文档修订不代表 Java、SQL 或运行环境已经完成迁移。
+更新：2026-10-27。本文规定新增及本次实际修改代码的目标规范；现有代码是模块结构与 API 的事实来源，旧实现不自动豁免新规范。文档修订不代表 Java、SQL 或运行环境已经完成迁移。
 
 ## 对象与 Lombok
 
@@ -86,6 +86,12 @@ schema advisory transaction lock 协调多实例；每份 SQL 与 ddl_history �
 事件契约必须包含事件 ID、业务标识、schema version、目标 topic/exchange/routing key、载荷、消费校验与幂等、重试/死信及观测。SSE 响应流与进程内生命周期回调不自动等于 CQE 业务事件；需明确分类，业务事实不能借此规避投递。
 
 CQE 不要求新建 Event 模块、Event Sourcing 或独立读库。无事件的操作明确记为无事件，三层项目保持原结构。
+
+## CQERS 用例执行规范
+
+本项目在 CQRS 的读写责任分离上，将已接收的业务事件处理作为独立责任，称为 CQERS。每个 Application `XxxCommand`、`XxxQuery` 和待消费的 `XxxEvent` 分别由同一业务域下的 `XxxCmdExe`、`XxxQueryExe`、`XxxEventExe` 执行；目录为 `application/<业务域>/executor/{command,query,event}`。Manage 保留稳定入口，委托 Exe；不要用只转发回 Manage 的空壳执行器。
+
+Command 的事务、校验、权限、并发及幂等语义在原用例边界上保持一致。Query 不写入业务状态或发布业务事件。EventExe 处理本服务收到的业务事件；出站事件的发布通过 Domain 端口和 Infrastructure 的 MQ/Outbox 实现完成，不能因事件声明而创建无消费行为的空 EventExe。Agent 的 SSE 事件是流输出，不是这里的业务事件消费。详见 [CQERS 架构](cqers-architecture.md)。
 
 ## 当前实现与目标规范的差异
 
