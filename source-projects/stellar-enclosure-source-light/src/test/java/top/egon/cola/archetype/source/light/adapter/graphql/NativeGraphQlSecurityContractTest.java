@@ -23,10 +23,9 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.mapstruct.factory.Mappers;
-import org.redisson.api.stream.StreamMessageId;
-import org.redisson.api.stream.StreamAddArgs;
-import org.redisson.api.stream.StreamAddParams;
-import org.redisson.client.RedisException;
+import top.egon.cola.platform.tianquan.shoubing.core.audit.TokenUsageAuditEvent;
+import top.egon.cola.platform.tianquan.shoubing.core.audit.TokenUsageAuditFingerprint;
+import top.egon.cola.platform.tianquan.shoubing.contract.state.IdentityAuditReceipt;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -178,7 +177,7 @@ class NativeGraphQlSecurityContractTest {
                                 .andExpect(MockMvcResultMatchers.status().isOk())
                                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.user.name").value("Reader"));
                         verify(repository).findCachedById(1001L);
-                        long deniedBefore = fixture.events.stream().filter(event -> "AUTHORIZATION_DENIED".equals(event.get("reasonCode"))).count();
+                        long deniedBefore = fixture.events.stream().filter(event -> "AUTHORIZATION_DENIED".equals(event.reasonCode())).count();
                         String aliases = "{\"query\":\"query TwoDeniedAliases { left: user(id: \\\"1001\\\") { id } right: user(id: \\\"1001\\\") { id } }\",\"operationName\":\"TwoDeniedAliases\"}";
                         mvc.perform(MockMvcRequestBuilders.post("/graphql").contentType("application/json")
                                         .header("Authorization", "Bearer " + fixture.token("1001", Set.of("openid"))).content(aliases))
@@ -186,7 +185,7 @@ class NativeGraphQlSecurityContractTest {
                                 .andExpect(MockMvcResultMatchers.jsonPath("$.errors.length()").value(2))
                                 .andExpect(MockMvcResultMatchers.jsonPath("$.errors[0].extensions.code").value("AUTHORIZATION_DENIED"))
                                 .andExpect(MockMvcResultMatchers.jsonPath("$.errors[1].extensions.code").value("AUTHORIZATION_DENIED"));
-                        assertThat(fixture.events.stream().filter(event -> "AUTHORIZATION_DENIED".equals(event.get("reasonCode"))).count()).isEqualTo(deniedBefore + 1);
+                        assertThat(fixture.events.stream().filter(event -> "AUTHORIZATION_DENIED".equals(event.reasonCode())).count()).isEqualTo(deniedBefore + 1);
                         Mockito.verifyNoMoreInteractions(repository);
                         assertThat(top.egon.cola.archetype.source.light.adapter.filter.RequestContextHolder.get()).isEmpty();
                         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
@@ -254,7 +253,7 @@ class NativeGraphQlSecurityContractTest {
                     var marker=(IdpAuthorizationObservationContextBO) captured.get().get(NativeGraphQlSecurityInterceptor.OBSERVATION_MARKER_KEY);
                     assertThat(marker.isConfirmed()).isTrue();
                 });
-                assertThat(fixture.events.stream().filter(event->"AUTHORIZATION_DENIED".equals(event.get("reasonCode"))).count()).isEqualTo(1);
+                assertThat(fixture.events.stream().filter(event->"AUTHORIZATION_DENIED".equals(event.reasonCode())).count()).isEqualTo(1);
                 Mockito.verifyNoInteractions(repository);
                 var marker=(IdpAuthorizationObservationContextBO) captured.get().get(NativeGraphQlSecurityInterceptor.OBSERVATION_MARKER_KEY);
                 assertThat(marker.isActive()).isFalse();
@@ -272,10 +271,13 @@ class NativeGraphQlSecurityContractTest {
         var repository = mock(UserRepository.class);
         try (var fixture = new NativeSecurityContractTest.SecurityFixture(temporary)) {
             Mockito.doAnswer(call -> {
-                StreamAddParams<String,String> fields=call.getArgument(0);
-                if ("DENIED".equals(fields.getEntries().get("result"))) { throw new RedisException("private-broker-address"); }
-                fixture.events.add(Map.copyOf(fields.getEntries())); return new StreamMessageId(fixture.events.size(),1);
-            }).when(fixture.auditStream).add(ArgumentMatchers.any(StreamAddArgs.class));
+                TokenUsageAuditEvent event = call.getArgument(0);
+                if ("DENIED".equals(event.result())) { throw new IllegalStateException("private-broker-address"); }
+                fixture.events.add(event);
+                return new IdentityAuditReceipt(java.util.UUID.randomUUID().toString(), event.eventId(),
+                        TokenUsageAuditFingerprint.of(event), event.issuer().toASCIIString(), "controlled-service",
+                        event.resource(), "STORED", event.occurredAt());
+            }).when(fixture.authority).appendAudit(ArgumentMatchers.any());
             NativeSecurityContractTest.runner(fixture,repository)
                     .withConfiguration(AutoConfigurations.of(GraphQlAutoConfiguration.class,
                             GraphQlWebMvcAutoConfiguration.class)).withUserConfiguration(HttpGraphQlConfiguration.class).run(context -> {

@@ -18,7 +18,6 @@ import io.grpc.Status;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -34,11 +33,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
-import org.redisson.api.RStream;
-import org.redisson.api.RedissonClient;
-import org.redisson.api.stream.StreamMessageId;
-import org.redisson.api.stream.StreamAddArgs;
-import org.redisson.api.stream.StreamAddParams;
 import org.redisson.client.codec.StringCodec;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
@@ -55,8 +49,6 @@ import top.egon.cola.archetype.source.service.facade.proto.ExamServiceGrpc;
 import top.egon.cola.archetype.source.service.facade.proto.ScoreServiceGrpc;
 import top.egon.cola.platform.tianquan.shoubing.core.observability.SecurityMetricObservationBO;
 import top.egon.cola.platform.tianquan.shoubing.core.resource.ResourceServerStatus;
-import top.egon.cola.platform.tianquan.shoubing.starter.audit.AuditDeliveryProperties;
-import top.egon.cola.platform.tianquan.shoubing.starter.audit.OAuthAuditProperties;
 import top.egon.cola.platform.tianquan.shoubing.starter.audit.OAuthUsageObservationProperties;
 import top.egon.cola.platform.tianquan.shoubing.starter.audit.TokenUsageAuditComponent;
 import top.egon.cola.platform.tianquan.shoubing.starter.autoconfigure.IdpStarterProperties;
@@ -76,7 +68,6 @@ import top.egon.cola.platform.tianquan.shoubing.starter.security.rpc.IdpRpcSecur
 import top.egon.cola.platform.tianquan.shoubing.starter.state.IdentityOAuthClientStateReader;
 import top.egon.cola.platform.tianquan.shoubing.starter.state.IdentityResourceServerState;
 import top.egon.cola.platform.tianquan.shoubing.starter.state.IdentityResourceServerStateReader;
-
 import jakarta.servlet.Filter;
 import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
@@ -113,7 +104,6 @@ import top.egon.cola.archetype.source.service.infrastructure.course.repo.CourseS
 import top.egon.cola.archetype.source.service.infrastructure.course.service.impl.CourseDomainServiceImpl;
 import top.egon.cola.component.common.core.validation.ValidationUtils;
 import top.egon.cola.platform.tianquan.shoubing.starter.security.ServiceScopeAuthorization;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -121,6 +111,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import top.egon.cola.platform.tianquan.shoubing.contract.state.IdentityAuditReceipt;
+import top.egon.cola.platform.tianquan.shoubing.core.audit.TokenUsageAuditEvent;
+import top.egon.cola.platform.tianquan.shoubing.core.audit.TokenUsageAuditFingerprint;
+import top.egon.cola.platform.tianquan.shoubing.core.observability.IdpSecurityMetricsRecorder;
+import top.egon.cola.platform.tianquan.shoubing.starter.state.IdentityAuthorityClient;
 
 /** Real provider, application/domain conversion and host policy; only the data port is controlled. */
 class NativeSecurityContractTest {
@@ -452,7 +447,8 @@ class NativeSecurityContractTest {
         final IdpStarterProperties properties = new IdpStarterProperties();
         final OAuthRevocationReader revocations = mock(OAuthRevocationReader.class);
         final IdentityResourceServerStateReader resourceStates = mock(IdentityResourceServerStateReader.class);
-        final List<Map<String, String>> events = new CopyOnWriteArrayList<>();
+        final List<TokenUsageAuditEvent> events = new CopyOnWriteArrayList<>();
+        final IdentityAuthorityClient authority = mock(IdentityAuthorityClient.class);
         final List<SecurityMetricObservationBO> metrics = new CopyOnWriteArrayList<>();
         final IdpJwtVerifier verifier;
         final IdpObservedVerificationComponent observations;
@@ -462,20 +458,13 @@ class NativeSecurityContractTest {
         @SuppressWarnings("unchecked")
         SecurityFixture(Path root) throws Exception {
             validator.afterPropertiesSet();
-            var keyFile = root.resolve("audit.key");
-            Files.writeString(keyFile, "0123456789abcdef0123456789abcdef");
-            Files.setPosixFilePermissions(keyFile, Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
-            var redis = mock(RedissonClient.class);
-            RStream<String, String> stream = mock(RStream.class);
-            Mockito.doReturn(stream).when(redis).getStream(ArgumentMatchers.eq("egon:oauth:audit:v1"), ArgumentMatchers.eq(StringCodec.INSTANCE));
-            when(stream.add(ArgumentMatchers.any(StreamAddArgs.class))).thenAnswer(invocation -> {
-                StreamAddParams<String, String> append = invocation.getArgument(0);
-                events.add(Map.copyOf(append.getEntries()));
-                return new StreamMessageId(events.size(), 1);
+            when(authority.appendAudit(ArgumentMatchers.any())).thenAnswer(call -> {
+                TokenUsageAuditEvent event = call.getArgument(0);
+                if (event == null) { return null; }
+                events.add(event);
+                return auditReceipt(event);
             });
-            var producer = new TokenUsageAuditComponent(redis, mapper,
-                    new OAuthAuditProperties("egon:oauth:audit:v1", root.resolve("spool"), 1048576, keyFile),
-                    new AuditDeliveryProperties(), clock, validator);
+            var producer = new TokenUsageAuditComponent(issuer -> authority, clock, validator, IdpSecurityMetricsRecorder.NOOP);
             var usage = new OAuthUsageObservationProperties(true, URI.create("https://auth.example.test/tenants/1001"), false);
             usage.setReceiver(IdpSecurityObservationReceiverEnum.APPLICATION);
             observations = new IdpObservedVerificationComponent(producer,
@@ -562,4 +551,10 @@ class NativeSecurityContractTest {
         }
     }
 
+
+    private static IdentityAuditReceipt auditReceipt(TokenUsageAuditEvent event) {
+        return new IdentityAuditReceipt(java.util.UUID.randomUUID().toString(), event.eventId(),
+                TokenUsageAuditFingerprint.of(event), event.issuer().toASCIIString(), "controlled-service",
+                event.resource(), "STORED", event.occurredAt());
+    }
 }

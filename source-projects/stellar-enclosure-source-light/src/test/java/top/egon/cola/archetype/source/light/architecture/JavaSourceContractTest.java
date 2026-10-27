@@ -30,9 +30,11 @@ class JavaSourceContractTest {
     @Test
     void mainSourcesMatchTheirPackageAndCarrierContract() throws IOException {
         List<Path> roots;
-        try (Stream<Path> paths = Files.find(PROJECT, 4,
-                (path, attributes) -> attributes.isDirectory() && path.endsWith(Path.of("src/main/java")))) {
-            roots = paths.filter(path -> !path.toString().replace('\\', '/').contains("/target/")).toList();
+        try (Stream<Path> modules = Files.list(PROJECT)) {
+            roots = Stream.concat(Stream.of(PROJECT), modules.filter(Files::isDirectory)
+                            .filter(path -> !path.getFileName().toString().equals("target")))
+                    .map(module -> module.resolve("src/main/java"))
+                    .filter(Files::isDirectory).toList();
         }
         assertFalse(roots.isEmpty(), "main Java source roots must exist");
         for (Path root : roots) {

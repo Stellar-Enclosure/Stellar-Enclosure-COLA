@@ -19,7 +19,6 @@ import jakarta.validation.Validator;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -37,15 +36,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
-import org.redisson.api.RStream;
-import org.redisson.api.RedissonClient;
-import org.redisson.api.stream.StreamMessageId;
-import org.redisson.api.stream.StreamAddArgs;
-import org.redisson.api.stream.StreamAddParams;
 import org.redisson.client.codec.StringCodec;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.config.BeanDefinition;
-import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.Bindable;
@@ -77,6 +70,9 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.client.RestTemplate;
 import top.egon.cola.component.rpc.common.exception.EgonRpcRejectedException;
 import top.egon.cola.component.rpc.provider.server.RpcProviderExceptionMapper;
+import top.egon.cola.platform.tianquan.jianshen.contract.authorization.RuntimePolicyBinding;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.CatalogScope;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.EffectivePermissionSnapshot;
 import top.egon.cola.platform.tianquan.jianshen.contract.authorization.Decision;
 import top.egon.cola.platform.tianquan.jianshen.contract.authorization.FieldAccessLevel;
 import top.egon.cola.platform.tianquan.jianshen.contract.authorization.FieldPolicyDecision;
@@ -86,7 +82,6 @@ import top.egon.cola.platform.tianquan.jianshen.core.decision.FieldPolicyMerger;
 import top.egon.cola.platform.tianquan.jianshen.starter.authorization.AuthorizationService;
 import top.egon.cola.platform.tianquan.jianshen.starter.authorization.DefaultAuthorizationService;
 import top.egon.cola.platform.tianquan.jianshen.starter.authorization.Rbac3ObservedAuthorizationService;
-import top.egon.cola.platform.tianquan.jianshen.starter.autoconfigure.Rbac3StarterAutoConfiguration;
 import top.egon.cola.platform.tianquan.jianshen.starter.autoconfigure.Rbac3StarterProperties;
 import top.egon.cola.platform.tianquan.jianshen.starter.cache.AuthorizationSnapshotCache;
 import top.egon.cola.platform.tianquan.jianshen.starter.cache.SingleFlightSnapshotLoader;
@@ -105,8 +100,6 @@ import top.egon.cola.platform.tianquan.shoubing.contract.ServiceIdentityPrincipa
 import top.egon.cola.platform.tianquan.shoubing.core.observability.IdpSecurityMetricsRecorder;
 import top.egon.cola.platform.tianquan.shoubing.core.observability.SecurityMetricObservationBO;
 import top.egon.cola.platform.tianquan.shoubing.core.resource.ResourceServerStatus;
-import top.egon.cola.platform.tianquan.shoubing.starter.audit.AuditDeliveryProperties;
-import top.egon.cola.platform.tianquan.shoubing.starter.audit.OAuthAuditProperties;
 import top.egon.cola.platform.tianquan.shoubing.starter.audit.OAuthUsageObservationProperties;
 import top.egon.cola.platform.tianquan.shoubing.starter.audit.TokenUsageAuditComponent;
 import top.egon.cola.platform.tianquan.shoubing.starter.autoconfigure.IdpStarterProperties;
@@ -171,6 +164,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import top.egon.cola.platform.tianquan.shoubing.contract.state.IdentityAuditReceipt;
+import top.egon.cola.platform.tianquan.shoubing.core.audit.TokenUsageAuditEvent;
+import top.egon.cola.platform.tianquan.shoubing.core.audit.TokenUsageAuditFingerprint;
+import top.egon.cola.platform.tianquan.shoubing.starter.state.IdentityAuthorityClient;
 
 @GraphQlTest(UserResolver.class)
 @ContextConfiguration(classes = {UserResolver.class, OrganizationGraphQlExceptionResolver.class,
@@ -229,10 +226,9 @@ public class NativeGraphQlSecurityContractTest {
         public final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         public final LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         public final ObjectMapper mapper = Jackson2ObjectMapperBuilder.json().build();
-        public final List<Map<String,String>> events = new CopyOnWriteArrayList<>();
+        public final List<TokenUsageAuditEvent> events = new CopyOnWriteArrayList<>();
         public final List<SecurityMetricObservationBO> metrics = new CopyOnWriteArrayList<>();
-        public final RStream<String,String> auditStream = mock(RStream.class);
-        public final RedissonClient redis = mock(RedissonClient.class);
+        public final IdentityAuthorityClient authority = mock(IdentityAuthorityClient.class);
         public final OAuthRevocationReader revocations = mock(OAuthRevocationReader.class);
         public final Rbac3StarterProperties properties = new Rbac3StarterProperties();
         public final IdpStarterProperties identityProperties = new IdpStarterProperties();
@@ -259,17 +255,13 @@ public class NativeGraphQlSecurityContractTest {
         @SuppressWarnings("unchecked")
         public SecurityFixture(Path root) throws Exception {
             validator.afterPropertiesSet();
-            var signingFile = root.resolve("audit.key"); Files.writeString(signingFile, "0123456789abcdef0123456789abcdef");
-            Files.setPosixFilePermissions(signingFile, Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
-            RStream<String,String> stream = auditStream;
-            Mockito.doReturn(stream).when(redis).getStream(ArgumentMatchers.eq("egon:oauth:audit:v1"), ArgumentMatchers.eq(StringCodec.INSTANCE));
-            when(stream.add(ArgumentMatchers.any(StreamAddArgs.class))).thenAnswer(call -> {
-                StreamAddParams<String,String> values = call.getArgument(0); events.add(Map.copyOf(values.getEntries()));
-                return new StreamMessageId(events.size(), 1);
+            when(authority.appendAudit(ArgumentMatchers.any())).thenAnswer(call -> {
+                TokenUsageAuditEvent event = call.getArgument(0);
+                if (event == null) { return null; }
+                events.add(event);
+                return auditReceipt(event);
             });
-            var producer = new TokenUsageAuditComponent(redis, mapper,
-                    new OAuthAuditProperties("egon:oauth:audit:v1", root.resolve("spool"), 1048576, signingFile),
-                    new AuditDeliveryProperties(), clock, validator);
+            var producer = new TokenUsageAuditComponent(issuer -> authority, clock, validator, IdpSecurityMetricsRecorder.NOOP);
             var usage = new OAuthUsageObservationProperties(true, URI.create("https://auth.example.test/tenants/1001"), false);
             usage.setReceiver(IdpSecurityObservationReceiverEnum.APPLICATION);
             observations = new IdpObservedVerificationComponent(producer,
@@ -344,11 +336,15 @@ public class NativeGraphQlSecurityContractTest {
             fields = new Rbac3FieldWriteAuthorizationComponent(authorization,
                     new CurrentRbac3User(),
                     Mappers.getMapper(FieldWriteAuthorizationConverter.class),validator);
-            var factory = new StaticListableBeanFactory();
-            factory.addBean("observations",observations); factory.addBean("metrics", (IdpSecurityMetricsRecorder) metrics::add); factory.addBean("validator",validator);
-            advisor = new Rbac3StarterAutoConfiguration().rbac3MethodAuthorizationInterceptor(authorization, properties,
-                    factory.getBeanProvider(IdpObservedVerificationComponent.class),
-                    factory.getBeanProvider(IdpSecurityMetricsRecorder.class),factory.getBeanProvider(Validator.class));
+            var manager = top.egon.cola.platform.tianquan.jianshen.starter.security.Rbac3MethodAuthorizationManager
+                    .createConfigured(authorization, properties.getUserScopePolicy(), observations, metrics::add, validator);
+            var pointcut = new org.springframework.aop.support.StaticMethodMatcherPointcut() {
+                @Override public boolean matches(java.lang.reflect.Method method, Class<?> targetClass) {
+                    return manager.supports(method, targetClass);
+                }
+            };
+            advisor = new AuthorizationManagerBeforeMethodInterceptor(pointcut, manager);
+            advisor.setOrder(org.springframework.security.authorization.method.AuthorizationInterceptorsOrder.PRE_AUTHORIZE.getOrder() + 1);
         }
 
         public top.egon.cola.platform.tianquan.shoubing.starter.security.rpc.IdpRpcBearerServerInterceptor rpcInterceptor() {
@@ -392,8 +388,13 @@ public class NativeGraphQlSecurityContractTest {
                     fieldPolicies.put(permission + ":" + SYSTEM + ":" + resource, decision);
                 }
             });
+            var effectivePermissions = new EffectivePermissionSnapshot("https://auth.example.test/tenants/" + principal.tenantId(),
+                    principal.subject(), new CatalogScope("1", principal.tenantId(), "sample", SYSTEM, "default", "test"),
+                    "1", "1", "2", new EffectivePermissionSnapshot.ActiveRoleContext(SYSTEM, List.of("501"), List.of("501")),
+                    List.copyOf(permissions), NOW.plusSeconds(300));
+            var binding = new RuntimePolicyBinding("fixture-producer", "1", "a".repeat(64), "b".repeat(64), "c".repeat(64));
             return new SystemAuthorizationSnapshot(principal.tenantId(),principal.subject(),"2001",SecurityFixture.SYSTEM,
-                    1,2,List.of("501"),null,null,Set.copyOf(permissions),Set.copyOf(resources),Map.of(),fieldPolicies,"sha256:fixture",NOW,NOW.plusSeconds(300));
+                    1,2,List.of("501"),null,null,Set.copyOf(permissions),Set.copyOf(resources),Map.of(),fieldPolicies,"sha256:fixture",NOW,NOW.plusSeconds(300), effectivePermissions, binding);
         }
 
         public Rbac3AuthenticationToken authenticatedUser(String tenant, Set<String> scopes) throws Exception {
@@ -426,4 +427,10 @@ public class NativeGraphQlSecurityContractTest {
         @Override public void close() { validator.close(); SecurityContextHolder.clearContext(); MDC.clear(); }
     }
 
+
+    private static IdentityAuditReceipt auditReceipt(TokenUsageAuditEvent event) {
+        return new IdentityAuditReceipt(java.util.UUID.randomUUID().toString(), event.eventId(),
+                TokenUsageAuditFingerprint.of(event), event.issuer().toASCIIString(), "controlled-service",
+                event.resource(), "STORED", event.occurredAt());
+    }
 }
