@@ -22,3 +22,11 @@ egon:
             knowledge_document:
               type: SINGLE
               data-source: primary
+            egon_cola_outbox_message:
+              type: SINGLE
+              data-source: primary
+              schema: egon_outbox
+            ddl_history:
+              type: SINGLE
+              data-source: primary
+              schema: egon_outbox

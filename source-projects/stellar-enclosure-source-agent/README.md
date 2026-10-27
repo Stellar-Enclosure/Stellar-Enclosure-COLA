@@ -177,6 +177,11 @@ The project standard is now MP-SDJ distributed managed DDL, but this source proj
 
 Set `EGON_ID_MACHINE_ID` for production. Default H2/fake-model tests do not run PostgreSQL migrations or vector integrations; perform those checks manually on a dedicated database.
 
+
+The current Outbox starter uses the managed `egon_outbox` schema, separate from the historical Flyway-owned `public.egon_cola_outbox_message`. Before starting an instance, provision an empty `egon_outbox` schema on the primary. The starter initializes and validates its versioned manifest there; `ddl.enabled=false` above refers only to knowledge-table DDL. Flyway runs against the existing physical primary so its historical public table cannot be routed into the managed Outbox schema. Mapper locations include both knowledge and component Outbox XML, and technical Outbox tables are excluded from tenant SQL rewriting.
+
+For an existing installation, stop all old and new producers and workers, set `AGENT_OUTBOX_MIGRATION_MODE=true` on the maintenance instance, then invoke `OutboxLegacyMigrationService.migrate("public", 100, false)` and require its `verified` result before setting `AGENT_OUTBOX_LEGACY_VERIFIED=true` and enabling traffic. Startup otherwise refuses nonempty legacy tables. Keep the old table and Flyway scripts intact; the migration preserves message identities and may be retried after interruption. The maintenance mode is local to that instance and does not stop other processes. The agent remains a single-primary `SHARDING` deployment; do not switch to read/write mode until its Flyway and legacy-data migration have been completed and its read consistency requirements have been reviewed.
+
 ## Two-Level Cache
 
 `application.yml`, `application-dev.yml` and `application-prod.yml` ship the cache starter with `egon.cola.component.cache.enabled=true`; `test` keeps the same keys

@@ -1,0 +1,60 @@
+egon:
+  cola:
+    component:
+      mybatis-plus:
+        ddl:
+          auto-migrate: ${EGON_MP_AUTO_MIGRATE:false}
+          targets:
+            - { logical-name: master_data, schema: public, role: MASTER_DATA, manifest-resource: "classpath:db/egon-mp/repository-manifest.json" }
+            - { logical-name: shard_0, schema: public, role: SHARD, manifest-resource: "classpath:db/egon-mp/repository-manifest.json" }
+            - { logical-name: shard_1, schema: public, role: SHARD, manifest-resource: "classpath:db/egon-mp/repository-manifest.json" }
+        sharding:
+          mode: SHARDING_READWRITE
+          data-sources:
+            - name: master_data
+              logical-name: master_data
+              role: PRIMARY
+              driver-class-name: ${ORGANIZATION_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${ORGANIZATION_SHARDING_MASTER_DATA_URL}
+              username: "${ORGANIZATION_SHARDING_USERNAME}"
+              password: "${ORGANIZATION_SHARDING_PASSWORD:}"
+            - name: master_data_replica
+              logical-name: master_data
+              role: REPLICA
+              driver-class-name: ${ORGANIZATION_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${ORGANIZATION_SHARDING_MASTER_DATA_REPLICA_URL}
+              username: "${ORGANIZATION_SHARDING_REPLICA_USERNAME:${ORGANIZATION_SHARDING_USERNAME}}"
+              password: "${ORGANIZATION_SHARDING_REPLICA_PASSWORD:${ORGANIZATION_SHARDING_PASSWORD:}}"
+            - name: shard_0
+              logical-name: shard_0
+              role: PRIMARY
+              driver-class-name: ${ORGANIZATION_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${ORGANIZATION_SHARDING_SHARD_0_URL}
+              username: "${ORGANIZATION_SHARDING_USERNAME}"
+              password: "${ORGANIZATION_SHARDING_PASSWORD:}"
+            - name: shard_0_replica
+              logical-name: shard_0
+              role: REPLICA
+              driver-class-name: ${ORGANIZATION_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${ORGANIZATION_SHARDING_SHARD_0_REPLICA_URL}
+              username: "${ORGANIZATION_SHARDING_REPLICA_USERNAME:${ORGANIZATION_SHARDING_USERNAME}}"
+              password: "${ORGANIZATION_SHARDING_REPLICA_PASSWORD:${ORGANIZATION_SHARDING_PASSWORD:}}"
+            - name: shard_1
+              logical-name: shard_1
+              role: PRIMARY
+              driver-class-name: ${ORGANIZATION_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${ORGANIZATION_SHARDING_SHARD_1_URL}
+              username: "${ORGANIZATION_SHARDING_USERNAME}"
+              password: "${ORGANIZATION_SHARDING_PASSWORD:}"
+            - name: shard_1_replica
+              logical-name: shard_1
+              role: REPLICA
+              driver-class-name: ${ORGANIZATION_SHARDING_DRIVER_CLASS_NAME:org.postgresql.Driver}
+              jdbc-url: ${ORGANIZATION_SHARDING_SHARD_1_REPLICA_URL}
+              username: "${ORGANIZATION_SHARDING_REPLICA_USERNAME:${ORGANIZATION_SHARDING_USERNAME}}"
+              password: "${ORGANIZATION_SHARDING_REPLICA_PASSWORD:${ORGANIZATION_SHARDING_PASSWORD:}}"
+          tables:
+            school_classes:
+              shard-groups: [shard_0, shard_1]
+            school_class_users:
+              shard-groups: [shard_0, shard_1]

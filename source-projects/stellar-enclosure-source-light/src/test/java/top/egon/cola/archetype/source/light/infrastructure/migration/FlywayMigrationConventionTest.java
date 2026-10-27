@@ -30,13 +30,16 @@ class FlywayMigrationConventionTest {
         var mapper = org.springframework.http.converter.json.Jackson2ObjectMapperBuilder.json().build();
         var manifest = mapper.readTree(Files.readAllBytes(directory.resolve("repository-manifest.json")));
         assertThat(manifest.path("family").asText()).isEqualTo("light");
-        assertThat(manifest.path("scripts")).hasSize(2);
+        assertThat(manifest.path("scripts")).hasSize(3);
         var original = manifest.path("scripts").get(0);
         assertThat(original.path("version").asText()).isEqualTo("20260913_001");
         assertThat(original.path("sha256").asText()).isEqualTo("0c9f9cef139e3d6e48564e9aa27e652cac6a4991dc5daede615f5d0066ab6e81");
         var correction = manifest.path("scripts").get(1);
         assertThat(correction.path("version").asText()).isEqualTo("20261015_001");
         assertThat(correction.path("path").asText()).isEqualTo("db/egon-mp/V20261015_001__scope_user_uniqueness_to_tenant.sql");
+        var alignment = manifest.path("scripts").get(2);
+        assertThat(alignment.path("version").asText()).isEqualTo("20261027_001");
+        assertThat(alignment.path("path").asText()).isEqualTo("db/egon-mp/V20261027_001__align_readwrite_shard_tables.sql");
         for (var entry : manifest.path("scripts")) {
             Path file = Path.of("src/main/resources").resolve(entry.path("path").asText());
             assertThat(java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file))))

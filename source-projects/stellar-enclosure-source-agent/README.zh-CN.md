@@ -169,6 +169,11 @@ curl --fail-with-body --no-buffer \
 
 生产配置 `EGON_ID_MACHINE_ID`。默认 H2/fake-model 测试不执行 PostgreSQL 迁移或向量集成，需在专用数据库上手动验收。
 
+
+当前 Outbox starter 使用独立受管的 `egon_outbox` schema，与历史 Flyway 管理的 `public.egon_cola_outbox_message` 分离。启动实例前须在主库预先创建空的 `egon_outbox` schema；starter 会在其中初始化并校验版本化 manifest。上文的 `ddl.enabled=false` 仅表示知识库表未启用 Common 自动迁移。Flyway 使用已有物理主库执行，避免历史 public 表被路由到受管 Outbox schema。Mapper 路径同时包含知识库和组件 Outbox XML，技术表不参与租户 SQL 改写。
+
+已有安装升级时，停止所有新旧生产者和 worker，在维护实例设置 `AGENT_OUTBOX_MIGRATION_MODE=true`，调用 `OutboxLegacyMigrationService.migrate("public", 100, false)` 确认返回 `verified` 后设置 `AGENT_OUTBOX_LEGACY_VERIFIED=true` 并恢复流量。否则启动会拒绝非空的历史表。保留旧表和 Flyway 脚本；搬迁保留消息标识，中断后可重试。维护开关只作用于当前实例，不会停止其他进程。Agent 当前仍使用单主库 `SHARDING`；完成 Flyway 和历史数据搬迁并审查读一致性需求前，不应切换主从模式。
+
 ## 二级缓存
 
 `application.yml`、`application-dev.yml`、`application-prod.yml` 均以 `egon.cola.component.cache.enabled=true` 交付；`test` 保留同样的键但设为 `enabled: false`，让单元与模块测试不依赖 Redis。`infrastructure/config/RedisConfig.java` 已带 `@EnableCaching` 并发布 `redissonClient`，配置好 Redis 连接即可直接使用二级缓存。mp-sd-ext 基类已移除缓存端口耦合，具体

@@ -79,6 +79,9 @@ egon:
           probe-on-startup: true
       transactional-outbox:
         enabled: true
+        storage:
+          mp:
+            migration-mode: ${AGENT_OUTBOX_MIGRATION_MODE:false}
       cache:
         enabled: true
         node-id: ""
@@ -104,7 +107,7 @@ egon:
         enabled: true
         tenant-id:
           mdc-key: tenantId
-          ignored-tables: []
+          ignored-tables: [egon_cola_outbox_message, ddl_history]
         audit:
           user-id-mdc-key: userId
         pagination:
@@ -153,6 +156,14 @@ egon:
             knowledge_document:
               type: SINGLE
               data-source: primary
+            egon_cola_outbox_message:
+              type: SINGLE
+              data-source: primary
+              schema: egon_outbox
+            ddl_history:
+              type: SINGLE
+              data-source: primary
+              schema: egon_outbox
       rpc:
         enabled: ${RPC_ENABLED:true}
         identity:
@@ -372,7 +383,7 @@ springdoc:
   swagger-ui.enabled: false
 
 mybatis-plus:
-  mapper-locations: classpath*:mybatis/mapper/**/*.xml
+  mapper-locations: classpath*:mybatis/mapper/**/*.xml,classpath*:mapper/outbox/**/*.xml
 
 server:
   ssl:

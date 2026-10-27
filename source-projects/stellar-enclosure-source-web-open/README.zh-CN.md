@@ -162,13 +162,15 @@ dev/prod 启用 Dynamic Thread Pool Redis registry/report；test 关闭 DTP 外�
 
 本脚手架使用 MyBatis-Plus 3.5.16：Domain Service 保留业务语义，具体 Repository 继承 `EgonColaRepository`，Mapper 继承 `EgonColaMapper`；查询全部使用显式 XML。PO 继承 `EgonModel` 的 id、tenantId、创建/更新用户与时间、`LocalDateTime deletedAt`、`Long version`。活动行是 NULL，软删写 UTC 时间戳并递增版本。AR/QueryChain 不启用，技术元数据强制填充；枚举与字段 handler 遵循 Common 契约。
 
-`APP_DATASOURCE_MODE` 支持 `SHARDING` 与 `SHARDING_READWRITE`，事务类型为 LOCAL。单表使用明确的 `!SINGLE group.schema.table`；广播表只读。默认 legacy tenant 路由保持原地址。可选两级模板见 `src/test/resources/sharding/two-level-readwrite.yml`（多模块项目在 infrastructure 中）：先按 tenant_id 散列到 tenant slot，再按业务根 ID 散列到 bucket。订单与明细分别使用 id/order_id 共享同一根语义；同租户固定在一个物理组。该文件只是孤立的参考资料：没有任何测试、POM 或配置加载它，其中的 `CLASS_BASED` `algorithmClassName` 指向的类也不会生成。工程实际使用的 `config-style: STRATEGY` 拓扑由组件自带的 `EgonColaLongTenantShardingAlgorithm` 与 `EgonColaTenantBusinessComplexShardingAlgorithm` 完成同样的路由。
+`APP_DATASOURCE_MODE` 默认使用 `SHARDING`，事务类型为 LOCAL；启用 `readwrite` Spring profile 使用内置的 `SHARDING_READWRITE` 拓扑。单表使用明确的 `!SINGLE group.schema.table`；广播表只读。默认 legacy tenant 路由保持原地址。可选两级模板见 `src/test/resources/sharding/two-level-readwrite.yml`（多模块项目在 infrastructure 中）：先按 tenant_id 散列到 tenant slot，再按业务根 ID 散列到 bucket。订单与明细分别使用 id/order_id 共享同一根语义；同租户固定在一个物理组。该文件只是孤立的参考资料：没有任何测试、POM 或配置加载它，其中的 `CLASS_BASED` `algorithmClassName` 指向的类也不会生成。工程实际使用的 `config-style: STRATEGY` 拓扑由组件自带的 `EgonColaLongTenantShardingAlgorithm` 与 `EgonColaTenantBusinessComplexShardingAlgorithm` 完成同样的路由。
 
 算法固定为 mix64-v1，T/B 是不超过 1024 的二次幂，乘积不超过 4096。库间均衡还依赖均衡 slot map 和租户负载；没有自动重分布。Query 缺次级键/范围查询受 fanout 上限约束，Command 必须有精确键。修改分布配置需配套新建表/迁移设计，不能直接套用测试模板到已有业务库。
 
-数据源与拓扑由 Common MyBatis-Plus 组件统一管理，并提供受管 `EgonColaPostgreDdlRunner` bean。显式传入目标后，它按 `repository-manifest.json` 对物理 PRIMARY 执行 `db/egon-mp/V20260913_001__initialize_repository_schema.sql`：空库首次初始化，受管库验证 checksum/前缀/路由指纹，非空未受管库报 REBUILD_REQUIRED。生成的工程内没有任何代码调用该 bean，因此启动不会建表；首次使用前必须由使用者接入该调用，或用外部迁移工具执行同一份 SQL。`db/manual/postgresql/**` 下的旧脚本原样保留作档案，不再作为本脚手架运行入口。
+数据源与拓扑由 Common MyBatis-Plus 组件统一管理，并提供受管 `EgonColaPostgreDdlRunner` bean。显式传入目标后，它按 `repository-manifest.json` 对物理 PRIMARY 执行 `db/egon-mp/V20260913_001__initialize_repository_schema.sql`：空库首次初始化，受管库验证 checksum/前缀/路由指纹，非空未受管库报 REBUILD_REQUIRED。启动迁移默认关闭；在 `readwrite` profile 中设置 `EGON_MP_AUTO_MIGRATE=true` 后，组件按 manifest 的所有版本迁移三个物理主库、验证路由表并等待副本回放 WAL。新增对齐版本只将空的旧 `_0/_1` 分片表改名为 `_t0/_t1`；若表有数据则失败。已有受管库若路由指纹不同，必须另行规划迁移，不会自动接管。`db/manual/postgresql/**` 下的旧脚本原样保留作档案，不再作为本脚手架运行入口。
 
-读写分离使用 PostgreSQL 自身复制，普通读走 ROUND_ROBIN 副本，事务读/锁定读/强制主库读走 PRIMARY；不自动创建副本或故障选主。单表、广播表及业务物理表均携带 tenant_id。跨物理组写入会拒绝并标记回滚。
+读写分离使用 PostgreSQL 自身复制；启用 `readwrite` 后，普通业务查询（包括事务内查询）走 ROUND_ROBIN 副本，写入走对应主库。业务锁定读及强制主库 Hint 会被拒绝。副本延迟可能导致写后查询暂时读到旧数据；跨物理组写入会拒绝并标记回滚。不自动创建副本或故障选主。
+
+按环境 profile、`readwrite` 的顺序启用，例如 `SPRING_PROFILES_ACTIVE=prod,readwrite`。除现有三个主库 URL 外，还必须提供 `ORGANIZATION_SHARDING_MASTER_DATA_REPLICA_URL`、`ORGANIZATION_SHARDING_SHARD_0_REPLICA_URL` 和 `ORGANIZATION_SHARDING_SHARD_1_REPLICA_URL`；`ORGANIZATION_SHARDING_REPLICA_USERNAME`、`ORGANIZATION_SHARDING_REPLICA_PASSWORD` 可单独配置副本账号。每个地址必须是对应分组的真实副本，单独切换模式变量不会补齐数据源。既有库切换拓扑前应规划并核验路由指纹及数据迁移。
 
 每个实例配置唯一 `EGON_ID_MACHINE_ID`，生产使用现有 Common Snowflake。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
 
