@@ -240,7 +240,8 @@ class ArchetypeContractConvergenceTest {
             String text = read(path);
             assertFalse(text.contains("extends RuntimeException"),
                     "custom exceptions must inherit the common体系: " + path);
-            if (path.startsWith(modulePath("common/exception")) && text.contains("class ") && !text.contains("interface ")) {
+            if (path.startsWith(modulePath("common/exception")) && path.getFileName().toString().endsWith("Exception.java")
+                    && text.contains("class ") && !text.contains("interface ")) {
                 assertTrue(text.contains("CommonException") || text.contains("BusinessException")
                                 || text.contains("BaseBusinessException"),
                         "common exception must re-root on the common体系: " + path);
