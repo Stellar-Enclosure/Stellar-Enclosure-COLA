@@ -11,7 +11,7 @@ common -> domain -> application -> adapter -> starter
 
 项目通过 `stellar-enclosure-component-agent-flow-starter` 消费通用 Agent Flow 能力，并通过 RAG、transactional-outbox 与 MyBatis-Plus 组件支撑 knowledge 域。provider 配置、MCP 凭据、数据库凭据和 API secret 由 Starter 的环境配置提供。除 knowledge 三张表之外，项目不包含 MQ、RPC、GraphQL、UI、历史、恢复 API；二级缓存已接线但尚无查询接入。
 
-source reactor 使用 Java 25、Spring Boot 4.1.2、Spring AI 2.0.2、Springdoc 3.1.1，并通过 Components starter 使用 Google ADK 0.7.0。只有生成后的 `stellar-enclosure-archetype-agent` definition 会成为公共 Archetype archetype。
+source reactor 使用 Java 25、Spring Boot 4.1.2、Spring AI 2.0.2、Springdoc 3.1.1，并通过 Agent Flow `0.0.2-SNAPSHOT` 使用 Google ADK 1.13.0。该制品发布前，需与 Components 源码一起构建。只有生成后的 `stellar-enclosure-archetype-agent` definition 会成为公共 Archetype archetype。
 
 ## Maven Profiles 与外部启动参数
 
@@ -70,6 +70,8 @@ MQ/Outbox 实现发布。事务、校验、幂等与投递语义保持原有用�
 研究操作是 `POST /api/v1/deep-research/runs`，请求为 JSON，响应为 `text/event-stream`。请求体包含 `topic`、可选 `reportLanguage`（`ZH_CN` 或 `EN_US`，默认 `ZH_CN`）以及可选 `maxSources`（默认 `8`，范围 `3..20`）。必须提供已验签 USER 的 `Authorization: Bearer`；`X-Trace-Id` 可选，缺失时由服务端生成。
 
 每个通过校验的请求创建一个进程内 Agent Flow Session 和一次非幂等 run。事件按 `runId:sequence` 排序，名称为 `research.started`、`research.progress`、`research.completed` 或 `research.failed`；completed/failed 是唯一公共终态。重连会创建新的 run，不提供 status、history、resume 或持久化恢复 API。客户端断开时会取消 run，并释放 Session 与容量许可。
+
+Writer 的最终输出会保留到根 Agent Flow 完成后再作为报告发布。子 Agent 的 final response 不会结束研究 run；根流程结束时没有 Writer 报告则返回失败。
 
 固定工作流为 `Planner -> ParallelResearch -> Writer`；并行节点包含 `EvidenceResearcher`、`CounterpointResearcher`、`FreshnessResearcher`。搜索回调来自一个配置的 MCP SSE 服务。请求不能选择模型、MCP 地址、密钥、工具或 prompt。
 

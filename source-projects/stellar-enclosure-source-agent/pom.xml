@@ -22,6 +22,7 @@
         <java.version>25</java.version>
         <stellar-enclosure.version>0.0.1</stellar-enclosure.version>
         <spring-ai.version>2.0.2</spring-ai.version>
+        <agent-flow.version>0.0.2-SNAPSHOT</agent-flow.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <lombok.version>1.18.46</lombok.version>

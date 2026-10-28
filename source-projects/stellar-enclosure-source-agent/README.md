@@ -11,7 +11,7 @@ common -> domain -> application -> adapter -> starter
 
 The project consumes `stellar-enclosure-component-agent-flow-starter` for Agent Flow execution, and the RAG, transactional-outbox and MyBatis-Plus components for the knowledge domain. Provider configuration, MCP credentials, database credentials, and API secrets are supplied by environment-backed Starter configuration. It has no MQ, RPC, GraphQL, UI, history, or recovery API beyond the knowledge tables, and its two-level cache is wired but not yet used by a query.
 
-The source reactor targets Java 25, Spring Boot 4.1.2, Spring AI 2.0.2, Springdoc 3.1.1, and Google ADK 0.7.0 through the Components starter. Only the generated `stellar-enclosure-archetype-agent` definition becomes a public Archetype archetype.
+The source reactor targets Java 25, Spring Boot 4.1.2, Spring AI 2.0.2, Springdoc 3.1.1, and Google ADK 1.13.0 through Agent Flow `0.0.2-SNAPSHOT`. Until that artifact is published, build the source project together with the Components checkout. Only the generated `stellar-enclosure-archetype-agent` definition becomes a public Archetype archetype.
 
 ## Maven Profiles and External Launch Arguments
 
@@ -78,6 +78,8 @@ legacy generated-file ownership and conflicts instead of bypassing them.
 The research operation is `POST /api/v1/deep-research/runs`. It consumes JSON and produces `text/event-stream`. The request body accepts `topic`, optional `reportLanguage` (`ZH_CN` or `EN_US`, default `ZH_CN`), and optional `maxSources` (default `8`, bounded to `3..20`). An authenticated USER `Authorization: Bearer` header is required; `X-Trace-Id` is optional and is generated when absent.
 
 Each accepted request creates one process-local Agent Flow session and one non-idempotent run. Events are ordered by `runId:sequence` and use `research.started`, `research.progress`, `research.completed`, or `research.failed`. A completed or failed event is the sole public terminal event. Reconnecting creates a new run; there is no status, history, resume, or durable recovery API. A disconnected client cancels the run and releases the session and capacity lease.
+
+The final Writer output is retained until the root Agent Flow completes. A child Agent's final response does not end the research run; a root completion without a Writer report is reported as a failure.
 
 The fixed flow is `Planner -> ParallelResearch -> Writer`; the parallel node contains `EvidenceResearcher`, `CounterpointResearcher`, and `FreshnessResearcher`. Search callbacks come from one configured MCP SSE service. Model and MCP clients are never selected by the request.
 

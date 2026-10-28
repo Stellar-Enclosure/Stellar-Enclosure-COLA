@@ -156,6 +156,7 @@ public interface AgentFlowEventConverter extends BaseConverter<Event, DeepResear
 
     default boolean isFailure(Event source) {
         return source.errorMessage().filter(message -> !message.isBlank()).isPresent()
+                || source.errorCode().isPresent()
                 || source.interrupted().orElse(false);
     }
 

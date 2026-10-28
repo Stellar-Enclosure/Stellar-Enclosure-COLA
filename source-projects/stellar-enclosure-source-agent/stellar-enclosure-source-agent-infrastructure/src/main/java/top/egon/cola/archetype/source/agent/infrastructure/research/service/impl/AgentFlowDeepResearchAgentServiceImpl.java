@@ -5,6 +5,7 @@ import com.google.genai.types.Content;
 import com.google.genai.types.Part;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.subscribers.DisposableSubscriber;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +56,7 @@ public class AgentFlowDeepResearchAgentServiceImpl implements DeepResearchAgentS
         AtomicBoolean cancelled = new AtomicBoolean();
         AtomicLong sequence = new AtomicLong(2);
         AtomicReference<Disposable> subscription = new AtomicReference<>();
+        AtomicReference<String> finalReport = new AtomicReference<>();
 
         Runnable cleanup = () -> cleanup(session, userId, cleaned, subscription);
         try {
@@ -64,13 +66,27 @@ public class AgentFlowDeepResearchAgentServiceImpl implements DeepResearchAgentS
             if (stream == null) {
                 throw new IllegalStateException("Agent Flow returned no execution stream");
             }
-            Disposable disposable = stream.subscribe(
-                    event -> onEvent(task, observer, event, terminal, sequence, cleanup),
-                    failure -> onFailure(task, observer, failure, terminal, sequence, cleanup),
-                    () -> onComplete(task, observer, terminal, sequence, cleanup));
-            subscription.set(disposable);
+            DisposableSubscriber<Event> subscriber = new DisposableSubscriber<>() {
+                @Override
+                public void onNext(Event event) {
+                    onEvent(task, observer, event, terminal, sequence, finalReport, cleanup);
+                }
+
+                @Override
+                public void onError(Throwable failure) {
+                    onFailure(task, observer, failure, terminal, sequence, cleanup);
+                }
+
+                @Override
+                public void onComplete() {
+                    AgentFlowDeepResearchAgentServiceImpl.this.onComplete(
+                            task, observer, terminal, sequence, finalReport, cleanup);
+                }
+            };
+            subscription.set(subscriber);
+            stream.subscribeWith(subscriber);
             if (cleaned.get()) {
-                disposable.dispose();
+                subscriber.dispose();
             }
             return new SessionRun(task.runId(), terminal, cancelled, subscription, cleanup);
         } catch (RuntimeException failure) {
@@ -90,11 +106,21 @@ public class AgentFlowDeepResearchAgentServiceImpl implements DeepResearchAgentS
     }
 
     private void onEvent(DeepResearchTaskBO task, DeepResearchEventObserverService observer, Event source,
-                         AtomicBoolean terminal, AtomicLong sequence, Runnable cleanup) {
+                         AtomicBoolean terminal, AtomicLong sequence, AtomicReference<String> finalReport,
+                         Runnable cleanup) {
         if (terminal.get()) {
             return;
         }
         try {
+            if (!AgentFlowEventConverter.INSTANCE.isFailure(source) && source.finalResponse()) {
+                if ("Writer".equals(source.author())) {
+                    String report = AgentFlowEventConverter.INSTANCE.reportMarkdown(source);
+                    if (report != null) {
+                        finalReport.set(report);
+                    }
+                }
+                return;
+            }
             DeepResearchEvent mapped = AgentFlowEventConverter.INSTANCE.toDomain(
                     source, task.runId(), sequence.get(), clock.instant(), task.traceId());
             if (mapped == null) {
@@ -131,11 +157,16 @@ public class AgentFlowDeepResearchAgentServiceImpl implements DeepResearchAgentS
     }
 
     private void onComplete(DeepResearchTaskBO task, DeepResearchEventObserverService observer,
-                            AtomicBoolean terminal, AtomicLong sequence, Runnable cleanup) {
+                            AtomicBoolean terminal, AtomicLong sequence, AtomicReference<String> finalReport,
+                            Runnable cleanup) {
         if (terminal.compareAndSet(false, true)) {
             try {
-                observer.onEvent(DeepResearchEvent.failed(task.runId(), sequence.getAndIncrement(),
-                        ResearchErrorCodeEnum.RESEARCH_INTERNAL_ERROR, clock.instant(), task.traceId()));
+                String report = finalReport.get();
+                observer.onEvent(report == null
+                        ? DeepResearchEvent.failed(task.runId(), sequence.getAndIncrement(),
+                                ResearchErrorCodeEnum.RESEARCH_INTERNAL_ERROR, clock.instant(), task.traceId())
+                        : DeepResearchEvent.completed(task.runId(), sequence.getAndIncrement(),
+                                report, clock.instant(), task.traceId()));
             } catch (RuntimeException observerFailure) {
                 log.warn("Deep Research service runId={} traceId={} stage=STREAM outcome=OBSERVER_ERROR errorType={}",
                         task.runId(), task.traceId(), observerFailure.getClass().getSimpleName());
