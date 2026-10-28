@@ -62,9 +62,9 @@ class OrganizationCacheTest {
         }
         Cacheable cachedRead = annotated(UserRepository.class, "findCachedById", Cacheable.class);
         assertTrue(cachedRead.sync(), "a cached read must not stampede the database");
-        assertTrue(cachedRead.key().contains("tenantId"), "region key is tenant scoped: " + cachedRead.key());
+        assertEquals("egonColaRepositoryKeyGenerator", cachedRead.keyGenerator());
         CacheEvict cachedWrite = annotated(UserRepository.class, "updateCachedById", CacheEvict.class);
-        assertTrue(cachedWrite.key().contains("tenantId"), "region key is tenant scoped: " + cachedWrite.key());
+        assertEquals("egonColaRepositoryKeyGenerator", cachedWrite.keyGenerator());
         assertEquals("#result", cachedWrite.condition(), "a failed write must not evict the region");
         // The school class lookup is keyed by grade plus class, so it stays an explicit SQL read.
         assertNull(SchoolClassRepository.class.getAnnotation(CacheConfig.class),

@@ -43,7 +43,7 @@ public class UserRepository extends EgonColaRepository<UserDAO, UserPO> {
     /**
      * 通过 Spring 代理调用；sync 模式缓存短 TTL 空值，不与 unless 混用。
      */
-    @Cacheable(key = "T(org.slf4j.MDC).get('tenantId') + ':' + #p0", sync = true)
+    @Cacheable(keyGenerator = "egonColaRepositoryKeyGenerator", sync = true)
     public UserPO findCachedById(@NotNull @Positive Long id) {
         return getById(id);
     }
@@ -51,7 +51,7 @@ public class UserRepository extends EgonColaRepository<UserDAO, UserPO> {
     /**
      * 缓存写入口必须与读入口使用相同区域和 Key；普通 CRUD 不再隐式失效缓存。
      */
-    @CacheEvict(key = "T(org.slf4j.MDC).get('tenantId') + ':' + #p0.id", condition = "#result")
+    @CacheEvict(keyGenerator = "egonColaRepositoryKeyGenerator", condition = "#result")
     public boolean updateCachedById(@NotNull UserPO entity) {
         return updateById(entity);
     }
