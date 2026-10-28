@@ -56,6 +56,7 @@ public interface KnowledgeDocumentPOConverter
     @Mapping(target = "updateTime", ignore = true)
     @Mapping(target = "deletedAt", ignore = true)
     @Mapping(target = "version", ignore = true)
+    @Mapping(target = "ingestGeneration", ignore = true)
     @Mapping(target = "knowledgeBaseId", source = "knowledgeBaseId")
     @Mapping(target = "displayName", source = "displayName")
     @Mapping(target = "fileName", source = "fileName")

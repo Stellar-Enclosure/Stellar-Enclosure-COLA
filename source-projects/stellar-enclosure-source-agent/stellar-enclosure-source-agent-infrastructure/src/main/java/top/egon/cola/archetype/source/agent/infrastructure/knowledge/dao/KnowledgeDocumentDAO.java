@@ -22,5 +22,11 @@ public interface KnowledgeDocumentDAO extends EgonColaMapper<KnowledgeDocumentPO
     long countByKnowledgeBaseId(@org.apache.ibatis.annotations.Param("baseId") Long baseId);
     @Validated(EgonColaModelValidationGroups.Update.class)
     int updateState(@org.apache.ibatis.annotations.Param("et") @Valid @NotNull(groups = EgonColaModelValidationGroups.Update.class) KnowledgeDocumentPO entity, @org.apache.ibatis.annotations.Param("expectedStatuses") java.util.List<String> expectedStatuses);
+    @Validated(EgonColaModelValidationGroups.Update.class)
+    int resetForIngest(@org.apache.ibatis.annotations.Param("et") @Valid @NotNull(groups = EgonColaModelValidationGroups.Update.class) KnowledgeDocumentPO entity, @org.apache.ibatis.annotations.Param("expectedStatuses") java.util.List<String> expectedStatuses);
+    @Validated(EgonColaModelValidationGroups.Update.class)
+    int claimIngest(@org.apache.ibatis.annotations.Param("et") @Valid @NotNull(groups = EgonColaModelValidationGroups.Update.class) KnowledgeDocumentPO entity, @org.apache.ibatis.annotations.Param("generation") String generation, @org.apache.ibatis.annotations.Param("expectedStatus") String expectedStatus, @org.apache.ibatis.annotations.Param("expectedAttempt") int expectedAttempt);
+    @Validated(EgonColaModelValidationGroups.Update.class)
+    int finishIngest(@org.apache.ibatis.annotations.Param("et") @Valid @NotNull(groups = EgonColaModelValidationGroups.Update.class) KnowledgeDocumentPO entity, @org.apache.ibatis.annotations.Param("generation") String generation, @org.apache.ibatis.annotations.Param("expectedAttempt") int expectedAttempt);
     int softDeleteByKnowledgeBaseId(@org.apache.ibatis.annotations.Param("baseId") Long baseId, @org.apache.ibatis.annotations.Param("userId") String userId, @org.apache.ibatis.annotations.Param("updateTime") java.time.Instant updateTime);
 }

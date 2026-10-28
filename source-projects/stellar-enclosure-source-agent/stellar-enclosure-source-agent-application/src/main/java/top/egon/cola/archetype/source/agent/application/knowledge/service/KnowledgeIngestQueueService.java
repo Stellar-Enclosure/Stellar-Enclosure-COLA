@@ -44,8 +44,9 @@ public class KnowledgeIngestQueueService {
     @Transactional
     public KnowledgeDocumentBO storeAndEnqueue(KnowledgeDocumentBO document, String traceId) {
         Map<String, String> headers = auditHeaders(document, traceId);
-        KnowledgeDocumentBO stored = documentRepository.insert(document);
-        enqueue(stored, traceId, headers);
+        String generation = java.util.UUID.randomUUID().toString();
+        KnowledgeDocumentBO stored = documentRepository.insertForIngest(document, generation);
+        enqueue(stored, generation, traceId, headers);
         log.info("knowledge upload documentId={} knowledgeBaseId={} sizeBytes={} outcome=QUEUED",
                 stored.documentId(), stored.knowledgeBaseId(), stored.sizeBytes());
         return stored;
@@ -60,12 +61,13 @@ public class KnowledgeIngestQueueService {
     @Transactional
     public boolean resetAndEnqueue(KnowledgeDocumentBO document, String traceId) {
         Map<String, String> headers = auditHeaders(document, traceId);
-        if (!documentRepository.resetForReingest(document.documentId())) {
+        String generation = java.util.UUID.randomUUID().toString();
+        if (!documentRepository.resetForIngest(document.documentId(), generation)) {
             log.info("knowledge reingest documentId={} outcome=SKIPPED reason=status_changed",
                     document.documentId());
             return false;
         }
-        enqueue(document, traceId, headers);
+        enqueue(document, generation, traceId, headers);
         log.info("knowledge reingest documentId={} knowledgeBaseId={} outcome=QUEUED",
                 document.documentId(), document.knowledgeBaseId());
         return true;
@@ -75,9 +77,9 @@ public class KnowledgeIngestQueueService {
      * Queues one ingest. The payload carries the tenant because the delivery thread has no request
      * context to restore it from, and the handler rebuilds that thread's tenant scope from it.
      */
-    private void enqueue(KnowledgeDocumentBO document, String traceId, Map<String, String> headers) {
+    private void enqueue(KnowledgeDocumentBO document, String generation, String traceId, Map<String, String> headers) {
         try {
-            ingestPublisher.enqueue(document, traceId, headers);
+            ingestPublisher.enqueue(document, generation, traceId, headers);
         } catch (RuntimeException failure) {
             // The use case answers "queued", so a refused enqueue has to roll the row back with it
             // rather than surface as a document nothing will ever process.

@@ -45,10 +45,10 @@ import java.util.Optional;
  * <p>The document text is rebuilt rather than re-extracted, and never re-read from storage, so a
  * retried delivery re-chunks and re-embeds what is already in the database.
  *
- * <p>Replica misses and unconfirmed transitions are retried by the outbox. Processing failures
- * attempt to return the document to {@code PENDING} or mark it {@code DEAD} when attempts are
- * exhausted. A worker interruption or a transition hidden by replica lag can leave a document in
- * {@code PROCESSING}; the dead-letter and document then require reconciliation.
+ * <p>Replica misses and unconfirmed transitions are retried by the outbox. A persisted generation,
+ * attempt and version fence state transitions so a later delivery can reclaim an interrupted
+ * attempt and an older worker cannot overwrite it. Legacy messages without a generation require
+ * reconciliation rather than being acknowledged from an ambiguous replica result.
  */
 @Slf4j
 @Component("knowledgeIngestDeliveryHandler")
@@ -112,6 +112,12 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
     @Override
     public DeliveryResult deliver(DeliveryContext context) {
         IngestTask task = parseTask(context.payload());
+        if (task.generation() == null) {
+            return DeliveryResult.retryableFailure("KNOWLEDGE_LEGACY_GENERATION_REQUIRED", "legacy ingest requires reconciliation");
+        }
+        if (!String.valueOf(task.documentId()).equals(context.destination())) {
+            return DeliveryResult.retryableFailure("KNOWLEDGE_DESTINATION_MISMATCH", "ingest destination does not match payload");
+        }
         String actor = context.headers().get("egon.auth.actor-id");
         String kind = context.headers().get("egon.auth.actor-kind");
         String tenant = context.headers().get("egon.auth.tenant-id");
@@ -153,24 +159,28 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
                     document.documentId(), document.knowledgeBaseId(), context.attempt());
             return DeliveryResult.retryableFailure(BASE_MISSING, "knowledge base is not visible yet");
         }
-        if (!documentRepository.markProcessing(document.documentId(), context.attempt())) {
-            // A zero-row transition may also be caused by an out-of-date replica candidate.
+        var acquired = documentRepository.claimForIngest(document.documentId(), task.generation(), context.attempt());
+        if (acquired.status() == KnowledgeDocumentRepository.IngestClaimStatus.ALREADY_SUCCEEDED) {
+            return DeliveryResult.success();
+        }
+        if (acquired.status() != KnowledgeDocumentRepository.IngestClaimStatus.ACQUIRED || acquired.claim() == null) {
             log.info("knowledge ingest documentId={} attemptCount={} outcome=RETRY reason=claim_not_confirmed",
                     document.documentId(), context.attempt());
             return DeliveryResult.retryableFailure("KNOWLEDGE_CLAIM_NOT_CONFIRMED", "document claim was not confirmed");
         }
+        var claim = acquired.claim();
         if (document.content() == null || document.content().isBlank()) {
-            return fail(document, null, context, CONTENT_MISSING, CONTENT_MISSING_SUMMARY, startedAt,
+            return fail(document, base.get(), claim, context, CONTENT_MISSING, CONTENT_MISSING_SUMMARY, startedAt,
                     new IllegalStateException("the stored document carries no text"));
         }
-        return ingest(document, base.get(), context, startedAt);
+        return ingest(document, base.get(), claim, context, startedAt);
     }
 
     private DeliveryResult ingest(KnowledgeDocumentBO document, KnowledgeBaseBO knowledgeBase,
-                                  DeliveryContext context, long startedAt) {
+                                  KnowledgeDocumentRepository.IngestClaim claim, DeliveryContext context, long startedAt) {
         try {
             RagIngestionResult result = ragIngestionService.ingest(assemble(document, knowledgeBase));
-            if (!documentRepository.markSucceeded(document.documentId(), result.chunkCount())) {
+            if (!documentRepository.completeIngest(claim, result.chunkCount())) {
                 log.warn("knowledge ingest documentId={} attemptCount={} outcome=RETRY reason=completion_not_confirmed",
                         document.documentId(), context.attempt());
                 return DeliveryResult.retryableFailure("KNOWLEDGE_COMPLETION_NOT_CONFIRMED", "document completion was not confirmed");
@@ -183,12 +193,12 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
         } catch (RagException failure) {
             // The component's own message is safe by contract: it never carries content, vectors,
             // provider payloads, endpoints or keys.
-            return fail(document, knowledgeBase, context, failureCode(failure.getStatus()), failure.safeMessage(),
+            return fail(document, knowledgeBase, claim, context, failureCode(failure.getStatus()), failure.safeMessage(),
                     startedAt, failure);
         } catch (RuntimeException failure) {
             // Anything else is stored as a fixed code and summary: the document fields are rendered
             // to clients, so an arbitrary exception message must not reach them.
-            return fail(document, knowledgeBase, context, INTERNAL_FAILURE, INTERNAL_FAILURE_SUMMARY,
+            return fail(document, knowledgeBase, claim, context, INTERNAL_FAILURE, INTERNAL_FAILURE_SUMMARY,
                     startedAt, failure);
         }
     }
@@ -197,19 +207,14 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
      * Writes the failure onto the document, then rethrows so the outbox retries the message or
      * dead-letters it once the attempts are exhausted.
      *
-     * @param knowledgeBase the base being ingested, or {@code null} when the delivery failed before
-     *                      the base was read
+     * @param knowledgeBase the base being ingested
      */
-    private DeliveryResult fail(KnowledgeDocumentBO document, KnowledgeBaseBO knowledgeBase,
+    private DeliveryResult fail(KnowledgeDocumentBO document, KnowledgeBaseBO knowledgeBase, KnowledgeDocumentRepository.IngestClaim claim,
                                 DeliveryContext context, String code, String summary, long startedAt,
                                 RuntimeException failure) {
         String message = summarize(summary);
         boolean exhausted = context.attempt() >= context.maxAttempts();
-        if (exhausted) {
-            documentRepository.markDead(document.documentId(), code, message);
-        } else {
-            documentRepository.markRetryPending(document.documentId(), context.attempt(), code, message);
-        }
+        documentRepository.failIngest(claim, exhausted, code, message);
         log.warn("knowledge ingest documentId={} knowledgeBaseId={} logicalModelName={} attemptCount={}/{}"
                         + " outcome={} code={} elapsedMs={}",
                 document.documentId(), document.knowledgeBaseId(),
@@ -261,11 +266,19 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
             throw new IllegalArgumentException("the ingest payload is not valid JSON", invalid);
         }
         JsonNode version = message.path(KnowledgeIngestChannel.SCHEMA_VERSION_FIELD);
-        if (!version.isTextual() || !KnowledgeIngestChannel.SCHEMA_VERSION.equals(version.asText())) {
+        if (!version.isTextual() || !(KnowledgeIngestChannel.SCHEMA_VERSION.equals(version.asText())
+                || KnowledgeIngestChannel.LEGACY_SCHEMA_VERSION.equals(version.asText()))) {
             throw new IllegalArgumentException("unsupported ingest payload schema version");
         }
+        String generation = null;
+        if (KnowledgeIngestChannel.SCHEMA_VERSION.equals(version.asText())) {
+            JsonNode value = message.path(KnowledgeIngestChannel.GENERATION_FIELD);
+            if (!value.isTextual()) { throw new IllegalArgumentException("ingest generation is required"); }
+            generation = java.util.UUID.fromString(value.asText()).toString();
+            if (!generation.equals(value.asText())) { throw new IllegalArgumentException("invalid ingest generation"); }
+        }
         return new IngestTask(requiredLong(message, KnowledgeIngestChannel.DOCUMENT_ID_FIELD),
-                requiredLong(message, KnowledgeIngestChannel.TENANT_ID_FIELD));
+                requiredLong(message, KnowledgeIngestChannel.TENANT_ID_FIELD), generation);
     }
 
     private static long requiredLong(JsonNode message, String field) {
@@ -283,7 +296,7 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
         }
     }
 
-    /** The two identifiers the payload carries, read before anything is touched. */
-    private record IngestTask(long documentId, long tenant) {
+    /** The tenant, document and generation carried by the payload. */
+    private record IngestTask(long documentId, long tenant, String generation) {
     }
 }

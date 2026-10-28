@@ -47,8 +47,19 @@ public class KnowledgeDocumentRepositoryImpl extends EgonColaRepository<Knowledg
 
     @Override
     public KnowledgeDocumentBO insert(KnowledgeDocumentBO document) {
+        return insertDocument(document, null);
+    }
+
+    @Override
+    public KnowledgeDocumentBO insertForIngest(KnowledgeDocumentBO document, String generation) {
+        requireGeneration(generation);
+        return insertDocument(document, generation);
+    }
+
+    private KnowledgeDocumentBO insertDocument(KnowledgeDocumentBO document, String generation) {
         validation.validate(Objects.requireNonNull(document, "document"));
         KnowledgeDocumentPO stored = KnowledgeDocumentPOConverter.INSTANCE.toSource(document);
+        stored.setIngestGeneration(generation);
         if (!save(stored)) { throw new IllegalStateException("INSERT_AFFECTED_ZERO_ROWS"); }
         return KnowledgeDocumentPOConverter.INSTANCE.toTarget(stored);
     }
@@ -121,12 +132,99 @@ public class KnowledgeDocumentRepositoryImpl extends EgonColaRepository<Knowledg
     @Override
     @Transactional
     public boolean resetForReingest(Long documentId) {
+        return resetForGeneration(documentId, null);
+    }
+
+    @Override
+    @Transactional
+    public boolean resetForIngest(Long documentId, String generation) {
+        requireGeneration(generation);
+        return resetForGeneration(documentId, generation);
+    }
+
+    private boolean resetForGeneration(Long documentId, String generation) {
         KnowledgeDocumentPO current = getById(documentId);
         if (current == null || !TERMINAL_STATUSES.contains(current.getStatus())) { return false; }
         KnowledgeDocumentPO change = carrierOf(current).setStatus(DocumentIngestStatusEnum.PENDING.name())
-                .setChunkCount(0).setAttemptCount(0).setErrorCode(null).setErrorMessage(null);
+                .setIngestGeneration(generation);
         EgonColaModelValidationUtils.validateBusiness(change, EgonColaModelValidationGroups.Operation.UPDATE);
-        return baseMapper.updateState(change, TERMINAL_STATUSES) == 1;
+        return baseMapper.resetForIngest(change, TERMINAL_STATUSES) == 1;
+    }
+
+    @Override
+    @Transactional
+    public IngestClaimResult claimForIngest(Long documentId, String generation, int attempt) {
+        requireGeneration(generation);
+        validation.validate(new RootCommand(documentId));
+        if (attempt < 1) { throw new IllegalArgumentException("INGEST_ATTEMPT_INVALID"); }
+        KnowledgeDocumentPO current = getById(documentId);
+        if (current == null || !generation.equals(current.getIngestGeneration())) {
+            return new IngestClaimResult(IngestClaimStatus.RETRY, null);
+        }
+        if (DocumentIngestStatusEnum.SUCCEEDED.name().equals(current.getStatus())) {
+            return new IngestClaimResult(IngestClaimStatus.ALREADY_SUCCEEDED, null);
+        }
+        if (!(DocumentIngestStatusEnum.PENDING.name().equals(current.getStatus())
+                || DocumentIngestStatusEnum.PROCESSING.name().equals(current.getStatus()))
+                || current.getAttemptCount() == null || attempt <= current.getAttemptCount()) {
+            return new IngestClaimResult(IngestClaimStatus.RETRY, null);
+        }
+        long expectedVersion = current.getVersion();
+        KnowledgeDocumentPO change = carrierOf(current).setStatus(DocumentIngestStatusEnum.PROCESSING.name())
+                .setAttemptCount(attempt);
+        EgonColaModelValidationUtils.validateBusiness(change, EgonColaModelValidationGroups.Operation.UPDATE);
+        if (baseMapper.claimIngest(change, generation, current.getStatus(), current.getAttemptCount()) != 1) {
+            return new IngestClaimResult(IngestClaimStatus.RETRY, null);
+        }
+        if (!Objects.equals(change.getVersion(), expectedVersion + 1)) {
+            throw new IllegalStateException("INGEST_OPTIMISTIC_VERSION_NOT_ADVANCED");
+        }
+        return new IngestClaimResult(IngestClaimStatus.ACQUIRED,
+                new IngestClaim(documentId, current.getTenantId(), change.getVersion(), generation, attempt));
+    }
+
+    @Override
+    @Transactional
+    public boolean completeIngest(IngestClaim claim, int chunkCount) {
+        validation.validate(new CountCommand(chunkCount));
+        return finishClaim(claim, DocumentIngestStatusEnum.SUCCEEDED, chunkCount, null, null);
+    }
+
+    @Override
+    @Transactional
+    public boolean failIngest(IngestClaim claim, boolean exhausted, String errorCode, String errorMessage) {
+        validation.validate(new ErrorCommand(errorCode, errorMessage));
+        return finishClaim(claim, exhausted ? DocumentIngestStatusEnum.DEAD : DocumentIngestStatusEnum.PENDING,
+                null, errorCode, errorMessage);
+    }
+
+    private boolean finishClaim(IngestClaim claim, DocumentIngestStatusEnum status, Integer chunks, String code, String message) {
+        Objects.requireNonNull(claim, "claim");
+        requireGeneration(claim.generation());
+        validation.validate(new RootCommand(claim.documentId()));
+        if (claim.tenantId() == null || claim.version() == null || claim.version() < 0 || claim.attempt() < 1) {
+            throw new IllegalArgumentException("INGEST_CLAIM_INVALID");
+        }
+        if (!claim.tenantId().equals(top.egon.cola.component.common.mybatis.business.EgonColaTenantIdProvider.currentTenantId())) {
+            throw new IllegalArgumentException("TENANT_CONTEXT_MISMATCH");
+        }
+        KnowledgeDocumentPO change = new KnowledgeDocumentPO().setStatus(status.name()).setChunkCount(chunks)
+                .setErrorCode(code).setErrorMessage(message);
+        change.setId(claim.documentId());
+        change.setTenantId(claim.tenantId());
+        change.setVersion(claim.version());
+        EgonColaModelValidationUtils.validateBusiness(change, EgonColaModelValidationGroups.Operation.UPDATE);
+        return baseMapper.finishIngest(change, claim.generation(), claim.attempt()) == 1;
+    }
+
+    private static void requireGeneration(String generation) {
+        try {
+            if (generation == null || !java.util.UUID.fromString(generation).toString().equals(generation)) {
+                throw new IllegalArgumentException("INGEST_GENERATION_INVALID");
+            }
+        } catch (IllegalArgumentException failure) {
+            throw new IllegalArgumentException("INGEST_GENERATION_INVALID", failure);
+        }
     }
 
     @Override
@@ -144,7 +242,7 @@ public class KnowledgeDocumentRepositoryImpl extends EgonColaRepository<Knowledg
 
     private boolean writeTransition(Long documentId, DocumentIngestStatusEnum expected, java.util.function.Consumer<KnowledgeDocumentPO> transition) {
         KnowledgeDocumentPO current = getById(documentId);
-        if (current == null || !expected.name().equals(current.getStatus())) { return false; }
+        if (current == null || current.getIngestGeneration() != null || !expected.name().equals(current.getStatus())) { return false; }
         KnowledgeDocumentPO change = carrierOf(current);
         transition.accept(change);
         EgonColaModelValidationUtils.validateBusiness(change, EgonColaModelValidationGroups.Operation.UPDATE);

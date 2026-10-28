@@ -87,6 +87,10 @@ public class KnowledgeDocumentPO extends EgonModel<KnowledgeDocumentPO> {
     @TableField("attempt_count")
     private Integer attemptCount;
 
+    @Size(max = 36, groups = {EgonColaModelValidationGroups.Insert.class, EgonColaModelValidationGroups.Update.class, EgonColaModelValidationGroups.Persisted.class})
+    @TableField("ingest_generation")
+    private String ingestGeneration;
+
     // The failure details are always written: every other update leaves them out when they are
     // null, which would make clearing the previous attempt's failure impossible.
     @Size(max = 64, groups = {EgonColaModelValidationGroups.Insert.class, EgonColaModelValidationGroups.Update.class, EgonColaModelValidationGroups.Query.class, EgonColaModelValidationGroups.Persisted.class})

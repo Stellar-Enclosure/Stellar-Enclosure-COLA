@@ -203,7 +203,8 @@ missing("${prefix}-adapter/src/main/resources/graphql")
 // 迁移必须随生成产物交付；向量表由 PgVectorStore 以 initializeSchema 自建，不进入 Flyway 版本管理。
 def knowledgeMigrations = [
     "${prefix}-infrastructure/src/main/resources/db/migration/V20260910_001__create_knowledge_schema.sql",
-    "${prefix}-infrastructure/src/main/resources/db/migration/V20260910_002__create_transactional_outbox_schema.sql"
+    "${prefix}-infrastructure/src/main/resources/db/migration/V20260910_002__create_transactional_outbox_schema.sql",
+    "${prefix}-infrastructure/src/main/resources/db/migration/V20261028_001__add_ingest_generation.sql"
 ]
 knowledgeMigrations.each { file(it) }
 assert file(knowledgeMigrations[0]).getText("UTF-8").contains("create extension if not exists vector")

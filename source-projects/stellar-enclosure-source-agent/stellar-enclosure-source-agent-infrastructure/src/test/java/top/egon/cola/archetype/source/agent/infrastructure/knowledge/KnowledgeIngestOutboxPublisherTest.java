@@ -30,7 +30,8 @@ class KnowledgeIngestOutboxPublisherTest {
         Map<String, String> headers = Map.of("egon.auth.actor-id", "subject-1001",
                 "egon.auth.actor-kind", "USER", "egon.auth.tenant-id", "1001");
 
-        publisher.enqueue(document, "trace-1", headers);
+        String generation = "242ababa-20c3-4ffa-82f0-856060b06bb2";
+        publisher.enqueue(document, generation, "trace-1", headers);
 
         ArgumentCaptor<OutboxMessage> captured = ArgumentCaptor.forClass(OutboxMessage.class);
         verify(outbox).enqueue(captured.capture());
@@ -40,9 +41,9 @@ class KnowledgeIngestOutboxPublisherTest {
         assertEquals("3001", message.destination());
         assertEquals("trace-1", message.traceId());
         assertEquals(headers, message.headers());
-        assertEquals(Map.of("schemaVersion", "1", "documentId", 3001L, "tenantId", 1001L), message.payload());
+        assertEquals(Map.of("schemaVersion", "2", "documentId", 3001L, "tenantId", 1001L, "generation", generation), message.payload());
 
         doThrow(new IllegalStateException("outbox unavailable")).when(outbox).enqueue(any());
-        assertThrows(IllegalStateException.class, () -> publisher.enqueue(document, "trace-1", headers));
+        assertThrows(IllegalStateException.class, () -> publisher.enqueue(document, generation, "trace-1", headers));
     }
 }

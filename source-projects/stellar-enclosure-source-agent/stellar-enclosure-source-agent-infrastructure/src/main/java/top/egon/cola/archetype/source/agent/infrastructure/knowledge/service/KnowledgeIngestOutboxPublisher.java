@@ -23,11 +23,12 @@ public class KnowledgeIngestOutboxPublisher implements KnowledgeIngestPublisher 
     private final TransactionalOutbox transactionalOutbox;
 
     @Override
-    public void enqueue(KnowledgeDocumentBO document, String traceId, Map<String, String> auditHeaders) {
+    public void enqueue(KnowledgeDocumentBO document, String generation, String traceId, Map<String, String> auditHeaders) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put(KnowledgeIngestChannel.SCHEMA_VERSION_FIELD, KnowledgeIngestChannel.SCHEMA_VERSION);
         payload.put(KnowledgeIngestChannel.DOCUMENT_ID_FIELD, document.documentId());
         payload.put(KnowledgeIngestChannel.TENANT_ID_FIELD, document.tenantId());
+        payload.put(KnowledgeIngestChannel.GENERATION_FIELD, generation);
         transactionalOutbox.enqueue(OutboxMessage.builder()
                 .channel(KnowledgeIngestChannel.NAME)
                 .destination(String.valueOf(document.documentId()))

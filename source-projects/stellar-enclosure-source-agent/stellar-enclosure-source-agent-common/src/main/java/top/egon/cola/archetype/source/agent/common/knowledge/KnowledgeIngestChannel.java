@@ -14,11 +14,15 @@ public final class KnowledgeIngestChannel {
     public static final String NAME = "rag-ingest";
 
     /** Envelope version both sides understand; a change is a version bump, never an edit. */
-    public static final String SCHEMA_VERSION = "1";
+    public static final String SCHEMA_VERSION = "2";
+
+    public static final String LEGACY_SCHEMA_VERSION = "1";
 
     public static final String SCHEMA_VERSION_FIELD = "schemaVersion";
 
     public static final String DOCUMENT_ID_FIELD = "documentId";
+
+    public static final String GENERATION_FIELD = "generation";
 
     /** The tenant the delivery thread has to restore before it reads anything. */
     public static final String TENANT_ID_FIELD = "tenantId";

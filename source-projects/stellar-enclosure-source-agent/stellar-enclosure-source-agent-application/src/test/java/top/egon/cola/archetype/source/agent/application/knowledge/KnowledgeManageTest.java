@@ -630,6 +630,31 @@ class KnowledgeManageTest {
         }
 
         @Override
+        public KnowledgeDocumentBO insertForIngest(KnowledgeDocumentBO document, String generation) {
+            return insert(document);
+        }
+
+        @Override
+        public boolean resetForIngest(Long documentId, String generation) {
+            return resetForReingest(documentId);
+        }
+
+        @Override
+        public IngestClaimResult claimForIngest(Long documentId, String generation, int attempt) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean completeIngest(IngestClaim claim, int chunkCount) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean failIngest(IngestClaim claim, boolean exhausted, String errorCode, String errorMessage) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public Optional<KnowledgeDocumentBO> findById(Long documentId) {
             return Optional.ofNullable(stored.get(documentId));
         }
@@ -762,7 +787,7 @@ class KnowledgeManageTest {
         private final List<KnowledgeDocumentBO> documents = new ArrayList<>();
 
         @Override
-        public void enqueue(KnowledgeDocumentBO document, String traceId, Map<String, String> auditHeaders) {
+        public void enqueue(KnowledgeDocumentBO document, String generation, String traceId, Map<String, String> auditHeaders) {
             documents.add(document);
         }
     }

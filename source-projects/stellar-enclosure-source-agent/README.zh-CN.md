@@ -118,7 +118,7 @@ knowledge 域在 `/api/v1/knowledge-bases` 与 `/api/v1/knowledge-documents` 下
 | 键 | 环境变量 | 含义 |
 | --- | --- | --- |
 | `spring.datasource.url` / `username` / `password` | `AGENT_DB_URL`、`AGENT_DB_USERNAME`、`AGENT_DB_PASSWORD` | PostgreSQL 数据库；`dev`/`prod` 必填 |
-| `spring.flyway.*` | `AGENT_FLYWAY_ENABLED` | 当前真正生效的建库路径：`application.yml`、`dev` 与 `prod` 默认为 `true`，locations 为 `classpath:db/migration`，因此 knowledge 启动会执行三条 `V2026*` 脚本；`test` 强制 `false`。只能通过获批的 MP-SDJ DDL 迁移替换，不作为部署开关 |
+| `spring.flyway.*` | `AGENT_FLYWAY_ENABLED` | 当前真正生效的建库路径：`application.yml`、`dev` 与 `prod` 默认为 `true`，locations 为 `classpath:db/migration`，因此 knowledge 启动会执行四条 `V2026*` 脚本；`test` 强制 `false`。只能通过获批的 MP-SDJ DDL 迁移替换，不作为部署开关 |
 | `spring.servlet.multipart.max-file-size` / `max-request-size` | `AGENT_MULTIPART_MAX_FILE_SIZE`、`AGENT_MULTIPART_MAX_REQUEST_SIZE` | 高于接口上限的容器防线（默认 25MB / 26MB） |
 | `egon.cola.component.rag.*` | `AGENT_RAG_STORAGE_ROOT` | 维度、具名向量库与嵌入模型 Bean、存储根目录、检索上限（默认 8，最大 50） |
 | `egon.cola.component.transactional-outbox.enabled` | — | 摄取队列及其投递 |
@@ -167,12 +167,14 @@ curl --fail-with-body --no-buffer \
 
 知识库查询统一为绑定参数的 Mapper XML。更新同时限制租户、活动状态、期望版本与入库状态；`deleted_at` 使用可空 UTC LocalDateTime，`version` 从 0 递增。JSONB 保留字段专用 handler。
 
-统一规范改为 MP-SDJ 分布式受管 DDL，但本 source project 尚未到达该状态：实际执行的是 Flyway。infrastructure 依赖里有 `flyway-core` 与 `flyway-database-postgresql`，`spring.flyway.locations` 指向 `classpath:db/migration`，且 `dev`/`prod` 保持 `AGENT_FLYWAY_ENABLED` 的 `true` 默认值，因此三条 `V2026*` 脚本（含 `create extension if not exists vector`）会在启动时执行。Common DDL 另被关闭（`egon.cola.component.mybatis-plus.ddl.enabled: false`），本项目也没有 `db/egon-mp` SQL 与 `repository-manifest.json`，即受管 DDL 目前无可执行目标。这些是迁移差异而非目标选项。后续代码迁移需接入组件 Runner、Manifest 与物理目标，保持已有 SQL/数据并核对 Outbox/向量表归属；本次文档更新没有执行该运行时迁移。
+统一规范改为 MP-SDJ 分布式受管 DDL，但本 source project 尚未到达该状态：实际执行的是 Flyway。infrastructure 依赖里有 `flyway-core` 与 `flyway-database-postgresql`，`spring.flyway.locations` 指向 `classpath:db/migration`，且 `dev`/`prod` 保持 `AGENT_FLYWAY_ENABLED` 的 `true` 默认值，因此四条 `V2026*` 脚本（含 `create extension if not exists vector`）会在启动时执行。Common DDL 另被关闭（`egon.cola.component.mybatis-plus.ddl.enabled: false`），本项目也没有 `db/egon-mp` SQL 与 `repository-manifest.json`，即受管 DDL 目前无可执行目标。这些是迁移差异而非目标选项。后续代码迁移需接入组件 Runner、Manifest 与物理目标，保持已有 SQL/数据并核对 Outbox/向量表归属；本次文档更新没有执行该运行时迁移。
 
 生产配置 `EGON_ID_MACHINE_ID`。默认 H2/fake-model 测试不执行 PostgreSQL 迁移或向量集成，需在专用数据库上手动验收。
 
 
 当前 Outbox starter 使用独立受管的 `egon_outbox` schema，与历史 Flyway 管理的 `public.egon_cola_outbox_message` 分离。启动实例前须在主库预先创建空的 `egon_outbox` schema；starter 会在其中初始化并校验版本化 manifest。上文的 `ddl.enabled=false` 仅表示知识库表未启用 Common 自动迁移。Flyway 使用已有物理主库执行，避免历史 public 表被路由到受管 Outbox schema。Mapper 路径同时包含知识库和组件 Outbox XML，技术表不参与租户 SQL 改写。
+
+本版本的入队消息携带独立 generation，文档插入或重置与消息写入在同一事务中绑定该标识；领取和完成以 generation、乐观锁版本及尝试次数约束，过期工作线程不能覆盖新领取。副本漏行会重试。旧版 v1 消息没有 generation，保留给人工核对，不会直接确认成功。死信重试重置尝试次数或文档停留在 `PROCESSING` 且无法确认所有权时，应停止相关工作线程，核对文档和消息后再创建新一轮 generation。数据库约束保护文档状态；向量库写入仍需由外部存储保障幂等与顺序。
 
 已有安装升级时，停止所有新旧生产者和 worker，在维护实例设置 `AGENT_OUTBOX_MIGRATION_MODE=true`，调用 `OutboxLegacyMigrationService.migrate("public", 100, false)` 确认返回 `verified` 后设置 `AGENT_OUTBOX_LEGACY_VERIFIED=true` 并恢复流量。否则启动会拒绝非空的历史表。保留旧表和 Flyway 脚本；搬迁保留消息标识，中断后可重试。维护开关只作用于当前实例，不会停止其他进程。Agent 当前仍使用单主库 `SHARDING`；完成 Flyway 和历史数据搬迁并审查读一致性需求前，不应切换主从模式。
 

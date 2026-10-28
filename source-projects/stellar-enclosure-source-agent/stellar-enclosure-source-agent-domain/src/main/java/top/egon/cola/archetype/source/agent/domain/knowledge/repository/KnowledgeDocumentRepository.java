@@ -20,6 +20,9 @@ public interface KnowledgeDocumentRepository {
     /** Stores the document and returns it with the generated identifier and server timestamps. */
     KnowledgeDocumentBO insert(KnowledgeDocumentBO document);
 
+    /** Stores the document with the generation of the message enqueued in the same transaction. */
+    KnowledgeDocumentBO insertForIngest(KnowledgeDocumentBO document, String generation);
+
     Optional<KnowledgeDocumentBO> findById(Long documentId);
 
     /** Documents of the given identifiers, for resolving the display names of retrieved chunks. */
@@ -48,6 +51,22 @@ public interface KnowledgeDocumentRepository {
 
     /** Moves a terminal document back to {@code PENDING}, clearing failure details and counters. */
     boolean resetForReingest(Long documentId);
+
+    /** Resets a terminal document and binds the next message generation atomically. */
+    boolean resetForIngest(Long documentId, String generation);
+
+    /** A successful claim fences completion by version, generation and delivery attempt. */
+    IngestClaimResult claimForIngest(Long documentId, String generation, int attempt);
+
+    boolean completeIngest(IngestClaim claim, int chunkCount);
+
+    boolean failIngest(IngestClaim claim, boolean exhausted, String errorCode, String errorMessage);
+
+    enum IngestClaimStatus { ACQUIRED, ALREADY_SUCCEEDED, RETRY }
+
+    record IngestClaim(Long documentId, Long tenantId, Long version, String generation, int attempt) { }
+
+    record IngestClaimResult(IngestClaimStatus status, IngestClaim claim) { }
 
     void softDelete(Long documentId);
 

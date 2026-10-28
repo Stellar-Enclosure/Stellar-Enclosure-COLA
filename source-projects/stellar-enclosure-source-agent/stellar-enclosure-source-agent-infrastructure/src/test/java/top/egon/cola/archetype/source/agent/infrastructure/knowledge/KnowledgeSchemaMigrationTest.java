@@ -21,7 +21,11 @@ class KnowledgeSchemaMigrationTest {
 
     @Test
     void declares_the_knowledge_and_outbox_migrations() throws IOException {
-        assertThat(migrationFiles()).containsExactly(KNOWLEDGE_SCHEMA, OUTBOX_SCHEMA, "V20260913_001__egon_model_repository.sql");
+        assertThat(migrationFiles()).containsExactly(KNOWLEDGE_SCHEMA, OUTBOX_SCHEMA,
+                "V20260913_001__egon_model_repository.sql", "V20261028_001__add_ingest_generation.sql");
+        assertThat(read("V20261028_001__add_ingest_generation.sql"))
+                .contains("alter table knowledge_document add column ingest_generation varchar(36)")
+                .doesNotContain("drop table", "delete from", "update knowledge_document");
     }
 
     @Test

@@ -473,7 +473,7 @@ class KnowledgeRepositoryTest {
                     + "file_name varchar(255), mime_type varchar(128), size_bytes bigint not null, "
                     + "content_hash char(64) not null, storage_type varchar(16) not null, "
                     + "storage_key varchar(512) not null, content clob, status varchar(16) not null, "
-                    + "chunk_count integer not null, attempt_count integer not null, "
+                    + "chunk_count integer not null, attempt_count integer not null, ingest_generation varchar(36), "
                     + "error_code varchar(64), error_message varchar(512))");
 
     private static DataSource recording(DataSource delegate) {

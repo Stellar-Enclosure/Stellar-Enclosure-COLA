@@ -39,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -63,6 +64,8 @@ class KnowledgeIngestDeliveryHandlerTest {
     private static final long KNOWLEDGE_BASE_ID = 1001L;
 
     private static final String LOGICAL_MODEL_NAME = "openai-compatible";
+
+    private static final String GENERATION = "242ababa-20c3-4ffa-82f0-856060b06bb2";
 
     private static final String CONTENT = "the stored text of the document";
 
@@ -128,9 +131,9 @@ class KnowledgeIngestDeliveryHandlerTest {
     @Test
     void rebuilds_the_document_without_reparsing() {
         givenVisibleDocument();
-        given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
+        givenClaim(1);
         given(ragIngestionService.ingest(any())).willReturn(ingestionResult(7));
-        given(documentRepository.markSucceeded(DOCUMENT_ID, 7)).willReturn(true);
+        given(documentRepository.completeIngest(claim(1), 7)).willReturn(true);
 
         DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
 
@@ -151,28 +154,28 @@ class KnowledgeIngestDeliveryHandlerTest {
         // metadata carries it for the retrieval filter.
         assertThat(command.getValue().attributes())
                 .containsEntry(KnowledgeVectorMetadata.TENANT_ID, String.valueOf(TENANT));
-        verify(documentRepository).markSucceeded(DOCUMENT_ID, 7);
+        verify(documentRepository).completeIngest(claim(1), 7);
     }
 
     @Test
     void maps_delivery_failures_to_document_status() {
         givenVisibleDocument();
-        given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
-        given(documentRepository.markProcessing(DOCUMENT_ID, 5)).willReturn(true);
+        givenClaim(1);
+        givenClaim(5);
         RagVectorStoreException unavailable = new RagVectorStoreException("vector store is unavailable");
         given(ragIngestionService.ingest(any())).willThrow(unavailable);
 
         assertThatThrownBy(() -> handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5)))
                 .isSameAs(unavailable);
-        verify(documentRepository).markRetryPending(DOCUMENT_ID, 1, "KNOWLEDGE_EMBEDDING_FAILED",
+        verify(documentRepository).failIngest(claim(1), false, "KNOWLEDGE_EMBEDDING_FAILED",
                 "vector store is unavailable");
-        verify(documentRepository, never()).markDead(anyLong(), any(), any());
+        verify(documentRepository, never()).failIngest(any(), org.mockito.ArgumentMatchers.eq(true), any(), any());
 
         // The last attempt ends the document instead of returning it to PENDING, because no further
         // delivery will be made.
         assertThatThrownBy(() -> handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 5, 5)))
                 .isSameAs(unavailable);
-        verify(documentRepository).markDead(DOCUMENT_ID, "KNOWLEDGE_EMBEDDING_FAILED",
+        verify(documentRepository).failIngest(claim(5), true, "KNOWLEDGE_EMBEDDING_FAILED",
                 "vector store is unavailable");
     }
 
@@ -180,7 +183,7 @@ class KnowledgeIngestDeliveryHandlerTest {
     void maps_component_codes_and_keeps_foreign_messages_out_of_the_document() {
         givenVisibleDocument();
         for (int attempt = 1; attempt <= 3; attempt++) {
-            given(documentRepository.markProcessing(DOCUMENT_ID, attempt)).willReturn(true);
+            givenClaim(attempt);
         }
         given(ragIngestionService.ingest(any()))
                 .willThrow(new RagValidationException("chunkingConfig is invalid"))
@@ -188,15 +191,15 @@ class KnowledgeIngestDeliveryHandlerTest {
                 .willThrow(new IllegalStateException("jdbc:postgresql://10.0.0.7 content=" + CONTENT));
 
         deliverExpectingFailure(1);
-        verify(documentRepository).markRetryPending(DOCUMENT_ID, 1, "KNOWLEDGE_VALIDATION_ERROR",
+        verify(documentRepository).failIngest(claim(1), false, "KNOWLEDGE_VALIDATION_ERROR",
                 "chunkingConfig is invalid");
         deliverExpectingFailure(2);
-        verify(documentRepository).markRetryPending(DOCUMENT_ID, 2, "KNOWLEDGE_MODEL_NOT_REGISTERED",
+        verify(documentRepository).failIngest(claim(2), false, "KNOWLEDGE_MODEL_NOT_REGISTERED",
                 "logical model is not registered");
         // A failure the component did not classify is stored as a fixed code and summary: both
         // fields are rendered to clients, so no arbitrary exception text may reach them.
         deliverExpectingFailure(3);
-        verify(documentRepository).markRetryPending(DOCUMENT_ID, 3, "KNOWLEDGE_INTERNAL_ERROR",
+        verify(documentRepository).failIngest(claim(3), false, "KNOWLEDGE_INTERNAL_ERROR",
                 "document ingestion failed");
     }
 
@@ -211,7 +214,7 @@ class KnowledgeIngestDeliveryHandlerTest {
         });
         given(knowledgeBaseRepository.findById(KNOWLEDGE_BASE_ID))
                 .willReturn(Optional.of(knowledgeBase()));
-        given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
+        givenClaim(1);
         given(ragIngestionService.ingest(any())).willReturn(ingestionResult(3));
 
         handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
@@ -241,13 +244,14 @@ class KnowledgeIngestDeliveryHandlerTest {
         assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.RETRYABLE_FAILURE);
         assertThat(result.code()).isEqualTo("KNOWLEDGE_DOCUMENT_NOT_VISIBLE");
         verifyNoInteractions(ragIngestionService);
-        verify(documentRepository, never()).markProcessing(anyLong(), anyInt());
+        verify(documentRepository, never()).claimForIngest(anyLong(), anyString(), anyInt());
     }
 
     @Test
     void retries_when_the_claim_is_not_confirmed() {
         givenVisibleDocument();
-        given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(false);
+        given(documentRepository.claimForIngest(DOCUMENT_ID, GENERATION, 1)).willReturn(
+                new KnowledgeDocumentRepository.IngestClaimResult(KnowledgeDocumentRepository.IngestClaimStatus.RETRY, null));
 
         DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
 
@@ -257,15 +261,34 @@ class KnowledgeIngestDeliveryHandlerTest {
     }
 
     @Test
+    void acknowledges_only_a_generation_already_confirmed_as_succeeded() {
+        givenVisibleDocument();
+        given(documentRepository.claimForIngest(DOCUMENT_ID, GENERATION, 2)).willReturn(
+                new KnowledgeDocumentRepository.IngestClaimResult(KnowledgeDocumentRepository.IngestClaimStatus.ALREADY_SUCCEEDED, null));
+        DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 2, 5));
+        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.SUCCESS);
+        verifyNoInteractions(ragIngestionService);
+    }
+
+    @Test
+    void legacy_message_without_a_generation_is_retained_for_reconciliation() {
+        String legacy = "{\"schemaVersion\":\"1\",\"documentId\":" + DOCUMENT_ID + ",\"tenantId\":" + TENANT + "}";
+        DeliveryResult result = handler.deliver(delivery(legacy, 1, 5));
+        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.RETRYABLE_FAILURE);
+        assertThat(result.code()).isEqualTo("KNOWLEDGE_LEGACY_GENERATION_REQUIRED");
+        verifyNoInteractions(documentRepository, knowledgeBaseRepository, ragIngestionService);
+    }
+
+    @Test
     void fails_a_document_that_has_no_stored_text() {
         given(documentRepository.findById(DOCUMENT_ID))
                 .willReturn(Optional.of(documentWithoutContent()));
         given(knowledgeBaseRepository.findById(KNOWLEDGE_BASE_ID)).willReturn(Optional.of(knowledgeBase()));
-        given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
+        givenClaim(1);
 
         deliverExpectingFailure(1);
 
-        verify(documentRepository).markRetryPending(DOCUMENT_ID, 1, "KNOWLEDGE_CONTENT_MISSING",
+        verify(documentRepository).failIngest(claim(1), false, "KNOWLEDGE_CONTENT_MISSING",
                 "the document has no stored text to embed");
         verifyNoInteractions(ragIngestionService);
     }
@@ -273,24 +296,24 @@ class KnowledgeIngestDeliveryHandlerTest {
     @Test
     void retries_a_missing_base_before_claiming_the_document() {
         givenVisibleDocument();
-        given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
+        givenClaim(1);
         given(knowledgeBaseRepository.findById(KNOWLEDGE_BASE_ID)).willReturn(Optional.empty());
 
         DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
 
         assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.RETRYABLE_FAILURE);
         assertThat(result.code()).isEqualTo("KNOWLEDGE_BASE_NOT_FOUND");
-        verify(documentRepository, never()).markProcessing(anyLong(), anyInt());
-        verify(documentRepository, never()).markDead(anyLong(), any(), any());
+        verify(documentRepository, never()).claimForIngest(anyLong(), anyString(), anyInt());
+        verify(documentRepository, never()).failIngest(any(), org.mockito.ArgumentMatchers.anyBoolean(), any(), any());
         verifyNoInteractions(ragIngestionService);
     }
 
     @Test
     void does_not_acknowledge_when_completion_cannot_be_confirmed() {
         givenVisibleDocument();
-        given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
+        givenClaim(1);
         given(ragIngestionService.ingest(any())).willReturn(ingestionResult(7));
-        given(documentRepository.markSucceeded(DOCUMENT_ID, 7)).willReturn(false);
+        given(documentRepository.completeIngest(claim(1), 7)).willReturn(false);
 
         DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
 
@@ -312,7 +335,7 @@ class KnowledgeIngestDeliveryHandlerTest {
 
     @Test
     void rejects_without_touching_the_database_when_the_envelope_is_not_the_expected_version() {
-        String payload = "{\"schemaVersion\":\"2\",\"documentId\":" + DOCUMENT_ID
+        String payload = "{\"schemaVersion\":\"3\",\"documentId\":" + DOCUMENT_ID
                 + ",\"tenantId\":" + TENANT + "}";
 
         assertThatThrownBy(() -> handler.deliver(delivery(payload, 1, 5)))
@@ -330,6 +353,15 @@ class KnowledgeIngestDeliveryHandlerTest {
         given(documentRepository.findById(DOCUMENT_ID)).willReturn(Optional.of(document()));
         given(knowledgeBaseRepository.findById(KNOWLEDGE_BASE_ID))
                 .willReturn(Optional.of(knowledgeBase()));
+    }
+
+    private void givenClaim(int attempt) {
+        given(documentRepository.claimForIngest(DOCUMENT_ID, GENERATION, attempt)).willReturn(
+                new KnowledgeDocumentRepository.IngestClaimResult(KnowledgeDocumentRepository.IngestClaimStatus.ACQUIRED, claim(attempt)));
+    }
+
+    private static KnowledgeDocumentRepository.IngestClaim claim(int attempt) {
+        return new KnowledgeDocumentRepository.IngestClaim(DOCUMENT_ID, TENANT, 10L + attempt, GENERATION, attempt);
     }
 
     private static KnowledgeDocumentBO document() {
@@ -364,10 +396,10 @@ class KnowledgeIngestDeliveryHandlerTest {
     }
 
     private static String payload(long tenant, long documentId) {
-        return "{\"schemaVersion\":\"1\",\"documentId\":" + documentId + ",\"tenantId\":" + tenant + "}";
+        return "{\"schemaVersion\":\"2\",\"generation\":\"" + GENERATION + "\",\"documentId\":" + documentId + ",\"tenantId\":" + tenant + "}";
     }
 
     private static String payloadWithoutTenant(long documentId) {
-        return "{\"schemaVersion\":\"1\",\"documentId\":" + documentId + "}";
+        return "{\"schemaVersion\":\"2\",\"generation\":\"" + GENERATION + "\",\"documentId\":" + documentId + "}";
     }
 }

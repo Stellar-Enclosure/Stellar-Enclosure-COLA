@@ -7,5 +7,5 @@ import java.util.Map;
 /** Announces an ingest in the caller's transaction. */
 public interface KnowledgeIngestPublisher {
 
-    void enqueue(KnowledgeDocumentBO document, String traceId, Map<String, String> auditHeaders);
+    void enqueue(KnowledgeDocumentBO document, String generation, String traceId, Map<String, String> auditHeaders);
 }
