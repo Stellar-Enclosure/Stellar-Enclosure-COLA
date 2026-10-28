@@ -418,7 +418,7 @@ escape_velocity_file() {
   local file="$1" resources="$2" relative temp
   relative="${file#"$resources"/}"
   case "$relative" in
-    __gitignore__|.gitattributes|mvnw|mvnw.cmd|Jenkinsfile|.mvn/wrapper/maven-wrapper.properties|deploy/container/README.md|deploy/compose/*)
+    __gitignore__|.gitattributes|mvnw|mvnw.cmd|Jenkinsfile|.mvn/wrapper/maven-wrapper.properties|deploy/container/README.md|deploy/compose/*|.github/workflows/*|scripts/permission-ci.py|permission-targets.json|permission-toolchain.lock.json)
       return 0
       ;;
   esac
@@ -647,6 +647,15 @@ normalize_generated_product() {
   remove_forbidden_generated_paths "$resources"
   if [[ -f "$CURRENT_SOURCE_DIR/.gitignore" ]]; then
     cp -p "$CURRENT_SOURCE_DIR/.gitignore" "$resources/__gitignore__"
+  fi
+  if [[ -f "$CURRENT_SOURCE_DIR/permission-producers.json" ]]; then
+    mkdir -p "$resources/scripts" "$resources/.github/workflows"
+    for asset in permission-producers.json permission-targets.json permission-toolchain.lock.json; do
+      cp -p "$CURRENT_SOURCE_DIR/$asset" "$resources/$asset"
+    done
+    cp -p "$CURRENT_SOURCE_DIR/scripts/permission-ci.py" "$resources/scripts/permission-ci.py"
+    cp -p "$CURRENT_SOURCE_DIR/.github/workflows/ci.yml" "$resources/.github/workflows/ci.yml"
+    cp -p "$CURRENT_SOURCE_DIR/.github/workflows/permission-delivery.yml" "$resources/.github/workflows/permission-delivery.yml"
   fi
   if [[ "$MF_EXPECTED_TOPOLOGY" != root ]]; then
     rename_module_directories "$resources"

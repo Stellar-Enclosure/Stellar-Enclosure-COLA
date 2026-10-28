@@ -1,4 +1,9 @@
 target/
+.generated/
+.egon/codegen/plans/
+.egon/codegen/candidates/
+.egon/codegen/apply.lock
+.egon/codegen/state-history/
 
 ### Java ###
 *.class

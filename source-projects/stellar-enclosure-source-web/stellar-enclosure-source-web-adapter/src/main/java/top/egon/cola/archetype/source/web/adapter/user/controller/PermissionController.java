@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.web.adapter.user.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -64,6 +68,8 @@ public class PermissionController {
     @PostMapping("/api/v1/roles/{roleCode}/permissions")
     @Operation(operationId = "nativeWebPermissionGrantV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:permission:grant')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.permission.grant", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.permission.grant", oauthScopes = {"stellar-enclosure-source-web:permission:grant"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:permission:grant"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.permission.grant", permission = "stellar-enclosure-source-web:permission:grant", name = "Grant")
     public ResponseEntity<Void> grant(
             @PathVariable String roleCode,
@@ -79,6 +85,8 @@ public class PermissionController {
     @GetMapping("/api/v1/users/{userId}/permissions")
     @Operation(operationId = "nativeWebPermissionGetPermissionTreeV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:permission:read')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.permission.read", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.permission.read", oauthScopes = {"stellar-enclosure-source-web:permission:read"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:permission:read"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.permission.read", permission = "stellar-enclosure-source-web:permission:read", name = "Get permission tree")
     public PermissionTreeVO getPermissionTree(@PathVariable String userId) {
         return converter.toVO(permissionManage.getPermissionTree(new PermissionTreeQuery(

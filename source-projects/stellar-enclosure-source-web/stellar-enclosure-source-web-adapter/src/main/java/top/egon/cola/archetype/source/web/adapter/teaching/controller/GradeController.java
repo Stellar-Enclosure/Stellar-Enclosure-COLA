@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.web.adapter.teaching.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -66,6 +70,8 @@ public class GradeController {
     @PostMapping
     @Operation(operationId = "nativeWebGradeCreateV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:grade:create')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.grade.create", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.grade.create", oauthScopes = {"stellar-enclosure-source-web:grade:create"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:grade:create"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.grade.create", permission = "stellar-enclosure-source-web:grade:create", name = "Create")
     public ResponseEntity<GradeDetailVO> create(
             @Valid @RequestBody CreateGradeDTO request,
@@ -80,6 +86,8 @@ public class GradeController {
     @GetMapping("/{gradeId}")
     @Operation(operationId = "nativeWebGradeGetV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:grade:read')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.grade.read", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.grade.read", oauthScopes = {"stellar-enclosure-source-web:grade:read"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:grade:read"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.grade.read", permission = "stellar-enclosure-source-web:grade:read", name = "Get")
     public GradeDetailVO get(@PathVariable String gradeId) {
         return converter.toVO(gradeManage.getGrade(new GradeDetailQuery(

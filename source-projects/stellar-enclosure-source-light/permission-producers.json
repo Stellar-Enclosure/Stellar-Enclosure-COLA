@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "producers": [
+    {
+      "producerId": "stellar-enclosure-source-light-java",
+      "module": "app",
+      "artifactFile": "stellar-enclosure-source-light-exec.jar",
+      "sourceModule": "."
+    }
+  ]
+}

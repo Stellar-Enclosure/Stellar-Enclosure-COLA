@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.light.adapter.teaching.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -56,6 +60,8 @@ public class CourseController {
     @PostMapping
     @Operation(operationId = "nativeLightCourseCreateV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:course:create')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.course.create", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.course.create", oauthScopes = {"stellar-enclosure-source-light:course:create"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:course:create"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.course.create", permission = "stellar-enclosure-source-light:course:create", name = "Create course")
     public CourseDetailVO create(@Valid @RequestBody CreateCourseDTO request) {
         fieldWrite.requireWritableFields(new FieldWriteAuthorizationCommand("stellar-enclosure-source-light:course:create", authorizationProperties.getSystemCode(),
@@ -68,6 +74,8 @@ public class CourseController {
     @GetMapping("/{courseId}")
     @Operation(operationId = "nativeLightCourseGetV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:course:read')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.course.read", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.course.read", oauthScopes = {"stellar-enclosure-source-light:course:read"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:course:read"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.course.read", permission = "stellar-enclosure-source-light:course:read", name = "Read course")
     public CourseDetailVO get(@PathVariable String courseId) {
         return convertor.toTarget(courseManage.get(new GetCourseQuery(Long.valueOf(courseId))));

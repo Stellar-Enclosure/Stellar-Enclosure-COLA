@@ -1,4 +1,5 @@
 import groovy.io.FileType
+import groovy.json.JsonSlurper
 import groovy.xml.XmlSlurper
 
 def projectDir = new File(basedir, "pom.xml").isFile() ? basedir : context.projectDir
@@ -41,6 +42,14 @@ def file = { String path ->
     assert result.isFile(): "Expected generated file ${path}"
     result
 }
+def producer = new JsonSlurper().parse(file('permission-producers.json')).producers[0]
+assert producer.producerId == 'student-management-organization-java'
+assert producer.module == 'student-management-organization-starter'
+assert producer.artifactFile == 'student-management-organization-exec.jar'
+assert new JsonSlurper().parse(file('permission-toolchain.lock.json')).mode == 'PINNED_COMMIT'
+assert file('.github/workflows/permission-delivery.yml').text.contains('${{ inputs.phase }}')
+file('scripts/permission-ci.py')
+file('student-management-organization-common/src/main/java/it/pkg/common/exception/GeneratedCrudErrorMapper.java')
 def directory = { String path ->
     def result = new File(projectDir, path)
     assert result.isDirectory(): "Expected generated directory ${path}"

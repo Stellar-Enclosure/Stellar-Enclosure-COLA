@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.web.adapter.teaching.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -67,6 +71,8 @@ public class SchoolClassController {
     @PostMapping("/school-classes")
     @Operation(operationId = "nativeWebSchoolClassCreateV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:school-class:create')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.school-class.create", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.school-class.create", oauthScopes = {"stellar-enclosure-source-web:school-class:create"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:school-class:create"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.school-class.create", permission = "stellar-enclosure-source-web:school-class:create", name = "Create")
     public ResponseEntity<SchoolClassDetailVO> create(
             @Valid @RequestBody CreateSchoolClassDTO request,
@@ -82,6 +88,8 @@ public class SchoolClassController {
     @GetMapping("/grades/{gradeId}/school-classes/{schoolClassId}")
     @Operation(operationId = "nativeWebSchoolClassGetV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:school-class:read')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.school-class.read", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.school-class.read", oauthScopes = {"stellar-enclosure-source-web:school-class:read"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:school-class:read"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.school-class.read", permission = "stellar-enclosure-source-web:school-class:read", name = "Get")
     public SchoolClassDetailVO get(
             @PathVariable String gradeId,
@@ -95,6 +103,8 @@ public class SchoolClassController {
     @PostMapping("/grades/{gradeId}/school-classes/{schoolClassId}/users")
     @Operation(operationId = "nativeWebSchoolClassAssignUserV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:school-class:assign-user')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.school-class.assign-user", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.school-class.assign-user", oauthScopes = {"stellar-enclosure-source-web:school-class:assign-user"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:school-class:assign-user"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.school-class.assign-user", permission = "stellar-enclosure-source-web:school-class:assign-user", name = "Assign user")
     public ResponseEntity<Void> assignUser(
             @PathVariable String gradeId,

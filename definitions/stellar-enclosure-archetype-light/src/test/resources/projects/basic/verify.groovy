@@ -1,4 +1,5 @@
 import groovy.io.FileType
+import groovy.json.JsonSlurper
 import groovy.xml.XmlSlurper
 
 def generatedProjectDir = new File(basedir, "project/basic")
@@ -34,6 +35,13 @@ def assertFile = { path ->
 def assertMissing = { path ->
     assert !new File(generatedProjectDir, path).exists(): "Unexpected path ${path}"
 }
+
+def producer = new JsonSlurper().parse(assertFile('permission-producers.json')).producers[0]
+assert producer.producerId == 'basic-java' && producer.module == 'app' && producer.artifactFile == 'basic-exec.jar'
+assert new JsonSlurper().parse(assertFile('permission-toolchain.lock.json')).mode == 'PINNED_COMMIT'
+assert assertFile('.github/workflows/permission-delivery.yml').text.contains('${{ inputs.phase }}')
+assertFile('scripts/permission-ci.py')
+assertFile('src/main/java/it/pkg/common/exception/GeneratedCrudErrorMapper.java')
 
 def assertLoggingContract = { mainConfigPath, testConfigPath, applicationConfigPath ->
     def mainConfig = assertFile(mainConfigPath)

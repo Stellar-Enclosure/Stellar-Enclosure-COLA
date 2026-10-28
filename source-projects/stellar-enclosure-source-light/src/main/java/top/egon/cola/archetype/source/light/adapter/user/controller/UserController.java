@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.light.adapter.user.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -57,6 +61,8 @@ public class UserController {
     @PostMapping
     @Operation(operationId = "nativeLightUserCreateV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:user:create')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.user.create", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.user.create", oauthScopes = {"stellar-enclosure-source-light:user:create"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:user:create"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.user.create", permission = "stellar-enclosure-source-light:user:create", name = "Create user")
     public UserDetailVO create(@Valid @RequestBody CreateUserDTO request) {
         fieldWrite.requireWritableFields(new FieldWriteAuthorizationCommand("stellar-enclosure-source-light:user:create", authorizationProperties.getSystemCode(),
@@ -73,6 +79,8 @@ public class UserController {
     @GetMapping("/{userId}")
     @Operation(operationId = "nativeLightUserGetV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:user:read')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.user.read", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.user.read", oauthScopes = {"stellar-enclosure-source-light:user:read"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:user:read"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.user.read", permission = "stellar-enclosure-source-light:user:read", name = "Read user")
     public UserDetailVO get(@PathVariable String userId) {
         return convertor.toTarget(userManage.get(new GetUserQuery(Long.valueOf(userId))));

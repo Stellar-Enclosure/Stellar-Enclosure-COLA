@@ -238,3 +238,17 @@ SPRING_PROFILES_ACTIVE=dev bash ./mvnw -pl stellar-enclosure-source-web-starter 
 ```
 
 敏感值应放在环境变量、挂载文件、`config/application-secrets.yml` 或 `configtree:/run/secrets/` 中。不要提交凭据或解密密钥。
+
+
+## 权限清单与受控交付
+
+`permission-producer` profile 使用鉴神注解处理器导出 API 声明，聚合 FULL 清单并核验最终可执行制品。业务和应用标识应与前端一致，提交号及构建标识须使用真实值：
+
+```sh
+./mvnw -B -ntp -Ppermission-producer -Dpermission.business=example -Dpermission.application=example-app \
+  -Dpermission.commit="$(git rev-parse HEAD)" -Dpermission.buildId=local-review clean verify
+```
+
+默认生产者清单和空目标配置不会授权在线操作。启用独立注册/激活工作流前，须配置固定 SDK、合同制品地址、已审核目标及受保护环境。注册产生候选版本，不授予角色，也不自动激活。生成 API 的资源 key 须属于配置的生产者前缀。现有 GraphQL 示例保留自身运行时授权，本 profile 不把它们导出为 HTTP 资源。
+
+生成 CRUD 时，将 `apiContract.existingErrorMapper` 配置为 `top.egon.cola.archetype.source.web.common.exception.GeneratedCrudErrorMapper`。

@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.light.adapter.user.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -59,6 +63,8 @@ public class PermissionController {
     @PostMapping("/roles/{roleCode}/permissions")
     @Operation(operationId = "nativeLightPermissionGrantPermissionV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:permission:grant')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.permission.grant", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.permission.grant", oauthScopes = {"stellar-enclosure-source-light:permission:grant"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:permission:grant"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.permission.grant", permission = "stellar-enclosure-source-light:permission:grant", name = "Grant permission")
     public PermissionResult grantPermission(
             @PathVariable String roleCode,
@@ -76,6 +82,8 @@ public class PermissionController {
     @GetMapping("/users/{userId}/permissions")
     @Operation(operationId = "nativeLightPermissionGetUserPermissionsV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:permission:read')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.permission.read", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.permission.read", oauthScopes = {"stellar-enclosure-source-light:permission:read"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:permission:read"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.permission.read", permission = "stellar-enclosure-source-light:permission:read", name = "Read user permissions")
     public List<PermissionTreeVO> getUserPermissions(@PathVariable String userId) {
         return convertor.toPermissionTree(

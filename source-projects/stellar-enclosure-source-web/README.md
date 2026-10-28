@@ -261,3 +261,17 @@ SPRING_PROFILES_ACTIVE=dev bash ./mvnw -pl stellar-enclosure-source-web-starter 
 ```
 
 Sensitive values belong in environment variables, mounted files, `config/application-secrets.yml`, or `configtree:/run/secrets/`. Do not commit credentials or decryption keys.
+
+
+## Permission manifests and controlled delivery
+
+The `permission-producer` profile compiles the API declarations with the Jianshen processor, aggregates a FULL manifest and verifies the final executable. Set the same business/application identity used by the frontend, and provide the real source commit and build ID:
+
+```sh
+./mvnw -B -ntp -Ppermission-producer -Dpermission.business=example -Dpermission.application=example-app \
+  -Dpermission.commit="$(git rev-parse HEAD)" -Dpermission.buildId=local-review clean verify
+```
+
+The checked-in producer inventory and empty targets define no online access. Configure the pinned SDK checkout, contract artifact URL, reviewed target and protected environments before enabling the separate registration/activation workflow. Registration creates a candidate; it neither grants roles nor activates a version. Generated APIs must declare codes within the configured ownership prefix. Existing GraphQL examples retain their own runtime authorization and are not exported as HTTP resources by this profile.
+
+For generated CRUD code, set `apiContract.existingErrorMapper` to `top.egon.cola.archetype.source.web.common.exception.GeneratedCrudErrorMapper`.

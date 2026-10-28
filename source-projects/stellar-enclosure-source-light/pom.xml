@@ -19,6 +19,12 @@
     <description>Student management sample based on Stellar Enclosure light domain architecture</description>
 
     <properties>
+        <permission.business>example</permission.business>
+        <permission.application>stellar-enclosure-source-light</permission.application>
+        <permission.producer>stellar-enclosure-source-light-java</permission.producer>
+        <permission.repository>stellar-enclosure-source-light</permission.repository>
+        <permission.ownedKeyPrefixes>stellar-enclosure-source-light.api.,stellar-enclosure-source-light.field.</permission.ownedKeyPrefixes>
+        <permission.managedPackages>top.egon.cola.archetype.source.light.adapter</permission.managedPackages>
         <stellar-enclosure.tianquan-jianshen.version>0.0.1</stellar-enclosure.tianquan-jianshen.version>
         <java.version>25</java.version>
         <stellar-enclosure.version>0.0.1</stellar-enclosure.version>
@@ -348,6 +354,107 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>permission-producer</id>
+            <build>
+                <finalName>${project.artifactId}-exec</finalName>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-compile</id>
+                                <configuration>
+                                    <annotationProcessorPaths combine.children="append">
+                                        <path>
+                                            <groupId>top.egon</groupId>
+                                            <artifactId>stellar-enclosure-tianquan-jianshen-processor</artifactId>
+                                            <version>${stellar-enclosure.tianquan-jianshen.version}</version>
+                                        </path>
+                                    </annotationProcessorPaths>
+                                    <compilerArgs>
+                                        <arg>-Apac.business=${permission.business}</arg>
+                                        <arg>-Apac.application=${permission.application}</arg>
+                                        <arg>-Apac.producer=${permission.producer}</arg>
+                                        <arg>-Apac.module=${project.artifactId}</arg>
+                                        <arg>-Apac.expectedModules=${project.artifactId}</arg>
+                                        <arg>-Apac.ownedKeyPrefixes=${permission.ownedKeyPrefixes}</arg>
+                                        <arg>-Apac.managedPackages=${permission.managedPackages}</arg>
+                                        <arg>-Apac.repository=${permission.repository}</arg>
+                                        <arg>-Apac.commit=${permission.commit}</arg>
+                                        <arg>-Apac.buildId=${permission.buildId}</arg>
+                                        <arg>-Apac.version=${project.version}</arg>
+                                    </compilerArgs>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>${exec.maven.plugin.version}</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>top.egon</groupId>
+                                <artifactId>stellar-enclosure-tianquan-jianshen-manifest-cli</artifactId>
+                                <version>${stellar-enclosure.tianquan-jianshen.version}</version>
+                            </dependency>
+                        </dependencies>
+                        <executions>
+                            <execution>
+                                <id>aggregate-permission-manifest</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <configuration>
+                                    <mainClass>top.egon.cola.platform.tianquan.jianshen.manifestcli.PermissionManifestBuildCli</mainClass>
+                                    <includePluginDependencies>true</includePluginDependencies>
+                                    <includeProjectDependencies>false</includeProjectDependencies>
+                                    <addOutputToClasspath>false</addOutputToClasspath>
+                                    <addResourcesToClasspath>false</addResourcesToClasspath>
+                                    <executableDependency>
+                                        <groupId>top.egon</groupId>
+                                        <artifactId>stellar-enclosure-tianquan-jianshen-manifest-cli</artifactId>
+                                    </executableDependency>
+                                    <arguments>
+                                        <argument>--module</argument>
+                                        <argument>${project.build.outputDirectory}</argument>
+                                        <argument>--output</argument>
+                                        <argument>${project.build.outputDirectory}/META-INF/permissions/manifest-v1.json</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>verify-permission-artifact</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <configuration>
+                                    <mainClass>top.egon.cola.platform.tianquan.jianshen.manifestcli.PermissionManifestBuildCli</mainClass>
+                                    <includePluginDependencies>true</includePluginDependencies>
+                                    <includeProjectDependencies>false</includeProjectDependencies>
+                                    <addOutputToClasspath>false</addOutputToClasspath>
+                                    <addResourcesToClasspath>false</addResourcesToClasspath>
+                                    <executableDependency>
+                                        <groupId>top.egon</groupId>
+                                        <artifactId>stellar-enclosure-tianquan-jianshen-manifest-cli</artifactId>
+                                    </executableDependency>
+                                    <arguments>
+                                        <argument>--artifact</argument>
+                                        <argument>${project.build.directory}/${project.build.finalName}.jar</argument>
+                                        <argument>--output</argument>
+                                        <argument>${project.build.directory}/permissions/artifact-evidence.json</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>dev</id>
             <properties>

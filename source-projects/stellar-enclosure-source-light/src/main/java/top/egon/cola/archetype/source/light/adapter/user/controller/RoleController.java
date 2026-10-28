@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.light.adapter.user.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -55,6 +59,8 @@ public class RoleController {
     @PostMapping
     @Operation(operationId = "nativeLightRoleAssignRoleV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:role:assign')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.role.assign", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.role.assign", oauthScopes = {"stellar-enclosure-source-light:role:assign"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:role:assign"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.role.assign", permission = "stellar-enclosure-source-light:role:assign", name = "Assign role")
     public UserDetailVO assignRole(@PathVariable String userId, @Valid @RequestBody AssignRoleDTO request) {
         fieldWrite.requireWritableFields(new FieldWriteAuthorizationCommand("stellar-enclosure-source-light:role:assign", authorizationProperties.getSystemCode(),

@@ -19,6 +19,12 @@
     <description>Student management organization sample based on Stellar Enclosure web architecture</description>
 
     <properties>
+        <permission.business>example</permission.business>
+        <permission.application>stellar-enclosure-source-web</permission.application>
+        <permission.producer>stellar-enclosure-source-web-java</permission.producer>
+        <permission.repository>stellar-enclosure-source-web</permission.repository>
+        <permission.ownedKeyPrefixes>stellar-enclosure-source-web.api.,stellar-enclosure-source-web.field.</permission.ownedKeyPrefixes>
+        <permission.managedPackages>top.egon.cola.archetype.source.web.adapter</permission.managedPackages>
         <java.version>25</java.version>
         <stellar-enclosure.version>0.0.1</stellar-enclosure.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

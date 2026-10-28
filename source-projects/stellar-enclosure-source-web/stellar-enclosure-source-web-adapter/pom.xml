@@ -93,4 +93,45 @@
     <properties>
         <stellar-enclosure.tianquan-jianshen.version>0.0.1</stellar-enclosure.tianquan-jianshen.version>
     </properties>
+
+    <profiles>
+        <profile>
+            <id>permission-producer</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-compile</id>
+                                <configuration>
+                                    <annotationProcessorPaths combine.children="append">
+                                        <path>
+                                            <groupId>top.egon</groupId>
+                                            <artifactId>stellar-enclosure-tianquan-jianshen-processor</artifactId>
+                                            <version>${stellar-enclosure.tianquan-jianshen.version}</version>
+                                        </path>
+                                    </annotationProcessorPaths>
+                                    <compilerArgs>
+                                        <arg>-Apac.business=${permission.business}</arg>
+                                        <arg>-Apac.application=${permission.application}</arg>
+                                        <arg>-Apac.producer=${permission.producer}</arg>
+                                        <arg>-Apac.module=${project.artifactId}</arg>
+                                        <arg>-Apac.expectedModules=${project.artifactId}</arg>
+                                        <arg>-Apac.ownedKeyPrefixes=${permission.ownedKeyPrefixes}</arg>
+                                        <arg>-Apac.managedPackages=${permission.managedPackages}</arg>
+                                        <arg>-Apac.repository=${permission.repository}</arg>
+                                        <arg>-Apac.commit=${permission.commit}</arg>
+                                        <arg>-Apac.buildId=${permission.buildId}</arg>
+                                        <arg>-Apac.version=${project.version}</arg>
+                                    </compilerArgs>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

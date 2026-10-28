@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "producers": [
+    {
+      "producerId": "stellar-enclosure-source-web-java",
+      "module": "stellar-enclosure-source-web-starter",
+      "artifactFile": "stellar-enclosure-source-web-exec.jar",
+      "sourceModule": "stellar-enclosure-source-web-starter"
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.web.adapter.user.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -61,6 +65,8 @@ public class RoleController {
     @PostMapping("/api/v1/users/{userId}/roles")
     @Operation(operationId = "nativeWebRoleAssignV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:role:assign')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.role.assign", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.role.assign", oauthScopes = {"stellar-enclosure-source-web:role:assign"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:role:assign"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.role.assign", permission = "stellar-enclosure-source-web:role:assign", name = "Assign")
     public ResponseEntity<Void> assign(
             @PathVariable String userId,

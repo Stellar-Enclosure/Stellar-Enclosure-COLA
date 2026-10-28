@@ -9,8 +9,10 @@ import top.egon.cola.component.common.core.enums.ResultCode;
 import top.egon.cola.component.common.core.pojo.ResultRecord;
 import top.egon.cola.archetype.source.light.common.exception.TeachingUseCaseException;
 import top.egon.cola.archetype.source.light.common.exception.UserUseCaseException;
+import top.egon.cola.archetype.source.light.common.exception.GeneratedCrudException;
 import jakarta.validation.ValidationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -19,6 +21,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(name = "globalExceptionHandler")
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(GeneratedCrudException.class)
+    public ResponseEntity<ResultRecord<Void>> handleGeneratedCrudFailure(GeneratedCrudException exception) {
+        return ResponseEntity.status(exception.missing() ? HttpStatus.NOT_FOUND : HttpStatus.CONFLICT)
+                .body(ResultRecord.failure(exception));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResultRecord<Void> handleScheduleTimeDecodeFailure(HttpMessageNotReadableException exception) {

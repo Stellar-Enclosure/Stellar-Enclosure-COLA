@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.light.adapter.teaching.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -64,6 +68,8 @@ public class SchoolClassController {
     @PostMapping
     @Operation(operationId = "nativeLightSchoolClassCreateV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:school-class:create')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.school-class.create", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.school-class.create", oauthScopes = {"stellar-enclosure-source-light:school-class:create"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:school-class:create"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.school-class.create", permission = "stellar-enclosure-source-light:school-class:create", name = "Create school class")
     public SchoolClassDetailVO create(@Valid @RequestBody CreateSchoolClassDTO request) {
         fieldWrite.requireWritableFields(new FieldWriteAuthorizationCommand("stellar-enclosure-source-light:school-class:create", authorizationProperties.getSystemCode(),
@@ -76,6 +82,8 @@ public class SchoolClassController {
     @GetMapping("/{schoolClassId}")
     @Operation(operationId = "nativeLightSchoolClassGetV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:school-class:read')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.school-class.read", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.school-class.read", oauthScopes = {"stellar-enclosure-source-light:school-class:read"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:school-class:read"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.school-class.read", permission = "stellar-enclosure-source-light:school-class:read", name = "Read school class")
     public SchoolClassDetailVO get(@PathVariable String schoolClassId) {
         return convertor.toSchoolClassDetail(
@@ -99,6 +107,8 @@ public class SchoolClassController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ResultRecord.class)))
     })
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-light:school-class:schedule-course')")
+    @PermissionResource(key = "stellar-enclosure-source-light.api.school-class.schedule-course", type = ResourceType.API, labelPage = "stellar-enclosure-source-light.permissions", labelKey = "api.school-class.schedule-course", oauthScopes = {"stellar-enclosure-source-light:school-class:schedule-course"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-light:school-class:schedule-course"})
     @RBACAPIResource(code = "stellar-enclosure-source-light.api.school-class.schedule-course", permission = "stellar-enclosure-source-light:school-class:schedule-course", name = "Schedule course")
     public SchoolClassDetailVO schedule(
             @PathVariable String schoolClassId,

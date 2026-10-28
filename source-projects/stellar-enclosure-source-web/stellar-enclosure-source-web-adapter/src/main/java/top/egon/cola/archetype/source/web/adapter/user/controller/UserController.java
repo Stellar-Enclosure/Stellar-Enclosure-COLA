@@ -1,5 +1,9 @@
 package top.egon.cola.archetype.source.web.adapter.user.controller;
 
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.ResourceType;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -67,6 +71,8 @@ public class UserController {
     @PostMapping
     @Operation(operationId = "nativeWebUserCreateV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:user:create')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.user.create", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.user.create", oauthScopes = {"stellar-enclosure-source-web:user:create"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:user:create"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.user.create", permission = "stellar-enclosure-source-web:user:create", name = "Create")
     public ResponseEntity<UserDetailVO> create(
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -81,6 +87,8 @@ public class UserController {
     @GetMapping("/{userId}")
     @Operation(operationId = "nativeWebUserGetV1")
     @PreAuthorize("hasAuthority('SCOPE_stellar-enclosure-source-web:user:read')")
+    @PermissionResource(key = "stellar-enclosure-source-web.api.user.read", type = ResourceType.API, labelPage = "stellar-enclosure-source-web.permissions", labelKey = "api.user.read", oauthScopes = {"stellar-enclosure-source-web:user:read"})
+    @RequiresPermissions(codes = {"stellar-enclosure-source-web:user:read"})
     @RBACAPIResource(code = "stellar-enclosure-source-web.api.user.read", permission = "stellar-enclosure-source-web:user:read", name = "Get")
     public UserDetailVO get(@PathVariable String userId) {
         return converter.toVO(userManage.getUser(new UserDetailQuery(
