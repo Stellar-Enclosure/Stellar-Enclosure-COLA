@@ -762,7 +762,7 @@ def nativeProviderTest = assertFile(
 }
 
 [
-    "application.yml", "application-dev.yml", "application-test.yml", "application-prod.yml",
+    "application.yml", "application-dev.yml", "application-test.yml", "application-prod.yml", "application-readwrite.yml",
     "egon-mybatis-plus-sharding.yml"
 ].each { name ->
     assertFile("student-management-evaluation-starter/src/main/resources/${name}")
@@ -776,8 +776,9 @@ def serviceProfileConfigNames = new File(
 assert serviceProfileConfigNames == [
     "application-dev.yml",
     "application-prod.yml",
+    "application-readwrite.yml",
     "application-test.yml"
-]: "Only dev, test and prod profile configuration files are allowed"
+]: "Unexpected profile configuration files"
 def serviceApplicationYaml = assertFile(
         "student-management-evaluation-starter/src/main/resources/application.yml").text
 assert serviceApplicationYaml.contains('classpath:egon-mybatis-plus-sharding.yml')
@@ -829,7 +830,7 @@ assert !serviceShardingRule.contains('transactionalReadQueryStrategy')
 assertMissing("student-management-evaluation-starter/src/main/resources/bootstrap-local.yml")
 assertMissing("student-management-evaluation-starter/src/main/resources/application-local.yml")
 assertMissing("student-management-evaluation-starter/src/main/resources/application-sharding.yml")
-assertMissing("student-management-evaluation-starter/src/main/resources/application-readwrite.yml")
+assertFile("student-management-evaluation-starter/src/main/resources/application-readwrite.yml")
 assert assertFile("pom.xml").text.contains("<spring.profiles.active>test</spring.profiles.active>")
 
 def generatedWorkflow = assertFile(".github/workflows/ci.yml").text
@@ -1404,5 +1405,21 @@ cqersSources.findAll { it.relative.contains('/application/') && it.relative.cont
 }
 assert new File(projectDir, 'README.md').getText('UTF-8').contains('CQERS Architecture')
 assert new File(projectDir, 'README.zh-CN.md').getText('UTF-8').contains('CQERS 架构')
+
+// Verify the generated strict read/write profile and its two-level routing fixture.
+def readwriteProfile = new File(projectDir, 'student-management-evaluation-starter/src/main/resources/application-readwrite.yml')
+assert readwriteProfile.isFile(): 'Missing readwrite profile'
+def readwriteText = readwriteProfile.getText('UTF-8')
+assert readwriteText.contains('mode: SHARDING_READWRITE')
+assert readwriteText.count('role: PRIMARY') == 3
+assert readwriteText.count('role: REPLICA') == 3
+assert readwriteText.contains('manifest-resource:')
+def routingExample = new File(projectDir, 'student-management-evaluation-infrastructure/src/test/resources/sharding/two-level-readwrite.yml')
+assert routingExample.isFile(): 'Missing two-level routing example'
+def routingText = routingExample.getText('UTF-8')
+assert routingText.count('transactionalReadQueryStrategy: DYNAMIC') == 3
+assert !routingText.contains('transactionalReadQueryStrategy: PRIMARY')
+assert routingText.contains('top.egon.cola.component.common.mybatis.sharding.algorithm.EgonColaTenantBusinessComplexShardingAlgorithm')
+assert new File(projectDir, 'student-management-evaluation-infrastructure/src/test/java/it/pkg/support/TwoLevelRoutingExampleTest.java').isFile()
 
 return true

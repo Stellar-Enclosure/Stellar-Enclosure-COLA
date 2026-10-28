@@ -459,4 +459,20 @@ cqersSources.findAll { it.relative.contains('/application/') && it.relative.cont
 assert new File(projectDir, 'README.md').getText('UTF-8').contains('CQERS Architecture')
 assert new File(projectDir, 'README.zh-CN.md').getText('UTF-8').contains('CQERS 架构')
 
+// Verify the generated strict read/write profile and its two-level routing fixture.
+def readwriteProfile = new File(projectDir, 'src/main/resources/application-readwrite.yml')
+assert readwriteProfile.isFile(): 'Missing readwrite profile'
+def readwriteText = readwriteProfile.getText('UTF-8')
+assert readwriteText.contains('mode: SHARDING_READWRITE')
+assert readwriteText.count('role: PRIMARY') == 3
+assert readwriteText.count('role: REPLICA') == 3
+assert readwriteText.contains('manifest-resource:')
+def routingExample = new File(projectDir, 'src/test/resources/sharding/two-level-readwrite.yml')
+assert routingExample.isFile(): 'Missing two-level routing example'
+def routingText = routingExample.getText('UTF-8')
+assert routingText.count('transactionalReadQueryStrategy: DYNAMIC') == 3
+assert !routingText.contains('transactionalReadQueryStrategy: PRIMARY')
+assert routingText.contains('top.egon.cola.component.common.mybatis.sharding.algorithm.EgonColaTenantBusinessComplexShardingAlgorithm')
+assert new File(projectDir, 'src/test/java/it/pkg/support/TwoLevelRoutingExampleTest.java').isFile()
+
 return true
