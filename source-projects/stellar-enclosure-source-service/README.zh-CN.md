@@ -182,6 +182,8 @@ Maven 测试会自动选择 `test`，`dev`、`release/*` 和 `hotfix/*` 分支�
 
 ## 二级缓存
 
+缓存仓储示例通过 `saveCached`、`updateCachedById` 和 `removeCachedById` 执行写入。组件缓存启用时，这些入口使用租户键调用配置的一致性策略；没有执行器时回退到普通 Spring 缓存失效。`saveCached` 要求提前分配正整数 ID。直接调用继承的 CRUD 方法会绕过这些缓存入口。缓存与 MyBatis 的租户 MDC 键须保持一致；副本延迟时，旧值仍可能在过期或下一次失效前重新进入缓存。
+
 `application.yml`、`application-dev.yml`、`application-prod.yml` 均以 `egon.cola.component.cache.enabled=true` 交付；`test` 保留同样的键但设为 `enabled: false`，让单元与模块测试不依赖 Redis。`infrastructure/config/RedisConfig.java` 已带 `@EnableCaching`，并发布 `redissonClient` 与二级 `cacheManager`，配置好 Redis 连接即可直接使用二级缓存。mp-sd-ext 基类已移除缓存端口耦合，具体
 Repository 通过 `@CacheConfig`、`@Cacheable`、`@CacheEvict` 等注解声明策略；已有 Repository 示例使用 `findCachedById` /
 `updateCachedById`（Agent 按业务自行声明）。普通 CRUD

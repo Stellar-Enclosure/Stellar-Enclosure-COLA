@@ -56,7 +56,7 @@ public class GradeDomainServiceImpl
         GradePO existing = gradeRepository.getById(po.getId());
         boolean saved;
         if (existing == null) {
-            saved = gradeRepository.save(po);
+            saved = gradeRepository.saveCached(po);
         } else {
             converter.updateMetadata(po, existing);
             saved = gradeRepository.updateCachedById(po);

@@ -199,6 +199,8 @@ Default tests use isolated H2 and controlled dependencies. This project ships no
 
 ## Two-Level Cache
 
+Cached repository examples use `saveCached`, `updateCachedById` and `removeCachedById` for mutations. When the component cache is active, these methods call its configured consistency strategy with the tenant-scoped key; the ordinary Spring eviction annotation is the fallback when that executor is unavailable. `saveCached` requires an already assigned positive ID. Direct inherited CRUD methods bypass these cache mutation entry points. Configure the cache and MyBatis tenant MDC keys consistently; replica lag can still repopulate an older value until expiry or a later invalidation.
+
 `application.yml`, `application-dev.yml` and `application-prod.yml` ship the cache starter with `egon.cola.component.cache.enabled=true`; `test` keeps the same keys with
 `enabled: false` so unit and module runs never require Redis. `infrastructure/config/OrganizationRedisConfig.java` carries `@EnableCaching` and
 publishes the `redissonClient` plus the two-level `cacheManager`, so a generated project is cache-ready once a Redis

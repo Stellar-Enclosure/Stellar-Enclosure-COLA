@@ -65,7 +65,7 @@ class OrganizationCacheTest {
         assertEquals("egonColaRepositoryKeyGenerator", cachedRead.keyGenerator());
         CacheEvict cachedWrite = annotated(UserRepository.class, "updateCachedById", CacheEvict.class);
         assertEquals("egonColaRepositoryKeyGenerator", cachedWrite.keyGenerator());
-        assertEquals("#result", cachedWrite.condition(), "a failed write must not evict the region");
+        assertEquals("#result && !#root.target.componentCacheMutationEnabled()", cachedWrite.condition());
         // The school class lookup is keyed by grade plus class, so it stays an explicit SQL read.
         assertNull(SchoolClassRepository.class.getAnnotation(CacheConfig.class),
                 "a compound key has no single-id region");

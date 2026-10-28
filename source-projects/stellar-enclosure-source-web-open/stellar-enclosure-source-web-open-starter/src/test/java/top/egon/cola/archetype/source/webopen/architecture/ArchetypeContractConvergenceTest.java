@@ -317,10 +317,10 @@ class ArchetypeContractConvergenceTest {
                     "the cached read must be a non-final proxy entry point: " + path);
             assertTrue(text.contains("public boolean updateCachedById("),
                     "the cached write must be a non-final proxy entry point: " + path);
-            assertTrue(text.contains("T(org.slf4j.MDC).get('tenantId')"),
+            assertTrue(text.contains("egonColaRepositoryKeyGenerator"),
                     "the region key must carry the tenant: " + path);
             assertTrue(text.contains("sync = true"), "the cached read must not stampede: " + path);
-            assertTrue(text.contains("condition = \"#result\""), "a false write must not evict: " + path);
+            assertTrue(text.contains("condition = \"#result && !#root.target.componentCacheMutationEnabled()\""), "a fallback eviction requires a successful write: " + path);
         }
 
         String user = read("infrastructure", "user/service/impl/UserDomainServiceImpl.java");

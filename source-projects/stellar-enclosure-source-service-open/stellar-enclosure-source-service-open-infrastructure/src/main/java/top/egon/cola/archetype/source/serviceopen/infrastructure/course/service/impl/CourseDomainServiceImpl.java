@@ -56,7 +56,7 @@ public class CourseDomainServiceImpl
         CoursePO po = courseConverter.toTarget(course);
         CoursePO current = po.getId() == null ? null : courseRepository.getById(po.getId());
         if (current != null) { courseConverter.updateMetadata(po, current); }
-        boolean written = current == null ? courseRepository.save(po) : courseRepository.updateCachedById(po);
+        boolean written = current == null ? courseRepository.saveCached(po) : courseRepository.updateCachedById(po);
         if (!written) { throw new org.springframework.dao.OptimisticLockingFailureException("VERSIONED_WRITE_CONFLICT"); }
 
         return courseConverter.toSource(po);

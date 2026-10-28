@@ -139,7 +139,7 @@ class ArchetypeContractConvergenceTest {
         assertTrue(course.contains("@CacheConfig(cacheNames = \"CoursePO\")"));
         assertTrue(course.contains("public CoursePO findCachedById("));
         assertTrue(course.contains("public boolean updateCachedById("));
-        assertTrue(course.contains("condition = \"#result\""), "false write must not evict");
+        assertTrue(course.contains("condition = \"#result && !#root.target.componentCacheMutationEnabled()\""), "fallback eviction requires a successful write");
 
         String domainService = read(modulePath("infrastructure/teaching/service/impl/CourseDomainServiceImpl.java"));
         assertTrue(domainService.contains("findCachedById("), "single id read must use the cached entry point");

@@ -57,7 +57,7 @@ public class SchoolClassDomainServiceImpl
         SchoolClassPO current = po.getId() == null ? null : schoolClassRepository.getById(po.getId());
         if (current != null) { schoolClassConverter.updateMetadata(po, current); }
         boolean written = current == null
-                ? schoolClassRepository.save(po) : schoolClassRepository.updateCachedById(po);
+                ? schoolClassRepository.saveCached(po) : schoolClassRepository.updateCachedById(po);
         if (!written) { throw new org.springframework.dao.OptimisticLockingFailureException("VERSIONED_WRITE_CONFLICT"); }
 
         return schoolClassConverter.toSource(po);

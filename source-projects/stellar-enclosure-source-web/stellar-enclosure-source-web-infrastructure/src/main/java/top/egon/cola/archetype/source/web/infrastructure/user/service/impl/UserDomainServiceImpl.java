@@ -64,7 +64,7 @@ public class UserDomainServiceImpl
         UserPO existing = userRepository.getById(po.getId());
         boolean saved;
         if (existing == null) {
-            saved = userRepository.save(po);
+            saved = userRepository.saveCached(po);
         } else {
             userConverter.updateMetadata(po, existing);
             saved = userRepository.updateCachedById(po);

@@ -49,7 +49,7 @@ public class UserDomainServiceImpl
         UserPO current = po.getId() == null ? null : userRepository.getById(po.getId());
         if (current != null) { converter.updateMetadata(po, current); }
         boolean written = current == null
-                ? userRepository.save(po) : userRepository.updateCachedById(po);
+                ? userRepository.saveCached(po) : userRepository.updateCachedById(po);
         if (!written) { throw new org.springframework.dao.OptimisticLockingFailureException("VERSIONED_WRITE_CONFLICT"); }
 
         return converter.toSource(po);
