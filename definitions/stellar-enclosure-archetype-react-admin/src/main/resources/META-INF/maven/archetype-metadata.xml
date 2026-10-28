@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archetype-descriptor xmlns="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0 http://maven.apache.org/xsd/archetype-descriptor-1.1.0.xsd"
+    name="stellar-enclosure-react-admin">
+  <requiredProperties>
+    <requiredProperty key="gitignore"><defaultValue>.gitignore</defaultValue></requiredProperty>
+  </requiredProperties>
+  <fileSets>
+    <fileSet filtered="false" encoding="UTF-8">
+      <directory></directory>
+      <includes>
+        <include>__gitignore__</include>
+        <include>.env.example</include>
+        <include>package.json</include>
+        <include>package-lock.json</include>
+        <include>tsconfig.json</include>
+        <include>vite.config.ts</include>
+        <include>index.html</include>
+        <include>permission-manifest.config.json</include>
+        <include>permission-toolchain.lock.json</include>
+        <include>permission-targets.json</include>
+        <include>README.md</include>
+      </includes>
+    </fileSet>
+    <fileSet filtered="false" encoding="UTF-8">
+      <directory>src</directory>
+      <includes><include>**/*</include></includes>
+    </fileSet>
+    <fileSet filtered="false" encoding="UTF-8">
+      <directory>scripts</directory>
+      <includes><include>**/*</include></includes>
+    </fileSet>
+    <fileSet filtered="false" encoding="UTF-8">
+      <directory>.github/workflows</directory>
+      <includes><include>**/*.yml</include></includes>
+    </fileSet>
+  </fileSets>
+</archetype-descriptor>

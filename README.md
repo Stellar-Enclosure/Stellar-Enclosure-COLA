@@ -10,7 +10,8 @@ Application architecture templates, Maven archetypes and coding workflow skills 
 | 服务工程 | `service`、`service-open` 提供七模块工程，包含独立 Facade 合同和 RPC/MQ 适配；不承担业务 HTTP Controller。 |
 | Web 工程 | `web`、`web-open` 提供七模块工程，包含 HTTP/GraphQL/RPC/MQ 入口与跨服务调用示例。 |
 | Agent 工程 | `agent` 提供六模块工程，包含 Deep Research SSE、Knowledge API、Agent Flow、RAG 和 Outbox 集成。 |
-| Archetype 生产 | 从正常源工程与打包定义生成七族 archetype，支持确定性检查、边界检查与生成工程的 Groovy verifier。 |
+| React 管理端工程 | `react-admin` 提供 React/Vite 项目，复用共享布局、身份和权限 SDK，支持 codegen 生成业务页面。 |
+| Archetype 生产 | 从正常源工程与打包定义生成七族 Java 和一族 React archetype，支持确定性检查、边界检查与生成工程的 Groovy verifier。 |
 | 编码工作流 | `.agents/skills/stellar-enclosure-coding-*` 提供建模块、需求规格、实施计划和执行计划四个技能；Spec/Plan/Execute 内置离线 CRUD codegen 启动脚本。 |
 
 Native 与 Open 是已有集成边界不同的工程族，具体协议和依赖以所选源工程为准。模板与组件库分别维护：本仓库拥有源工程、打包规则和技能，实际通用运行时能力来自 [Components](https://github.com/Stellar-Enclosure/Stellar-Enclosure-Components) 及各平台 Starter。生成成功只证明模板打包与检查结果；现有实现与目标编码规范的差异见[架构总览](docs/architecture-overview.md)和[编码规范](docs/coding-standard.md)。
@@ -190,7 +191,7 @@ The bootstrap installs parent/BOM models before building components and business
 
 The four skills are under `.agents/skills/stellar-enclosure-coding-*`. Their resources and original normative rule blocks remain included. `.agents/skills/scripts/link-skills.sh` supports explicit links to other checkouts; its regression test is beside it.
 
-Seven authoritative archetype families live under `source-projects` and `definitions`. Never edit or commit `.generated`. After bootstrap:
+Seven Java archetype families and one React Admin archetype live under `source-projects` and `definitions`. Never edit or commit `.generated`. After bootstrap:
 
 ```bash
 ./scripts/generate_archetypes.sh generate
@@ -199,18 +200,20 @@ Seven authoritative archetype families live under `source-projects` and `definit
 
 The Spec, Plan and Execute skills each bundle `scripts/stellar-enclosure-codegen.sh` inside their own skill directory. Invoke it from the resolved skill root so it also works in linked or copied skills. Its implementation is the Components artifact `top.egon:stellar-enclosure-component-code-generator:0.0.1`; the existing explicit `EGON_CODEGEN_CLASSPATH` contract is preserved.
 
-本仓库维护七个 Maven Archetype 产品：可直接编译、测试的正常源工程经两段式生成，打包成发布到 Maven Central 的 archetype。根 `pom.xml` 是 `stellar-enclosure-archetypes-parent`，直接继承 `stellar-enclosure-parent`。`source-projects/`、`definitions/`、`docs/` 和 `.generated/` 均位于仓库根目录。
+本仓库维护八个 Maven Archetype 产品：七个 Java 产品和一个 React Admin 产品。可直接验证的正常源工程经生成流程打包成发布到 Maven Central 的 archetype。根 `pom.xml` 是 `stellar-enclosure-archetypes-parent`，直接继承 `stellar-enclosure-parent`。`source-projects/`、`definitions/`、`docs/` 和 `.generated/` 均位于仓库根目录。
 
 ## 目录结构
 
 | 路径 | 内容 | 是否手改 |
 |---|---|---|
-| `source-projects/stellar-enclosure-source-<family>/` | 七个正常源工程：Java、资源、测试、模块 POM，以及随生成工程分发的 README | 是，这里是事实来源 |
+| `source-projects/stellar-enclosure-source-<family>/` | 七个 Java 正常源工程及一个 React 源工程，包含源码、测试和随生成工程分发的 README | 是，这里是事实来源 |
 | `definitions/stellar-enclosure-archetype-<family>/` | archetype 打包描述、`verify.groovy` 集成测试、随生成工程分发的策展文档 | 是 |
 | `.generated/` | 由 `scripts/generate_archetypes.sh generate` 派生的打包输入，已被 gitignore | 否，永远不要手改 |
 | `docs/` | 维护者文档（见下文），不随生成工程分发 | 是 |
 
-七个 family 为 `light`、`light-open`、`service`、`service-open`、`web`、`web-open`、`agent`。各产品的形态、模块与直接依赖见[架构总览](docs/architecture-overview.md)。
+Java family 为 `light`、`light-open`、`service`、`service-open`、`web`、`web-open`、`agent`；`react-admin` 生成独立 npm 项目。Java 产品的形态、模块与直接依赖见[架构总览](docs/architecture-overview.md)。
+
+React 模板使用同一 Maven Archetype 发布方式，生成后的页面开发、测试和打包使用 Node 24/npm 11。其源项目和权限工具链说明见 [React Admin README](source-projects/stellar-enclosure-source-react-admin/README.md)。
 
 ## 维护者文档
 
@@ -261,13 +264,13 @@ python3 scripts/checks/check-native-archetype-boundaries.py
 ./mvnw -o -f pom.xml -Pgenerated-archetypes integration-test -DskipTests=false
 ```
 
-最后一条会为七族各生成一个业务工程并运行其 `verify.groovy`，耗时较长；只改动单个 family 时可加 `-pl :stellar-enclosure-archetype-<family>` 限定范围。生成器和静态检查通过不代表应用、数据库或容器运行验证通过。
+最后一条会为每族生成一个业务工程并运行其 `verify.groovy`，耗时较长；只改动单个 family 时可加 `-pl :stellar-enclosure-archetype-<family>` 限定范围。生成器和静态检查通过不代表应用、数据库或容器运行验证通过。
 
 `scripts/` 只保留 archetype 维护工具：`generate_archetypes.sh` 生成并检查打包资源，`checks/` 校验 Native/Open/Agent 边界，`regression/` 验证生成器安全性及 Groovy verifier。生成器回归使用 `bash scripts/regression/test-generate-archetypes.sh unit`；两个 verifier 回归脚本需要显式传入已构建的生成工程和 Groovy classpath，可用 `--help` 查看参数。
 
 ## Publish to Maven Central
 
-This repository publishes its root archetype parent, seven generated archetypes and four peer facade contracts needed by generated projects. The generated reactor wrapper and all other source-project examples are excluded. Dependencies from Parent, Components and the platform Starters must already be published.
+This repository publishes its root archetype parent, eight generated archetypes and four peer facade contracts needed by generated projects. The generated reactor wrapper and all other source-project examples are excluded. Dependencies from Parent, Components and the platform Starters must already be published.
 
 Configure Maven server `central` with your Central Portal token and a local GPG key, as described in the [release guide](https://github.com/Stellar-Enclosure/Stellar-Enclosure-Parent/blob/main/docs/first-release.md). Run from this repository:
 
@@ -287,10 +290,10 @@ for family in service web service-open web-open; do
     -Prelease,publish-resolved-facade clean deploy
 done
 
-# Select the seven archetypes without publishing the parent/facades again.
+# Select the archetypes without publishing the parent/facades again.
 ./mvnw -B -ntp -f pom.xml \
   -Prelease,generated-archetypes \
-  -pl :stellar-enclosure-archetype-agent,:stellar-enclosure-archetype-light,:stellar-enclosure-archetype-light-open,:stellar-enclosure-archetype-service,:stellar-enclosure-archetype-service-open,:stellar-enclosure-archetype-web,:stellar-enclosure-archetype-web-open \
+  -pl :stellar-enclosure-archetype-agent,:stellar-enclosure-archetype-light,:stellar-enclosure-archetype-light-open,:stellar-enclosure-archetype-service,:stellar-enclosure-archetype-service-open,:stellar-enclosure-archetype-web,:stellar-enclosure-archetype-web-open,:stellar-enclosure-archetype-react-admin \
   -Darchetype.test.skip=true clean deploy
 )
 ```

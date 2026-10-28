@@ -1,0 +1,97 @@
+name: Build and unit tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PERMISSION_SDK_ROOT: ${{ github.workspace }}/workspace/web-sdk
+      PERMISSION_BUILD_ROOT: ${{ github.workspace }}/workspace/app
+      PERMISSION_OUTPUT_ROOT: ${{ github.workspace }}/permission-temp/permission-results
+      PERMISSION_CONTRACT_ARTIFACT_FILE: ${{ github.workspace }}/permission-temp/permission-contract.jar
+      PERMISSION_CONTRACT_ARTIFACT_URL: ${{ vars.PERMISSION_CONTRACT_ARTIFACT_URL }}
+      PERMISSION_BACKEND_MANIFEST_URL: ${{ vars.PERMISSION_BACKEND_MANIFEST_URL }}
+      PAC_SDK_DIR: ${{ github.workspace }}/workspace/web-sdk
+      PAC_TOOLCHAIN_LOCK: ${{ github.workspace }}/workspace/app/permission-toolchain.lock.json
+      PAC_CONTRACT_ARTIFACT: ${{ github.workspace }}/permission-temp/permission-contract.jar
+      PAC_BACKEND_MANIFEST: ${{ github.workspace }}/permission-temp/backend-manifest.json
+      PAC_BUILD_ID: github-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: workspace/app
+          persist-credentials: false
+      - name: Read the reviewed immutable toolchain commit
+        id: pin
+        working-directory: workspace/app
+        run: echo "commit=$(python3 scripts/permission-ci.py pin)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          repository: Stellar-Enclosure/web-sdk
+          ref: ${{ steps.pin.outputs.commit }}
+          path: workspace/web-sdk
+          token: ${{ secrets.STELLAR_ENCLOSURE_READ_TOKEN || github.token }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            workspace/web-sdk/package-lock.json
+            workspace/app/package-lock.json
+      - name: Install pinned tools
+        working-directory: workspace/web-sdk
+        run: npm ci
+      - name: Prepare the fixed permission contract
+        working-directory: workspace/app
+        run: |
+          python3 - <<'CHECK'
+          import os, urllib.parse
+          url = urllib.parse.urlsplit(os.environ['PERMISSION_CONTRACT_ARTIFACT_URL'])
+          if url.scheme != 'https' or not url.hostname or url.username or url.password or url.query or url.fragment:
+              raise SystemExit('A non-secret HTTPS contract artifact URL is required')
+          CHECK
+          mkdir -p "$(dirname "$PERMISSION_CONTRACT_ARTIFACT_FILE")"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --max-filesize 67108864 "$PERMISSION_CONTRACT_ARTIFACT_URL" --output "$PERMISSION_CONTRACT_ARTIFACT_FILE"
+          python3 scripts/permission-ci.py prepare
+      - name: Fetch the pinned backend Manifest when configured
+        working-directory: workspace/app
+        run: |
+          if python3 -c "import json,sys; sys.exit(0 if json.load(open('permission-manifest.config.json')).get('backendReferences') else 1)"; then
+            python3 - <<'CHECK'
+          import os, urllib.parse
+          url = urllib.parse.urlsplit(os.environ['PERMISSION_BACKEND_MANIFEST_URL'])
+          if url.scheme != 'https' or not url.hostname or url.username or url.password or url.query or url.fragment:
+              raise SystemExit('A non-secret HTTPS backend Manifest URL is required')
+          CHECK
+            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+              --max-filesize 16777216 "$PERMISSION_BACKEND_MANIFEST_URL" --output "$PAC_BACKEND_MANIFEST"
+          fi
+      - name: Install, test and build the application
+        working-directory: workspace/app
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Validate the exact frontend artifact
+        working-directory: workspace/app
+        run: python3 scripts/permission-ci.py validate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: permission-frontend-artifacts
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            workspace/app/dist/
+            workspace/app/.generated/permissions/

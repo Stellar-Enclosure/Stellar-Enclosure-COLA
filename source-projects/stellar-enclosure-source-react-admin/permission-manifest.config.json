@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "application": {
+    "businessCode": "example",
+    "applicationCode": "stellar-enclosure-source-react-admin"
+  },
+  "producerId": "stellar-enclosure-source-react-admin-web",
+  "ownedKeyPrefixes": ["app."],
+  "expectedModules": ["app"],
+  "modules": {
+    "app": {
+      "entryPoints": ["src/permissions/resources.ts", "src/generated/permissions.ts"]
+    }
+  },
+  "artifact": {
+    "repository": "stellar-enclosure-source-react-admin",
+    "commit": "0000000000000000000000000000000000000000",
+    "buildId": "local-source",
+    "version": "0.0.1"
+  },
+  "tsconfig": "tsconfig.json",
+  "toolchainLock": "permission-toolchain.lock.json"
+}

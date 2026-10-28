@@ -129,6 +129,10 @@ hash_source_tree() {
       ! -path '*/target/*' \
       ! -path '*/.git/*' \
       ! -path '*/.idea/*' \
+      ! -path '*/node_modules/*' \
+      ! -path '*/dist/*' \
+      ! -path '*/.generated/*' \
+      ! -name '*.tsbuildinfo' \
       -print | LC_ALL=C sort
   )
 }
@@ -174,8 +178,9 @@ parse_manifest() {
   MF_PEER_FACADE_PACKAGE=''
   MF_PEER_FACADE_CAMEL=''
   MF_PEER_FACADE_PARAMETERS=''
+  MF_SOURCE_KIND='maven'
   local seen_source_project=0 seen_source_group=0 seen_source_artifact=0 seen_source_version=0
-  local seen_source_package=0 seen_target_artifact=0 seen_topology=0
+  local seen_source_package=0 seen_target_artifact=0 seen_topology=0 seen_source_kind=0
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
@@ -206,6 +211,9 @@ parse_manifest() {
       expectedTopology)
         ((seen_topology == 0)) || die "duplicate manifest field expectedTopology in $manifest"
         MF_EXPECTED_TOPOLOGY="$value"; seen_topology=1 ;;
+      sourceKind)
+        ((seen_source_kind == 0)) || die "duplicate sourceKind in $manifest"
+        MF_SOURCE_KIND="$value"; seen_source_kind=1 ;;
       peerFacadePropertyPrefix)
         [[ -z "$MF_PEER_FACADE_PROPERTY_PREFIX" ]] \
           || die "duplicate manifest field peerFacadePropertyPrefix in $manifest"
@@ -225,6 +233,8 @@ parse_manifest() {
   [[ "$seen_source_package" == 1 && "$MF_SOURCE_PACKAGE" =~ ^[A-Za-z][A-Za-z0-9_.]*$ ]] || die "invalid sourcePackage in $manifest"
   [[ "$seen_target_artifact" == 1 && "$MF_TARGET_ARTIFACT_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || die "invalid targetArtifactId in $manifest"
   [[ "$seen_topology" == 1 && -n "$MF_EXPECTED_TOPOLOGY" ]] || die "missing expectedTopology in $manifest"
+  [[ "$MF_SOURCE_KIND" == maven || "$MF_SOURCE_KIND" == react ]] || die "invalid sourceKind in $manifest"
+  [[ "$MF_SOURCE_KIND" != react || "$MF_EXPECTED_TOPOLOGY" == root ]] || die "React source must have root topology"
   [[ "$MF_SOURCE_PROJECT" != /* ]] || die "absolute sourceProject in $manifest"
   [[ "$MF_SOURCE_PROJECT" != *'|'* && "$MF_SOURCE_PROJECT" != *$'\n'* ]] || die "invalid sourceProject in $manifest"
 
@@ -888,6 +898,37 @@ generate_one() {
   parse_manifest "$manifest"
   product_root="$STAGING_ROOT/$MF_TARGET_ARTIFACT_ID"
   mkdir -p "$product_root"
+  if [[ "$MF_SOURCE_KIND" == react ]]; then
+    resources="$product_root/archetype-resources"
+    mkdir -p "$resources"
+    tar -C "$CURRENT_SOURCE_DIR" --exclude='./node_modules' --exclude='./dist' --exclude='./.generated' \
+      --exclude='./target' --exclude='./.egon' --exclude='./*.tsbuildinfo' -cf - . | tar -C "$resources" -xf -
+    mv -- "$resources/.gitignore" "$resources/__gitignore__"
+    # The Maven POM is packaging metadata only; the generated application uses npm.
+    cat >"$resources/pom.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>${groupId}</groupId>
+  <artifactId>${artifactId}</artifactId>
+  <version>${version}</version>
+  <packaging>pom</packaging>
+</project>
+EOF
+    compose_child_module "$product_root"
+    manifest_hash="$product_root/generation-manifest.sha256"
+    {
+      printf 'generator=react-source-copy-v1\n'
+      printf 'rootVersion=%s\n' "$ROOT_VERSION"
+      printf 'sourceProject=%s\n' "$MF_SOURCE_PROJECT"
+      printf 'targetArtifactId=%s\n' "$MF_TARGET_ARTIFACT_ID"
+      printf '[product]\n'
+      hash_product_tree "$product_root"
+    } >"$manifest_hash"
+    printf 'generated %s (%s files)\n' "$MF_TARGET_ARTIFACT_ID" \
+      "$(find "$product_root" -type f ! -name generation-manifest.sha256 | wc -l | tr -d ' ')"
+    return
+  fi
   plugin_output="$product_root/plugin-output"
   plugin_properties="$product_root/create-from-project.properties"
   plugin_log="$product_root/create-from-project.log"

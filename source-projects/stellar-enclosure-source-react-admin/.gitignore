@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.generated/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.egon/codegen/plans/
+.egon/codegen/candidates/
+.egon/codegen/apply.lock
+.egon/codegen/state-history/
