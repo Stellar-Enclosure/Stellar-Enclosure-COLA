@@ -23,6 +23,6 @@ export default defineConfig(async ({mode, command}) => {
     plugins: [react(), egonFaviconPlugin(), ...permissionPlugins],
     resolve: {dedupe: ['react', 'react-dom', 'antd', '@tanstack/react-query', 'react-router-dom', 'react-i18next', 'i18next', '@ant-design/icons']},
     server: {host: '127.0.0.1'},
-    test: {environment: 'jsdom', fileParallelism: false},
+    test: {environment: 'jsdom', fileParallelism: false, include: ['src/**/*.{test,spec}.{ts,tsx}']},
   }
 })
