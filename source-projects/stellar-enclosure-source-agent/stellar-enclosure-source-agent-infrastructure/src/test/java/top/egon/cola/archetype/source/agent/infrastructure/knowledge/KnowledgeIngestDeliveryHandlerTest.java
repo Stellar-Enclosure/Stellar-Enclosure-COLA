@@ -47,8 +47,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * Locks the asynchronous half of ingestion: the tenant is rebuilt from the payload before any data
- * access, the document is rebuilt from its stored text instead of being extracted again, and every
- * delivery writes a status the next attempt can act on.
+ * access, the document is rebuilt from its stored text instead of being extracted again, and a
+ * replica miss or unconfirmed status transition never acknowledges a delivery as successful.
  *
  * <p>Everything runs offline: the repositories and the ingestion service are doubles, and the
  * delivery thread starts without a caller's MDC context — which is exactly the situation the
@@ -130,6 +130,7 @@ class KnowledgeIngestDeliveryHandlerTest {
         givenVisibleDocument();
         given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
         given(ragIngestionService.ingest(any())).willReturn(ingestionResult(7));
+        given(documentRepository.markSucceeded(DOCUMENT_ID, 7)).willReturn(true);
 
         DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
 
@@ -232,26 +233,26 @@ class KnowledgeIngestDeliveryHandlerTest {
     }
 
     @Test
-    void treats_a_missing_document_as_success() {
+    void retries_when_a_replica_cannot_yet_see_the_document() {
         given(documentRepository.findById(DOCUMENT_ID)).willReturn(Optional.empty());
 
         DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
 
-        // The tenant filter also hides another tenant's document, so a miss means "deleted or never
-        // ours": there is nothing to index and a retry would not change that.
-        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.SUCCESS);
+        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.RETRYABLE_FAILURE);
+        assertThat(result.code()).isEqualTo("KNOWLEDGE_DOCUMENT_NOT_VISIBLE");
         verifyNoInteractions(ragIngestionService);
         verify(documentRepository, never()).markProcessing(anyLong(), anyInt());
     }
 
     @Test
-    void stops_when_another_attempt_already_owns_the_document() {
+    void retries_when_the_claim_is_not_confirmed() {
         givenVisibleDocument();
         given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(false);
 
         DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
 
-        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.SUCCESS);
+        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.RETRYABLE_FAILURE);
+        assertThat(result.code()).isEqualTo("KNOWLEDGE_CLAIM_NOT_CONFIRMED");
         verifyNoInteractions(ragIngestionService);
     }
 
@@ -259,30 +260,42 @@ class KnowledgeIngestDeliveryHandlerTest {
     void fails_a_document_that_has_no_stored_text() {
         given(documentRepository.findById(DOCUMENT_ID))
                 .willReturn(Optional.of(documentWithoutContent()));
+        given(knowledgeBaseRepository.findById(KNOWLEDGE_BASE_ID)).willReturn(Optional.of(knowledgeBase()));
         given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
 
         deliverExpectingFailure(1);
 
         verify(documentRepository).markRetryPending(DOCUMENT_ID, 1, "KNOWLEDGE_CONTENT_MISSING",
                 "the document has no stored text to embed");
-        verifyNoInteractions(ragIngestionService, knowledgeBaseRepository);
+        verifyNoInteractions(ragIngestionService);
     }
 
     @Test
-    void ends_the_delivery_when_the_knowledge_base_is_gone() {
+    void retries_a_missing_base_before_claiming_the_document() {
         givenVisibleDocument();
         given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
         given(knowledgeBaseRepository.findById(KNOWLEDGE_BASE_ID)).willReturn(Optional.empty());
 
         DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
 
-        // No retry will bring the base back, so the message is answered now: the document reaches a
-        // terminal status instead of being stranded in PROCESSING with nothing left to move it.
-        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.PERMANENT_FAILURE);
+        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.RETRYABLE_FAILURE);
         assertThat(result.code()).isEqualTo("KNOWLEDGE_BASE_NOT_FOUND");
-        verify(documentRepository).markDead(DOCUMENT_ID, "KNOWLEDGE_BASE_NOT_FOUND",
-                "the document's knowledge base no longer exists");
+        verify(documentRepository, never()).markProcessing(anyLong(), anyInt());
+        verify(documentRepository, never()).markDead(anyLong(), any(), any());
         verifyNoInteractions(ragIngestionService);
+    }
+
+    @Test
+    void does_not_acknowledge_when_completion_cannot_be_confirmed() {
+        givenVisibleDocument();
+        given(documentRepository.markProcessing(DOCUMENT_ID, 1)).willReturn(true);
+        given(ragIngestionService.ingest(any())).willReturn(ingestionResult(7));
+        given(documentRepository.markSucceeded(DOCUMENT_ID, 7)).willReturn(false);
+
+        DeliveryResult result = handler.deliver(delivery(payload(TENANT, DOCUMENT_ID), 1, 5));
+
+        assertThat(result.kind()).isEqualTo(DeliveryResult.Kind.RETRYABLE_FAILURE);
+        assertThat(result.code()).isEqualTo("KNOWLEDGE_COMPLETION_NOT_CONFIRMED");
     }
 
     @Test

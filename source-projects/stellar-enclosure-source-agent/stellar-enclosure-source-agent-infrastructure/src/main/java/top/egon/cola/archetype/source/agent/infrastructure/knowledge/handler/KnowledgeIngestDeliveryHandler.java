@@ -45,10 +45,10 @@ import java.util.Optional;
  * <p>The document text is rebuilt rather than re-extracted, and never re-read from storage, so a
  * retried delivery re-chunks and re-embeds what is already in the database.
  *
- * <p>Failures are thrown instead of classified here: the outbox turns them into retries and, once
- * the attempts are exhausted, into a dead letter. Whatever fails, the document is left in a status
- * the next attempt can act on — {@code PENDING} while attempts remain, {@code DEAD} on the last one
- * — so a delivery that dies mid-flight never strands a document in {@code PROCESSING}.
+ * <p>Replica misses and unconfirmed transitions are retried by the outbox. Processing failures
+ * attempt to return the document to {@code PENDING} or mark it {@code DEAD} when attempts are
+ * exhausted. A worker interruption or a transition hidden by replica lag can leave a document in
+ * {@code PROCESSING}; the dead-letter and document then require reconciliation.
  */
 @Slf4j
 @Component("knowledgeIngestDeliveryHandler")
@@ -63,8 +63,6 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
     private static final String CONTENT_MISSING_SUMMARY = "the document has no stored text to embed";
 
     private static final String BASE_MISSING = "KNOWLEDGE_BASE_NOT_FOUND";
-
-    private static final String BASE_MISSING_SUMMARY = "the document's knowledge base no longer exists";
 
     private static final String INTERNAL_FAILURE = "KNOWLEDGE_INTERNAL_ERROR";
 
@@ -142,32 +140,28 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
     private DeliveryResult ingest(IngestTask task, DeliveryContext context, long startedAt) {
         Optional<KnowledgeDocumentBO> stored = documentRepository.findById(task.documentId());
         if (stored.isEmpty()) {
-            // Deleted, or another tenant's: there is nothing left to index and a retry cannot
-            // change that, so the message is done.
-            log.info("knowledge ingest documentId={} attemptCount={} outcome=SKIPPED reason=document_not_visible",
+            // A replica miss cannot prove that the primary row was deleted.
+            log.info("knowledge ingest documentId={} attemptCount={} outcome=RETRY reason=document_not_visible",
                     task.documentId(), context.attempt());
-            return DeliveryResult.success();
+            return DeliveryResult.retryableFailure("KNOWLEDGE_DOCUMENT_NOT_VISIBLE", "document is not visible yet");
         }
         KnowledgeDocumentBO document = stored.get();
+        Optional<KnowledgeBaseBO> base = knowledgeBaseRepository.findById(document.knowledgeBaseId());
+        if (base.isEmpty()) {
+            // Check before claiming so a lagging replica does not strand a PROCESSING document.
+            log.info("knowledge ingest documentId={} knowledgeBaseId={} attemptCount={} outcome=RETRY reason=base_not_visible",
+                    document.documentId(), document.knowledgeBaseId(), context.attempt());
+            return DeliveryResult.retryableFailure(BASE_MISSING, "knowledge base is not visible yet");
+        }
         if (!documentRepository.markProcessing(document.documentId(), context.attempt())) {
-            // Another attempt moved the row on; the newer delivery owns the status from here.
-            log.info("knowledge ingest documentId={} attemptCount={} outcome=SKIPPED reason=already_claimed",
+            // A zero-row transition may also be caused by an out-of-date replica candidate.
+            log.info("knowledge ingest documentId={} attemptCount={} outcome=RETRY reason=claim_not_confirmed",
                     document.documentId(), context.attempt());
-            return DeliveryResult.success();
+            return DeliveryResult.retryableFailure("KNOWLEDGE_CLAIM_NOT_CONFIRMED", "document claim was not confirmed");
         }
         if (document.content() == null || document.content().isBlank()) {
             return fail(document, null, context, CONTENT_MISSING, CONTENT_MISSING_SUMMARY, startedAt,
                     new IllegalStateException("the stored document carries no text"));
-        }
-        Optional<KnowledgeBaseBO> base = knowledgeBaseRepository.findById(document.knowledgeBaseId());
-        if (base.isEmpty()) {
-            // Settled: no retry will bring the base back, and leaving the document in PROCESSING
-            // would strand it with no delivery left to move it.
-            documentRepository.markDead(document.documentId(), BASE_MISSING, BASE_MISSING_SUMMARY);
-            log.warn("knowledge ingest documentId={} knowledgeBaseId={} attemptCount={}/{} outcome=DEAD code={}",
-                    document.documentId(), document.knowledgeBaseId(), context.attempt(),
-                    context.maxAttempts(), BASE_MISSING);
-            return DeliveryResult.permanentFailure(BASE_MISSING, BASE_MISSING_SUMMARY);
         }
         return ingest(document, base.get(), context, startedAt);
     }
@@ -176,7 +170,11 @@ public class KnowledgeIngestDeliveryHandler implements DeliveryHandler {
                                   DeliveryContext context, long startedAt) {
         try {
             RagIngestionResult result = ragIngestionService.ingest(assemble(document, knowledgeBase));
-            documentRepository.markSucceeded(document.documentId(), result.chunkCount());
+            if (!documentRepository.markSucceeded(document.documentId(), result.chunkCount())) {
+                log.warn("knowledge ingest documentId={} attemptCount={} outcome=RETRY reason=completion_not_confirmed",
+                        document.documentId(), context.attempt());
+                return DeliveryResult.retryableFailure("KNOWLEDGE_COMPLETION_NOT_CONFIRMED", "document completion was not confirmed");
+            }
             log.info("knowledge ingest documentId={} knowledgeBaseId={} logicalModelName={} chunkCount={}"
                             + " attemptCount={} outcome=SUCCEEDED elapsedMs={}",
                     document.documentId(), knowledgeBase.knowledgeBaseId(), knowledgeBase.embeddingModel(),
