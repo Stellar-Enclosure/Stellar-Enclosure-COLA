@@ -215,6 +215,22 @@ Java family 为 `light`、`light-open`、`service`、`service-open`、`web`、`w
 
 React 模板使用同一 Maven Archetype 发布方式，生成后的页面开发、测试和打包使用 Node 24/npm 11。其源项目和权限工具链说明见 [React Admin README](source-projects/stellar-enclosure-source-react-admin/README.md)。
 
+本地构建并安装模板后，可在目标目录创建前端工程：
+
+```sh
+./scripts/generate_archetypes.sh generate
+./mvnw -B -ntp -Pgenerated-archetypes -pl :stellar-enclosure-archetype-react-admin install
+
+# 在需要创建工程的目录执行，artifactId 使用小写 npm 名称，version 使用完整 semver。
+mvn -B org.apache.maven.plugins:maven-archetype-plugin:3.4.1:generate \
+  -DarchetypeGroupId=top.egon \
+  -DarchetypeArtifactId=stellar-enclosure-archetype-react-admin \
+  -DarchetypeVersion=0.0.1 \
+  -DgroupId=com.example -DartifactId=order-admin-web -Dversion=0.0.1
+```
+
+生成工程后配置真实业务、应用和网关信息，再使用其 README 中的 npm 命令；此处的安装不会发布到 Maven Central 或 npm。
+
 ## 维护者文档
 
 | 文档 | 语言 | 内容 |
