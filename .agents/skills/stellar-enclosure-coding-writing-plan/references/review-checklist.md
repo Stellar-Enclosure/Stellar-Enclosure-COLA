@@ -39,7 +39,7 @@
 - [ ] The exact source block from `references/user-mandated-java-rules.md` remains in both entrypoints; Chapter 4 contains Rule 1, 2, 3, 4, 5, 6, 7, 9, 10, and 11 as separate rows in that order.
 - [ ] Every Step has `Literal Rules:` and includes Rule 11; every affected file has `Literal rule enforcement:` with exact Rule numbers and concrete implementation evidence.
 - [ ] Rule 2 plans every affected layer handoff separately, not just Controller validation, including groups, `ValidationUtils`, telephone normalization, errors, and tests.
-- [ ] Rule 3 plans Record/`@Value`/the complete complex-class Lombok baseline and mandatory MapStruct/MapStructPlus plus Egon `BaseConverter`; conflicts are returned to the Spec/user.
+- [ ] Rule 3 plans immutable value-object records or the full class Lombok baseline. Conversion uses MapStruct/MapStructPlus with `BaseConverter` for bidirectional mapping or `BaseForwardConverter` for irreversible projections. Return unresolved conflicts to the Spec/user.
 - [ ] Rule 4 plans `@Slf4j`, explicit Bean names, `@RequiredArgsConstructor`, per-dependency `@Qualifier`, and `lombok.config` propagation in exact files.
 - [ ] Rule 9 assigns a concrete pattern and participant file order to every Complex flow; only evidenced Simple flows remain direct.
 - [ ] For Java work, `references/java-spring-egon-coding-standards.md` was read completely and the actual tree was classified as exactly one traditional-layer or exact selected Archetype profile; no hybrid/new layer was invented.
@@ -47,7 +47,7 @@
 - [ ] Every added dependency/custom replacement has an effective-Spec decision, proven gap, managed version/owner, impact, and validation; otherwise the Plan reuses existing capability.
 - [ ] New/changed Java type names have semantic PO/BO/DTO/VO/Query/Command/Event/Result or behavior roles and do not introduce ambiguous `Data`, `Info`, `Param`, or `Bean` carriers.
 - [ ] Each affected cross-layer input plans Jakarta/Spring Validation, `@Valid`/`@Validated`, groups for reused objects, approved normalization, error mapping, and tests; telephone rules use an approved mature standard rather than a duplicate Validator.
-- [ ] Each object uses the mandated Value-object record/ordinary class Lombok classification; every new affected Converter uses MapStruct/MapStructPlus and mandatory Egon `BaseConverter` without manual/BeanUtils/JSON copying.
+- [ ] Each object uses the mandated Value-object record/ordinary class Lombok classification; every new affected Converter uses MapStruct/MapStructPlus and the applicable Egon `BaseConverter` or `BaseForwardConverter` contract without manual/BeanUtils/JSON copying.
 - [ ] Each affected Spring Bean plans a stable explicit name, `@RequiredArgsConstructor`, final qualified dependencies, verified `lombok.config` propagation, and `@Slf4j` for concrete business classes.
 - [ ] Utility, Jackson-only JSON, `java.time`, `@ConfigurationProperties`, and all-environment key-parity consequences appear in exact files/pseudocode/tests.
 - [ ] Pattern decisions assign an actual pattern to every Complex flow; only Simple flow evidence permits direct logic, and neither hard-coded complexity nor ceremonial abstraction remains.

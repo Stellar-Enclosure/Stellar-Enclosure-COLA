@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stellar Enclosure Coding Create Module"
+  short_description: "Generate a native Maven project or outer reactor"
+  default_prompt: "Use $stellar-enclosure-coding-create-new-module to create one native Maven project with verified coordinates, a new destination, and a scaffold handoff."

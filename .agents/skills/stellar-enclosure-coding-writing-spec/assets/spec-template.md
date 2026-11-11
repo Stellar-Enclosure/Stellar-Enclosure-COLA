@@ -204,8 +204,8 @@ Read `references/user-mandated-java-rules.md`. Keep one independent row for ever
 | --- | --- | --- | --- | --- | --- | --- |
 | Rule 1 | Yes / No | `<all new/changed Java types and nearby conventions>` | `<mandatory semantic suffix decisions>` | `<exact paths/types>` | `<naming inventory/static review>` | PASS / N/A / BLOCKED |
 | Rule 2 | Yes / No | `<every affected layer handoff>` | `<constraints/groups/ValidationUtils/libphonenumber>` | `<boundary types/methods>` | `<positive/negative/group tests>` | PASS / N/A / BLOCKED |
-| Rule 3 | Yes / No | `<affected data objects and BaseConverter>` | `<value-object record/class complex Lombok baseline/MapStruct>` | `<models/converters>` | `<constructor/mapping tests>` | PASS / N/A / BLOCKED |
-| Rule 4 | Yes / No | `<business classes/Beans/lombok.config>` | `<@Slf4j/named Bean/@RequiredArgsConstructor/@Qualifier>` | `<business classes/config>` | `<wiring/logging tests or static gate>` | PASS / N/A / BLOCKED |
+| Rule 3 | Yes / No | `<affected data objects and Egon converter contracts>` | `<value-object record/class Lombok baseline/MapStruct>` | `<models/converters>` | `<constructor/mapping tests>` | PASS / N/A / BLOCKED |
+| Rule 4 | Yes / No | `<business classes/Beans/lombok.config>` | `<@Slf4j/named Bean/@RequiredArgsConstructor(onConstructor_ = @Autowired)/@Qualifier>` | `<business classes/config>` | `<wiring/logging tests or static gate>` | PASS / N/A / BLOCKED |
 | Rule 5 | Yes / No | `<imports/dependencies/existing helpers>` | `<closed utility allowlist>` | `<affected utility call sites>` | `<dependency/import search>` | PASS / N/A / BLOCKED |
 | Rule 6 | Yes / No | `<external JSON contracts>` | `<Jackson annotations/default proof>` | `<DTO/VO/Result/etc.>` | `<serialization/compatibility tests>` | PASS / N/A / BLOCKED |
 | Rule 7 | Yes / No | `<all environment profiles>` | `<identical key structure; values may differ>` | `<profile files/properties class>` | `<key-parity/config binding tests>` | PASS / N/A / BLOCKED |
@@ -640,7 +640,7 @@ Do not introduce Aggregate, Domain Service, Repository Port, or DDD Value Object
 
 | Type | Record / class / immutable class | Lombok annotations or compact constructor | Validation annotations/groups | Normalization | Framework/ORM reason | Tests |
 | --- | --- | --- | --- | --- | --- | --- |
-| `<Type>` | `<representation>` | `<record compact constructor / @Value / complete complex-class baseline>` | `<Jakarta constraints and groups>` | `<named boundary/helper/library>` | `<reason or blocking constructor conflict>` | `TEST-001` |
+| `<Type>` | `<representation>` | `<immutable value-object record compact constructor / complete class Lombok baseline>` | `<Jakarta constraints and groups>` | `<named boundary/helper/library>` | `<reason or blocking constructor conflict>` | `TEST-001` |
 
 Ordinary POJOs/entities use `class` with `@Data`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Accessors(chain = true)`, a context-selected `@Builder` or `@SuperBuilder`, and `@EqualsAndHashCode(callSuper = true)` when superclass state participates in equality. Only immutable value objects may use `record`; see `references/egon-java-cqe-contract.md` for compile-safe root-class exceptions and collection immutability.
 
@@ -905,7 +905,7 @@ Read `references/user-mandated-java-rules.md` and `references/java-spring-egon-c
 | `MC-NAME-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<affected type inventory>` | `<semantic suffix result>` | `None / action` |
 | `MC-VALID-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<REST/GraphQL/layer boundary, group, normalization and error design>` | `<validation result>` | `None / action` |
 | `MC-MODEL-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<record/class/Lombok table>` | `<construction result>` | `None / action` |
-| `MC-CONVERT-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<converter/BaseConverter evidence>` | `<mapping result>` | `None / action` |
+| `MC-CONVERT-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<MapStruct and BaseConverter or BaseForwardConverter evidence>` | `<mapping result>` | `None / action` |
 | `MC-LOG-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<business class design>` | `<Slf4j/logging result>` | `None / action` |
 | `MC-BEAN-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<Bean names/Qualifier/lombok.config>` | `<injection result>` | `None / action` |
 | `MC-UTIL-001` | Applicable / Not applicable | PASS / N/A / FAIL / BLOCKED | `<utility/dependency evidence>` | `<approved utility result>` | `None / action` |
@@ -931,4 +931,4 @@ Read `references/egon-java-cqe-contract.md`. Record each applicable concern sepa
 
 ## Backend generation and dependency evidence
 
-Read `references/backend-code-generation.md`. For affected DDL/CRUD scaffolding record the verified generator, profile, DDL/manifest version, logical tables, output paths and exact artifacts; identify generated versus custom files and update/hash conflicts. On native light/web/service, catalog-owned types are generator output, not handwritten classes. A new module is an input from `stellar-enclosure-coding-create-new-module`, not a tree this Spec invents. After a skill-driven generator apply, or a plan that is the last authorized generator action, append the classpath SQL journal defined there. Record current dependency evidence and explicit approval for each introduction. Absent tooling or unapproved missing dependencies blocks the dependent work.
+Read `references/backend-code-generation.md`. For affected DDL/CRUD scaffolding record the verified generator, profile, DDL/manifest version, logical tables, output paths and exact artifacts; identify generated versus custom files and update/hash conflicts. On native light/web/service, catalog-owned types are generator output, not handwritten classes. A new module is an input from `stellar-enclosure-coding-create-new-module`, not a tree this Spec invents. If the request includes a generator preview, review the CLI plan output and append the classpath SQL journal as defined there. Specify the journal requirement for the future generation Step. Record current dependency evidence and explicit approval for each introduction. Absent tooling or unapproved missing dependencies blocks the dependent work.

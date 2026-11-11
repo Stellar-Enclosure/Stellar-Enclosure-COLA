@@ -99,7 +99,7 @@ The final Plan repeats every ID exactly once in the blocking table:
 | `MC-NAME-001` | New/changed Java names use semantic roles and avoid ambiguous carrier suffixes |
 | `MC-VALID-001` | Cross-layer inputs use Jakarta/Spring Validation, groups, approved normalization, and tests |
 | `MC-MODEL-001` | Value-object record/ordinary class Lombok baseline is planned exactly, or constructor/framework conflict blocks |
-| `MC-CONVERT-001` | MapStruct/MapStructPlus and mandatory Egon `BaseConverter` own every new affected Converter |
+| `MC-CONVERT-001` | Every new affected Converter uses MapStruct/MapStructPlus with the applicable Egon `BaseConverter` or `BaseForwardConverter` contract |
 | `MC-LOG-001` | Affected concrete business classes use `@Slf4j` and safe logging |
 | `MC-BEAN-001` | Affected Beans have stable names, Lombok constructor injection, Qualifiers, and propagation |
 | `MC-UTIL-001` | Only approved utilities are used and no duplicate helper is introduced |

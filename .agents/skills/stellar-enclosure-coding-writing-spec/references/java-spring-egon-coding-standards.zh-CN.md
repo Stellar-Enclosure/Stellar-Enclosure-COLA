@@ -110,7 +110,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 
 核对构造目标、父类链与生成签名；按 `references/egon-java-cqe-contract.md` 的场景规则处理 Builder、无父类和零字段，其他实际框架/API 冲突记录为阻断。
 - 必须说明构造器可见性、必填字段、Builder/默认值、可变性、Equals/Hash、序列化、ORM/Proxy 和校验语义。
-- 拒绝冲突/重复构造器注解，禁止把可变 `@Data` 与不可变 `@Value` 语义混用。
+- 拒绝冲突或重复的构造器注解，POJO class 保留规定的注解基线。
 
 ## 对象转换
 
@@ -175,7 +175,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 | `MC-NAME-001` | 每个新增/修改 Java 类型都有强制语义后缀，且无 `Data`/`Info`/`Param`/`Bean` 含糊命名 |
 | `MC-VALID-001` | 每个受影响层间输入交接都使用 Jakarta/Spring Validation、复用 Group、获批规范化和测试 |
 | `MC-MODEL-001` | Ordinary POJOs/entities use `class` with `@Data`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Accessors(chain = true)`, a context-selected `@Builder` or `@SuperBuilder`, and `@EqualsAndHashCode(callSuper = true)` when superclass state participates in equality. Only immutable value objects may use `record`; see `references/egon-java-cqe-contract.md` for compile-safe root-class exceptions and collection immutability. |
-| `MC-CONVERT-001` | MapStruct/MapStructPlus 与 Egon `BaseConverter` 负责全部受影响跨层映射，不存在绕过或禁止复制 |
+| `MC-CONVERT-001` | MapStruct/MapStructPlus 与 Egon `BaseConverter` 或 `BaseForwardConverter` 负责全部受影响跨层映射，不存在绕过或禁止复制 |
 | `MC-LOG-001` | 每个受影响具体业务类使用 `@Slf4j` 和安全可操作日志 |
 | `MC-BEAN-001` | 每个受影响 Spring Bean 有稳定名称、构造器注入、`@RequiredArgsConstructor` 和带 Lombok 传播验证的 Qualifier 依赖 |
 | `MC-UTIL-001` | 工具只使用获准 JDK/Commons/Guava/Tika，且不重复已有 Helper |

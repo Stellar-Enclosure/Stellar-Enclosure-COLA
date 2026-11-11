@@ -1,5 +1,5 @@
 ---
-name: stellar-enclosure-coding-executing-plan
+name: stellar-enclosure-coding-execute-plan
 description: Use when an approved coding Plan must be implemented one Step at a time with Java/Spring/Egon-COLA standards, blocking Manual Checks, validation and a separate commit after every completed Step, followed by a final conformance audit against the effective Specs.
 ---
 
@@ -70,16 +70,14 @@ Before modifying code:
 2. Resolve and read the primary `Implements Spec` plus every `Effective Specs` document and governing amendment, supersession, or dependency.
 3. Read all applicable `AGENTS.md` files and repository instructions.
 4. Confirm the Plan revision and repository baseline. Reinspect every current path, symbol, migration sequence, consumer, and validation command used by the next Step.
-5. Confirm execution authorization:
-   - normally the Plan is `Ready` and the primary Spec is `Accepted` or `Implemented`; or
-   - the user explicitly authorizes execution of the exact Plan and Spec revisions in the current conversation.
+5. Verify approval for the exact Plan and effective Spec revisions. Normally the Plan is `Ready`, the primary Spec is `Accepted` or `Implemented`, and approval is traceable to the user or decision owner. Header statuses alone do not establish approval. An explicit user instruction can authorize the exact revisions despite a review-stage status. Reuse authorization already given for those revisions.
 6. Run the structural validator supplied by the installed `stellar-enclosure-coding-writing-plan` skill against the exact Plan with strict mode enabled.
 7. Inspect `git status`, the current branch/HEAD, staged changes, and untracked files. Preserve all unrelated work.
 8. For Java work, read `references/user-mandated-java-rules.md` and `references/java-spring-egon-coding-standards.md` completely. Confirm the actual project tree is either the established traditional layered profile or the exact selected Egon-COLA Archetype profile. Revalidate the Plan's Spring/Starter/Egon/module capability reuse ledger before adding code or dependencies.
 
 Stop before implementation when the Plan target is ambiguous, authorization is absent, an effective Spec conflicts, a major decision is open, the Plan is structurally invalid, or repository drift changes architecture, behavior, contracts, data, security, migration, compatibility, or Step ownership.
 
-Do not start services, browsers, databases, local stacks, or long-running runtime tests unless the user explicitly requests them. Source, compile, static, and focused/module test execution remains allowed when specified by the Plan.
+Inspect the actual side effects of validation commands, including service or database startup hidden in module tests. Runtime startup, live-system acceptance checks, changes to external state, and long-running runtime tests require explicit authorization. Routine read-only evidence gathering within scope can proceed. A required Step gate that cannot run blocks the Step. Track runtime acceptance expressly assigned to final or post-delivery verification separately from Step gates.
 
 ## Step state machine
 
@@ -93,7 +91,7 @@ Pending -> In Progress -> Verified -> Committed
 
 - `Pending`: no Step-owned edits have begun.
 - `In Progress`: only the current Step's files may be changed.
-- `Verified`: every required Step validation passed with fresh evidence and the diff review passed.
+- `Verified`: every required gate for this Step passed against the candidate change, with fresh evidence and a passing diff review.
 - `Committed`: one path-limited semantic commit exists and its hash/scope were verified.
 - `Blocked`: the Step cannot safely reach `Verified` or `Committed` within the approved Plan.
 
@@ -107,26 +105,26 @@ Perform the commit as the last action of Step N, immediately after its validatio
 3. Follow the Step's ordered file sequence, operations, symbols, pseudocode, requirements, and validation gates. Do not redesign while implementing.
 4. Use test-first execution for every behavior covered by a planned RED/GREEN cycle: write the focused test, observe the expected failure, implement the minimum behavior, then refactor/wire while tests remain green.
 5. Modify only the current Step's declared files and generated outputs. A required undeclared file, public contract, migration, dependency, or behavior is Plan drift; stop and ask for a Plan/Spec correction.
-6. Preserve unrelated dirty or staged work. Never use broad staging such as `git add -A` or `git add .`. Stage and commit only explicit Step paths.
+6. Preserve unrelated dirty or staged work. Stage and commit only explicit Step file paths. Never stage the whole repository or a directory.
 7. Do not overwrite, revert, reformat, stage, or commit another person's unrelated changes. If unrelated edits overlap a Step-owned file, stop and report the overlap.
 8. Run the exact focused validation required by the Step, plus the smallest relevant compile/static/regression gate needed to prove the Step is internally complete.
 9. Read the full command output and exit status. A lost process handle, partial log, timeout, skipped test, or warning treated as failure by repository policy is not a pass.
 10. Review the Step diff against its requirements and the effective Spec before committing. Remove accidental files, debug output, secrets, generated noise, and unrelated refactors.
 11. Commit every verified Step immediately using a path-limited semantic commit. Prefer the Plan's proposed message when it matches the final diff and repository convention.
-12. Never create an empty commit to simulate Step completion. If a Step is already implemented or produces no semantic diff, classify it as repository/Plan drift and stop for direction.
+12. Never create an empty commit to simulate Step completion. Recognize a previously completed Step only through the resume checks. If an unaccounted Step is already implemented or has no semantic diff, stop and report repository/Plan drift.
 13. After committing, verify the commit hash, file list, diff summary, validation evidence, and remaining worktree state. Record the commit against the Step before advancing.
 14. Do not amend, squash, reset, or rewrite committed history automatically. If a later Step exposes a defect in an earlier commit, stop advancing, make the smallest dedicated corrective commit attributed to the originating Step, rerun affected gates, and report the deviation.
-15. Use MP-SDJ distributed managed DDL; execute only the planned new SQL version and manifest update. Preserve applied SQL/history and verify per-target retry semantics. Use `scripts/stellar-enclosure-codegen.sh plan`/`apply` only for approved initial CREATE scaffolding, then append its classpath SQL journal. For ALTER or other later structural DDL, implement the Plan's exact agent-owned code changes and tests; do not send it to the CREATE-only generator. A generator conflict or missing classpath blocks a CREATE-generation Step.
+15. Use MP-SDJ distributed managed DDL. Implement only the planned new SQL version and manifest update, preserve applied history, and verify per-target retry semantics. Running DDL requires explicit authorization. Use the generator only for approved initial CREATE scaffolding or explicitly configured standalone inbound events, with the required SQL journal. Implement later structural DDL changes under the Plan without regenerating CREATE artifacts. A generator conflict or missing classpath blocks the dependent Step.
 16. Do not silently skip, reorder, merge, split, or expand Steps. Obtain user approval for a material execution-sequence change.
 17. Every coding Step has a blocking Manual Check. At Step lock, enumerate all applicable stable `MC-*` IDs from `references/java-spring-egon-coding-standards.md`; before commit, evaluate each row manually with concrete diff/path/symbol/command evidence. `MC-SCOPE-001` and `MC-TEST-001` always apply.
 18. A Step cannot become `Verified` or be committed as complete while any applicable Manual Check is `FAIL`, `BLOCKED`, `UNKNOWN`, missing, lacks evidence, or has an unresolved exception. Evidence-backed `N/A` is allowed only when the concern is truly outside the Step.
-19. For touched Java code, enforce semantic type suffixes, Jakarta/Spring Validation and groups at every affected handoff, approved normalization, the exact value-object record/ordinary class Lombok classification, MapStruct/MapStructPlus plus mandatory Egon `BaseConverter`, `@Slf4j`, explicit Bean names, qualified Lombok constructor injection, approved utilities, Jackson, `java.time`, configuration-profile parity, and a mandatory approved pattern for every Complex business flow. Do not perform unrelated broad cleanup.
+19. For touched Java code, enforce semantic type suffixes, Jakarta/Spring Validation and groups at every affected handoff, approved normalization, the exact value-object record/ordinary class Lombok classification, MapStruct/MapStructPlus plus the appropriate Egon converter base, `@Slf4j`, explicit Bean names, qualified Lombok constructor injection, approved utilities, Jackson, `java.time`, configuration-profile parity, and a mandatory approved pattern for every Complex business flow. Do not perform unrelated broad cleanup.
 20. Apply `references/user-mandated-java-rules.md` literally. At Step lock and before commit, execute separate Rule 1, 2, 3, 4, 5, 6, 7, 9, 10, and 11 rows. Rule 11 always applies. No rule may be collapsed into a generic Manual Check assertion, changed to preference language, or waived because tests pass.
-21. Complex objects must retain the complete mandated Lombok baseline and every new affected Converter must use MapStruct/MapStructPlus plus Egon `BaseConverter`; any constructor/framework/converter conflict blocks the Step. Every affected layer handoff must be validated, and every Complex business flow must implement the approved pattern rather than direct branching.
+21. Ordinary POJOs retain the required Lombok baseline. Every new affected Converter must use MapStruct/MapStructPlus plus Egon `BaseConverter` for bidirectional mappings or `BaseForwardConverter` for irreversible projections. A constructor/framework/converter conflict blocks the Step. Validate every affected layer handoff and implement the approved pattern for every Complex business flow.
 
 ## Per-Step execution workflow
 
-Read `references/step-gate-checklist.md` at the start and end of every Step.
+Use `references/step-gate-checklist.md` at Step lock and verification. On resume, reconcile prior commits and any interrupted Step using its resume section before editing.
 
 ### 1. Lock the Step
 
@@ -164,12 +162,7 @@ Any failed gate keeps the Step `In Progress` or `Blocked`; it cannot be committe
 
 ### 5. Review and commit the Step
 
-- Inspect `git diff -- <Step paths>` and `git status --short`.
-- Confirm only Step-owned paths will be committed.
-- Stage explicit paths, then inspect `git diff --cached --check`, `--stat`, and `--name-only`.
-- Commit only those paths. If other work is already staged, use a path-limited commit that leaves it untouched.
-- Capture the resulting hash and inspect `git show --stat --oneline <hash>` plus the committed file list.
-- Confirm unrelated staged/unstaged/untracked work remains preserved.
+Follow the checklist's path-limited commit procedure. Review the full Step candidate against its baseline, including staged changes and new files. Commit only verified Step paths and confirm the resulting parent, hash, and paths. Confirm unrelated index and worktree changes are preserved.
 
 Only now mark the Step `Committed` and begin the next one.
 
@@ -209,17 +202,17 @@ Use path-limited staging/commits. Never include unrelated work merely because it
 
 ## Final Spec conformance audit
 
-After every Plan Step is committed, read `references/final-spec-audit.md` and perform a fresh audit. Do not rely on the Plan's traceability matrix alone.
+After all Plan Steps are committed, read `references/final-spec-audit.md` and perform a fresh audit. Do not rely on the Plan's traceability matrix alone.
 
 1. Re-resolve the final effective Spec set and exact revisions.
 2. Extract every effective requirement, acceptance criterion, non-goal, interface, model/schema rule, UI behavior, test obligation, non-functional constraint, migration, compatibility, rollout, and rollback requirement.
 3. Map each requirement to concrete implementation evidence: commit(s), paths/symbols, and validation/test output.
-4. Run the Plan's final source/static/module/full regression commands that are safe and authorized. Do not automatically start runtime systems.
+4. Run the safe, authorized final validations on the delivery commits. Use a clean checkout when unrelated work could affect results. For live acceptance, record the authorized run's evidence or the missing runtime proof.
 5. Assign one status to every requirement:
-   - `Satisfied`: implementation and required non-runtime evidence prove it.
+   - `Satisfied`: implementation and all required evidence, including runtime evidence where required, prove it.
    - `Partial`: only part of the requirement is implemented or proven.
    - `Not satisfied`: implementation conflicts with or omits the requirement.
-   - `Runtime unverified`: source/module evidence exists, but the Spec requires user-controlled live-system proof that was not run.
+   - `Runtime unverified`: source/module evidence exists and required live-system proof is the only outstanding evidence.
 6. Check non-goals and scope boundaries for accidental behavior, dependency, migration, or refactor expansion.
 7. Check every Plan Step has a verified commit and no planned file/validation gate was silently omitted.
 8. Dispose of every scratch verification harness created during execution. Each one is promoted into a durable check suite, moved into the subsystem it actually guards, or deleted; report the chosen outcome per harness. An undetermined script left in repository `scripts/work/` is a finding, and never a silent pass.
@@ -267,7 +260,7 @@ Never claim full completion when any effective requirement is `Partial`, `Not sa
 | Creating a hybrid package tree during execution | Stop; preserve the existing traditional or exact Archetype profile and request a structural Plan/Spec correction |
 | Passing final audit by summarizing Manual Checks in one sentence | Re-run and record all stable IDs individually against the final commits/tree |
 | Replacing the exact numbered rules with a general coding-standard summary | Restore the verbatim source and re-run every effective Rule row independently |
-| Tests pass while a complex class lacks the full Lombok baseline or a Converter bypasses `BaseConverter` | Keep the Step blocked; compiler/test success cannot waive Rule 3 |
+| Tests pass while an ordinary class lacks the required Lombok baseline or a Converter bypasses its required Egon base | Keep the Step blocked; compiler/test success cannot waive Rule 3 |
 | Only Controller input is validated | Add and verify Validation/groups at every affected layer handoff before commit |
 | Complex business logic remains `if/else` or `switch` | Implement the approved design-pattern participants and tests before commit |
 | Starting the project automatically | Leave runtime testing to the user unless explicitly requested |

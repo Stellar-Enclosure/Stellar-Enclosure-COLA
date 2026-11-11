@@ -9,9 +9,9 @@ description: 当编码任务已有明确且经过审核或接受的 Spec，需�
 
 ## 依赖审批与后端模板生成
 
-资源预检后，Java 依赖决策或 DDL/CRUD 模板任务必须读取 `references/backend-code-generation.md`。禁止自行引入依赖；能力不足时阻断并提交具体引入方案，获得用户明确批准后再继续。已批准的精确依赖不重复询问。生成器可用后，已支持模板必须调用 scripts/stellar-enclosure-codegen.sh；禁止虚构命令或静默手写替代。native light、web、service 仅对初始 CREATE 建表使用生成器；ALTER 等后续结构变更由 agent 按获批 Plan 分析并修改代码，不得再用生成器刷新旧产物。新业务项目由 stellar-enclosure-coding-create-new-module 按一个非 open archetype 生成，不能手写模块骨架。每次 apply 成功后，或本次只授权到 plan 时，按 references/backend-code-generation.md 追加 classpath SQL 日志。
+资源预检后，Java 依赖决策或后端模板任务必须读取 `references/backend-code-generation.md`。优先复用已有依赖。需要新增依赖时，阻断受影响工作，直到具体引入方案获批。已批准的精确依赖不重复询问。
 
-生成基础 CRUD 时按 Repo → Domain Service/实现 → Manage/实现 → Light/Web Controller 链路选择 `backend-crud`；Service 不生成 HTTP。DDL 中通用列需要校验，PO 通过 `EgonModel` 继承，不重复声明。v1/过期计划和无归属文件阻断 apply。
+对于 native light、web、service 支持的初始 CREATE 模板或显式配置的独立入站事件，模板产物标记为 `GENERATED`。在对应执行 Step 规划配置、产物清单、验证与 classpath SQL 日志路径。已获授权的预览和实施命令以共享参考资料为准。ALTER 等后续结构变更必须规划由 agent 修改的准确文件及验证。
 
 生成项目的业务工作必须消费有效 Spec §2.5 的样例清单。每个 `EXAMPLE-*` 和清理 `REQ-*` 映射到准确路径、注册/资源/测试及有序 Step，在首个真实业务功能验收前完成。覆盖目标项目全部未使用样例域，不限该功能文件；清单缺失先补 Spec，禁止“参考保留”和未定期的最终清理。保留有证据的真实业务/基础设施及不可变的已应用 SQL 历史。
 
@@ -34,8 +34,8 @@ Plan 定义的是**先处理哪个文件、其中怎么写、接着处理哪个�
 ## 适用范围与输出契约
 
 - 只用于已有可识别 Spec 的编码工作。
-- 只生成或修订 Plan、Plan 关系元数据和目标 Spec 的 `Related Plans` 元数据；不能修改生产/测试代码、执行迁移或启动项目。
-- Plan 使用用户指定的自然语言；用户未指定时，跟随目标 Spec 的语言。仓库路径、符号、代码标识符、schema 和命令必须精确。
+- 仅请求 Plan 时，生成或修订 Plan、Plan 关系元数据和目标 Spec 的 `Related Plans` 元数据。不能修改生产或测试代码、执行迁移或启动项目。
+- 标题和自由填写的内容使用用户指定的自然语言。用户未指定时，跟随目标 Spec 的语言。保留模板规定的章节名、字段名、表头、状态值、结论值、`Step`/`File` 标记和其他校验标记。仓库路径、符号、代码标识符、schema 和命令必须精确。
 - 新 Plan 固定保存为 `docs/egon/plan/YYYY-MM-DD-HH-MM-ABSTRACT.md`。
   - 使用用户/仓库本地创建分钟。
   - `ABSTRACT` 替换为简洁的小写 ASCII kebab-case 摘要，通常 3–8 个单词。
@@ -96,7 +96,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 16. 必须完整读取 `references/file-by-file-planning.zh-CN.md`。每个 Step 都要写基线/结束状态、Test-first 适用性、准确文件顺序、验证工作目录、Commit Paths 和一个语义结果。每个文件都要写当前仓库证据、依赖/消费者、输入输出/状态映射、错误/边界行为、承载实现信息的伪代码、验证贡献和 After-file 状态。
 17. 规划文件前执行 Spec 简洁性与实施必要性审核。不能把无依据 API、参数 Preflight、类、分层、表、缓存、Job、依赖或页面静默编译成实施步骤。如果直接/复用方案满足同一需求，或 Spec 缺少必要性决策，必须带证据和准确 Spec 章节返回 `REVISE`/`BLOCKED`；不能在 Plan 内重新设计。
 18. 每个 Java Plan 必须完整读取 `references/user-mandated-java-rules.zh-CN.md` 和 `references/java-spring-egon-coding-standards.zh-CN.md`。分配文件前，根据当前 Tree 和已选 Archetype 证明且只证明一种允许架构，并建立覆盖 Spring、Spring Boot Starter、Egon-COLA Component/公共基础设施和模块内候选的复用账本。没有已证明能力缺口与获批影响时不能规划新依赖或自研替代。
-19. 每个 Step 都必须列出适用阻断型 `MC-*`，每个受影响 Java 文件写明规范影响。伪代码和验证必须把语义命名、每个层间交接的 Validation/Group/规范化、准确 Record/`@Value`/复杂类完整 Lombok、MapStruct/MapStructPlus 与强制 Egon `BaseConverter`、Bean 名/注入/Qualifier 传播、`@Slf4j`、工具、Jackson、`java.time`、配置一致性和每个 Complex Flow 的强制获批模式落实为可执行内容。
+19. 每个 Step 都必须列出适用阻断型 `MC-*`，每个受影响 Java 文件写明规范影响。伪代码和验证必须把语义命名、每个层间交接的 Validation/Group/规范化、不可变值对象 record 与普通 class 的 Lombok 分类、MapStruct/MapStructPlus 与双向转换的 `BaseConverter` 或不可逆投影的 `BaseForwardConverter`、Bean 名/注入/Qualifier 传播、`@Slf4j`、工具、Jackson、`java.time`、配置一致性和每个 Complex Flow 的强制获批模式落实为可执行内容。
 20. 第 12 章逐项完成全部 Manual Check。适用行必须有具体仓库/Plan 证据且为 `PASS`，不适用行必须有证据地 `N/A`。缺失 ID/证据、`FAIL`、`BLOCKED`、`UNKNOWN` 或未关闭例外都禁止 PASS。
 21. 必须逐字执行 `references/user-mandated-java-rules.zh-CN.md`。第 4 章按原编号 `1、2、3、4、5、6、7、9、10、11` 保留十个独立行；每个 Step 写 `Literal Rules:`，每个受影响文件写 `Literal rule enforcement:`。禁止把强制措辞改成“优先/考虑/兼容时”。冲突必须返回 Spec/用户并阻断 PASS。
 22. 现有仓库命令无法覆盖的门禁需要临时验收 harness。其创建必须规划在仓库 `scripts/work/` 下，命名为 `<plan-id>-<verb>.sh`——禁止写入 `scripts/` 顶层，那里只放长期工具——并在最后一个 Step 明确处置：升格进仓库长期检查集、并入它实际守护的子系统，或删除。`scripts/work/` 中留有未判定 harness 的 Plan 不能标为 `Ready`。
@@ -242,7 +242,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 | Java 伪代码遗漏 Validation Group、转换、Bean 名/Qualifier、时间/JSON/配置语义或适用注解 | 补充准确且符合仓库惯例的实施与验证结果 |
 | 用摘要或“最佳实践”段落替代用户编号规则 | 恢复逐字区块，把每个原始规则映射到文件、伪代码、验证和 Step |
 | 只规划 Controller 校验 | 增加每个受影响层间交接、Group/调用/错误和测试 |
-| 缩减复杂类 Lombok 基线或绕过 `BaseConverter` | 阻断并返回 Spec/用户，不能规划静默例外 |
+| 缩减 class 的 Lombok 基线或绕过适用的 Egon 转换契约 | 阻断并返回 Spec/用户，不能规划静默例外 |
 | 把 Complex 业务变化保留为直接分支 | 增加有效 Spec 已选模式的参与者、接线、编排和测试 |
 | Manual Check 缺失、失败或未知仍标记 PASS | 用证据关闭全部阻断，否则使用 `BLOCKED`/`REVISE` |
 | 写完 Plan 就编码或启动运行时 | 停止并交付用户审核 |

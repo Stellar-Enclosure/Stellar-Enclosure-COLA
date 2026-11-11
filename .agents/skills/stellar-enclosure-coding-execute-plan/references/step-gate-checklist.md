@@ -2,6 +2,12 @@
 
 Use this checklist for every Plan Step. Record objective evidence; do not replace failed or missing evidence with a narrative assertion.
 
+## Resume an interrupted execution
+
+1. Reconcile the recorded Plan and effective Spec revisions, authorization, repository, branch and baseline. Reuse authorization for unchanged revisions. Stop on material drift or unclear ownership.
+2. From the Step record and Git history, verify each completed Step in order. The recorded commit must be non-empty, reachable from current HEAD, scoped to the declared paths, and tied to passing validation and manual evidence. Inspect later changes to its paths and prerequisites. Only resume past a Step whose completion is supported by that evidence. Reconcile any interrupted post-commit check with the actual commit before making further edits.
+3. Resume the first uncommitted Step. If all existing edits on its paths are attributable to that Step, compare them with its recorded baseline, inspect staged and unstaged changes, and refresh the required evidence before committing. Preserve the recorded RED result when it still matches the Step. If required RED evidence is missing, reproduce it on the recorded baseline in a separate scratch checkout when feasible. Never discard changes to reconstruct RED. An unexplained commit, missing evidence that cannot be recovered, or unclear edits on a Step path blocks advancement.
+
 ## Step lock
 
 - [ ] Exact Plan path and revision recorded.
@@ -69,7 +75,7 @@ Read `references/java-spring-egon-coding-standards.md`. Copy all stable IDs belo
 | `MC-NAME-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<touched type list/search>` | `<semantic-name conclusion>` | `<None or action/owner>` |
 | `MC-VALID-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<constraints/groups/normalizer/tests>` | `<boundary coverage>` | `<None or action/owner>` |
 | `MC-MODEL-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<value-object record/class complex Lombok diff>` | `<construction/conflict conclusion>` | `<None or action/owner>` |
-| `MC-CONVERT-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<MapStruct + mandatory BaseConverter diff/search>` | `<mapping/no-bypass conclusion>` | `<None or action/owner>` |
+| `MC-CONVERT-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<MapStruct/MapStructPlus + BaseConverter or BaseForwardConverter diff/search>` | `<mapping/no-bypass conclusion>` | `<None or action/owner>` |
 | `MC-LOG-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<business-class/log diff>` | `<logging conclusion>` | `<None or action/owner>` |
 | `MC-BEAN-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<Bean names/Qualifier/lombok.config>` | `<injection conclusion>` | `<None or action/owner>` |
 | `MC-UTIL-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<imports/dependencies/helper search>` | `<utility conclusion>` | `<None or action/owner>` |
@@ -92,6 +98,8 @@ Manual Check verdict rules:
 
 ## Verification gate
 
+- [ ] Commands were classified by actual side effects. Runtime startup, live-system acceptance, and changes to external state were authorized before execution. Required Step gates passed. Acceptance checks assigned to a later phase were recorded separately.
+- [ ] The checked files match the Step candidate. If unrelated work can affect results, use a scratch checkout containing the Step baseline plus only the candidate changes, or report that the gate is blocked.
 - [ ] Exact focused validation passed with complete output and exit status.
 - [ ] Required compile, typecheck, lint/format, XML/schema, module, integration, or regression gates passed.
 - [ ] Expected GREEN behavior and relevant error paths are covered.
@@ -104,25 +112,37 @@ Manual Check verdict rules:
 
 ## Pre-commit gate
 
-- [ ] `git diff -- <Step paths>` was reviewed line by line.
-- [ ] `git status --short` was reviewed again.
-- [ ] Only explicit Step paths were staged; broad staging was not used.
-- [ ] `git diff --cached --check` passed for the Step paths.
-- [ ] Cached `--stat` and `--name-only` match the declared Step scope.
+From the repository root, capture status and the unrelated staged diff before staging. Confirm `HEAD` still equals the Step baseline and there are no conflicts. Set the `step_paths` Bash array to the exact changed Step file paths, including both sides of each rename. Review ownership before staging, including untracked files.
+
+Build `stage_paths` from the Step paths that exist in the worktree (including symlinks) or still have an index entry. A path absent from both may be left out of `stage_paths` only if it is a verified staged deletion, such as the source of a rename already staged with `git mv`. Verify `D` for that exact path with `git --literal-pathspecs diff --cached --no-renames --name-status "$step_baseline" -- "$path"`. Investigate any other missing path before proceeding. Retain all Step paths for review and commit.
+
+```bash
+if (( ${#stage_paths[@]} > 0 )); then
+    git --literal-pathspecs add -A -- "${stage_paths[@]}"
+fi
+git --literal-pathspecs diff --cached "$step_baseline" -- "${step_paths[@]}"
+git --literal-pathspecs diff --cached --check "$step_baseline" -- "${step_paths[@]}"
+git --literal-pathspecs diff --cached --name-status "$step_baseline" -- "${step_paths[@]}"
+git --literal-pathspecs diff --exit-code -- "${step_paths[@]}"
+```
+
+- [ ] The scoped staged diff was reviewed line by line and matches the validated Step candidate. It includes all new, changed and removed files for this Step.
+- [ ] The worktree matches the index for the Step paths, and the candidate and HEAD are unchanged since review. Refresh the checks if either changed.
 - [ ] The commit message is semantic and matches the Plan proposal or repository convention.
-- [ ] The commit is non-empty.
-- [ ] Commit Step N now, before any Step N+1 edit; do not defer and split commits at the end.
+- [ ] The candidate diff is non-empty.
 - [ ] The final Literal Rule verdict is PASS; no mandatory rule was reduced or waived because tests passed.
 - [ ] The final pre-commit Manual Check verdict is PASS; no blocker was waived in prose.
+
+Commit immediately with `git --literal-pathspecs commit --only -m "$step_message" -- "${step_paths[@]}"`. Path-limited commit uses the worktree versions of the named files. The equality check above makes those the versions you reviewed in the index. Unrelated staged entries stay outside the commit.
 
 ## Post-commit gate
 
 - [ ] Commit succeeded and its hash was recorded.
 - [ ] `git show --stat --oneline <hash>` was inspected.
-- [ ] The committed file list contains only Step-owned paths.
+- [ ] The parent is the recorded baseline. The committed diff and paths match the reviewed candidate.
 - [ ] Validation commands and observed results are recorded against the hash.
 - [ ] Deviations are recorded as `None`, approved clarification, or corrective-commit explanation.
-- [ ] Unrelated staged, unstaged, and untracked work remains preserved.
+- [ ] Unrelated staged diff and status match the snapshot taken before staging. No unrelated unstaged or untracked work was changed.
 - [ ] The Step is marked `Committed` before any later Step begins.
 - [ ] New `HEAD` hash and committed paths were recorded before the first edit of the next Step.
 
@@ -132,4 +152,4 @@ If any required box cannot be checked, keep the Step `In Progress` or mark it `B
 
 Read `references/egon-java-cqe-contract.md`. Record each applicable concern separately: POJO/value-object/enum; components and MP starter; annotation-driven validation; business columns + deleted_at uniqueness and NULL behavior; Command/Query/Event with actual outbox or MQ delivery; source-grounded DDD or preserved three-layer architecture. Use its existing MC ID mapping and record evidence, gaps and validation limits.
 
-For affected time boundaries, read `references/time-semantics.md` and compare effective Spec TIME decisions, Plan owning Steps and MC-TIME-001 results. Verify actual UTC persistence/wire conversion, pure-date stability, business-zone ranges/grouping, frontend display/submission, applicable DST/precision and legacy compatibility. Missing required runtime evidence is not PASS; do not start an application, database or browser without authorization.
+For affected time boundaries, read `references/time-semantics.md` and compare effective Spec TIME decisions, Plan owning Steps and MC-TIME-001 results. Verify actual UTC persistence/wire conversion, pure-date stability, business-zone ranges/grouping, frontend display/submission, applicable DST/precision and legacy compatibility. Runtime evidence required by this Step must pass before commit. Track any runtime verification assigned to final or post-delivery acceptance separately and run it only with authorization.

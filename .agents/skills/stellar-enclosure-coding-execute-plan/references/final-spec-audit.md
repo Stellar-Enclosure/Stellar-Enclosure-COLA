@@ -9,6 +9,7 @@ Perform this audit after all Plan Steps have verified commits. Treat it as an in
 - Resolve the complete final `Effective Specs` set, including amendments, supersessions, and dependencies.
 - Record every Step commit and any approved corrective commit.
 - Confirm unrelated work remains outside the delivery commits.
+- Use the recorded delivery revision for audit evidence. If unrelated changes could affect source inspection or validation, use a clean checkout of that revision without altering the user's worktree.
 
 ## 2. Build a requirement inventory
 
@@ -44,19 +45,19 @@ Evidence rules:
 
 ## 4. Assign exactly one status
 
-- `Satisfied`: the implementation and all authorized non-runtime evidence required by the Spec are present and consistent.
+- `Satisfied`: the implementation and all evidence required by the Spec are present and consistent, including actual runtime results for requirements that need them.
 - `Partial`: only part of the behavior or evidence is present.
 - `Not satisfied`: the behavior is absent, contradicts the Spec, violates a boundary, or regresses a non-goal.
-- `Runtime unverified`: source/module evidence is present, but the Spec explicitly requires user-controlled live-system proof that was not performed.
+- `Runtime unverified`: source/module evidence is present, and the only outstanding evidence is required live-system proof that was not obtained.
 
-Do not downgrade a concrete implementation defect to `Runtime unverified`. That status is only for otherwise plausible implementation whose remaining proof is inherently runtime-bound.
+Do not downgrade a concrete implementation defect to `Runtime unverified`. If a runtime check establishes that behavior conflicts with the Spec, use `Partial` or `Not satisfied` according to the observed defect.
 
 ## 5. Run final gates
 
 - Run every safe, authorized final command listed by the Plan.
 - Add only the smallest repository-standard regression checks needed for affected consumers.
 - Inspect complete output, exit status, skips, warnings, and generated changes.
-- Do not start services, databases, browsers, deployment, or external systems without explicit authorization.
+- Inspect the actual side effects of commands, including runtime startup hidden in module or integration tests. Run live acceptance only when authorized. Record the delivery revision, environment, commands, and actual results for an authorized run. If runtime proof is missing, record the exact outstanding requirement and what evidence would close it.
 - Recheck `git status --short` after validation and identify any generated or modified files.
 
 ## 6. Audit delivery discipline
@@ -97,7 +98,7 @@ All applicable literal rules and Rule 11 must PASS before final PASS. Then read 
 | `MC-NAME-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<changed Java types/search>` | `<naming result>` | `<None or action/owner>` |
 | `MC-VALID-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<boundaries/groups/tests>` | `<validation result>` | `<None or action/owner>` |
 | `MC-MODEL-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<value-object record/class complex Lombok inspection>` | `<model/conflict result>` | `<None or action/owner>` |
-| `MC-CONVERT-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<MapStruct + mandatory BaseConverter generation/search/tests>` | `<conversion/no-bypass result>` | `<None or action/owner>` |
+| `MC-CONVERT-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<MapStruct/MapStructPlus + BaseConverter or BaseForwardConverter generation/search/tests>` | `<conversion/no-bypass result>` | `<None or action/owner>` |
 | `MC-LOG-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<business-class/log inspection>` | `<logging result>` | `<None or action/owner>` |
 | `MC-BEAN-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<Bean names/injection/Qualifier evidence>` | `<Bean result>` | `<None or action/owner>` |
 | `MC-UTIL-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<imports/dependencies/helper inventory>` | `<utility result>` | `<None or action/owner>` |

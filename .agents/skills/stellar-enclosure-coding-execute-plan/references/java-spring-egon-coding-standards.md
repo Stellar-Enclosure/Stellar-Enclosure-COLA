@@ -96,9 +96,9 @@ Use the six-column table from `references/step-gate-checklist.md`. Manual inspec
 | `MC-NAME-001` | Touched type names use semantic roles and avoid ambiguous carrier suffixes |
 | `MC-VALID-001` | Affected cross-layer inputs use Validation, groups, normalization, and tests |
 | `MC-MODEL-001` | Value-object record/ordinary class Lombok baseline is present, or conflict blocks |
-| `MC-CONVERT-001` | MapStruct/MapStructPlus and mandatory Egon `BaseConverter` own every new affected Converter |
+| `MC-CONVERT-001` | Every new affected Converter uses MapStruct/MapStructPlus with Egon `BaseConverter` for bidirectional mapping or `BaseForwardConverter` for irreversible projection |
 | `MC-LOG-001` | Touched concrete business classes use `@Slf4j` and safe logging |
-| `MC-BEAN-001` | Touched Beans have names, Lombok constructor injection, Qualifiers, and propagation |
+| `MC-BEAN-001` | Touched Beans have names and, where applicable, Lombok DI constructors with explicit `@Autowired` and propagated Qualifiers |
 | `MC-UTIL-001` | Only approved utilities are used and no duplicate helper is introduced |
 | `MC-JSON-001` | Jackson is the sole JSON stack and contract annotations are correct |
 | `MC-TIME-001` | Touched time modeling uses `java.time` with explicit semantics |

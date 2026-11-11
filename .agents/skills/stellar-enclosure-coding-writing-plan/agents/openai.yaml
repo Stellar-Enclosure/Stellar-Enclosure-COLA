@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stellar Enclosure Coding Write Plan"
+  short_description: "Turn an accepted Spec into ordered coding Steps"
+  default_prompt: "Use $stellar-enclosure-coding-writing-plan to turn the selected accepted Spec into an ordered file-by-file implementation Plan with validation and commit boundaries."

@@ -522,7 +522,8 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
         if heading not in text:
             errors.append(f"Missing required section: {heading}")
 
-    if template_version in {2, 3}:
+    # Restore the audit checks in v5 while preserving the published v4 validator contract.
+    if template_version in {2, 3, 5}:
         required_detailed_headings = [
             "### 4.5 Spec Simplicity and Implementation-necessity Audit",
             "### 4.6 Change-unit Dependency Matrix",
