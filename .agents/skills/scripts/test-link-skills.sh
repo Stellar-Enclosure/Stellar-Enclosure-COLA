@@ -140,10 +140,12 @@ fixture_committed_copy() {
 # An untracked or dirty copy is work the script may not throw away silently.
 fixture_untracked_copy() {
   local name="${SKILLS[0]}"
-  local root="$FIXTURE_ROOT/untracked" rc
+  local root="$FIXTURE_ROOT/untracked-$1" rc
   mkdir -p "$root/.agents/skills/$name"
   printf '# stub\n' >"$root/.agents/skills/$name/SKILL.md"
-  (cd "$root" && g init -q && g commit -qm 'fixture: empty' --allow-empty)
+  if [[ "$1" == git ]]; then
+    (cd "$root" && g init -q && g commit -qm 'fixture: empty' --allow-empty)
+  fi
 
   rc="$(run "$root")"
   check 'untracked copy exits with skips' "$rc" 2
@@ -169,17 +171,54 @@ fixture_dirty_copy() {
     "$(grep -c 'local edit' "$root/.agents/skills/$name/SKILL.md")" 1
 }
 
+# Git normally omits ignored files from status, but replacing the copy would
+# discard them along with the tracked skill files.
+fixture_ignored_content() {
+  local name="${SKILLS[0]}"
+  local root="$FIXTURE_ROOT/ignored" dest rc
+  dest="$root/.agents/skills/$name"
+  mkdir -p "$dest"
+  cp -- "$SOURCE_ROOT/$name/SKILL.md" "$dest/SKILL.md"
+  printf 'local-notes.txt\n' >"$root/.gitignore"
+  (cd "$root" && g init -q && g add -- .gitignore .agents && g commit -qm 'fixture: committed skill')
+  printf 'local notes\n' >"$dest/local-notes.txt"
+  check 'ordinary status hides ignored content' "$(g -C "$root" status --porcelain)" ''
+
+  rc="$(run --dry-run "$root")"
+  check 'dry-run reports ignored content as a skip' "$rc" 2
+  check 'dry-run preserves the copy' "$(is_link "$dest")" 'plain'
+  check 'dry-run creates no links' "$(link_count "$root/.agents/skills")" 0
+
+  rc="$(run "$root")"
+  check 'ignored content prevents replacement' "$rc" 2
+  check 'ignored content survives' "$(cat "$dest/local-notes.txt")" 'local notes'
+
+  rc="$(run --force "$root")"
+  check '--force permits replacing a copy containing ignored content' "$rc" 0
+  check 'forced replacement resolves to the source' "$(readlink "$dest")" "$SOURCE_ROOT/$name"
+}
+
 # Pre-existing links: the right one is left alone, a stale one is repointed.
 fixture_existing_links() {
   local name="${SKILLS[0]}"
-  local root="$FIXTURE_ROOT/links" elsewhere rc
+  local root="$FIXTURE_ROOT/links" elsewhere rc exclude
   mkdir -p "$root/.agents/skills"
+  (cd "$root" && g init -q && g commit -qm 'fixture: bare repo' --allow-empty)
+  exclude="$root/.git/info/exclude"
   ln -s "$SOURCE_ROOT/$name" "$root/.agents/skills/$name"
+
+  rc="$(run --dry-run "$root")"
+  check 'correct-link dry-run exits 0' "$rc" 0
+  check 'correct-link dry-run leaves exclude alone' \
+    "$(grep -cxF -- ".agents/skills/$name" "$exclude" || true)" 0
 
   rc="$(run "$root")"
   check 'correct link exits 0' "$rc" 0
   check 'correct link reported unchanged' "$(logged '^unchanged')" 1
   check 'correct link is untouched' "$(readlink "$root/.agents/skills/$name")" "$SOURCE_ROOT/$name"
+  check 'correct link is excluded from git status' "$(g -C "$root" status --porcelain -uall)" ''
+  check 'correct link gets one exclude entry' \
+    "$(grep -cxF -- ".agents/skills/$name" "$exclude")" 1
 
   mkdir -p "$FIXTURE_ROOT/elsewhere/$name"
   touch "$FIXTURE_ROOT/elsewhere/$name/SKILL.md"
@@ -225,6 +264,22 @@ fixture_refusals() {
   mkdir -p "$FIXTURE_ROOT/fileblock/.agents"
   touch "$FIXTURE_ROOT/fileblock/.agents/skills"
   check 'skills path occupied by a file is refused' "$(run "$FIXTURE_ROOT/fileblock")" 1
+}
+
+# A symlink in either parent component could redirect writes outside the target.
+fixture_symlinked_parents() {
+  local root="$FIXTURE_ROOT/symlink-parent" outside="$FIXTURE_ROOT/shared-agents"
+  mkdir -p "$root" "$outside/skills"
+  ln -s "$outside" "$root/.agents"
+  check 'symlinked .agents is refused' "$(run "$root")" 1
+  check 'symlinked .agents gets a specific diagnostic' "$(logged 'refusing to use a symlink')" 1
+  check 'symlinked .agents leaves the external directory untouched' "$(link_count "$outside/skills")" 0
+
+  rm -- "$root/.agents"
+  mkdir -p "$root/.agents"
+  ln -s "$outside/skills" "$root/.agents/skills"
+  check 'symlinked skills is refused even with --force' "$(run --force --prune "$root")" 1
+  check 'symlinked skills leaves the external directory untouched' "$(link_count "$outside/skills")" 0
 }
 
 # A skill renamed or deleted upstream leaves a dead link in every consumer.
@@ -284,12 +339,15 @@ fixture_cwd_independence() {
 seed_source_skills
 fixture_plain_dir
 fixture_committed_copy
-fixture_untracked_copy
+fixture_untracked_copy git
+fixture_untracked_copy no-git
 fixture_dirty_copy
+fixture_ignored_content
 fixture_existing_links
 fixture_prune
 fixture_occupant
 fixture_refusals
+fixture_symlinked_parents
 fixture_cwd_independence
 
 printf '%s\n' 'link skills fixture: PASS'

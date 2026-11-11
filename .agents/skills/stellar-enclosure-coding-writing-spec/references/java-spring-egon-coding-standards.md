@@ -105,14 +105,14 @@ Do not handwrite repeated null/range/format validators or validate only at the C
 
 ## Data-object modeling
 
-Choose the representation by the literal classification below. Do not weaken the complex-object annotation baseline into an optional palette.
+Choose the representation by the literal classification below. Do not weaken the class annotation baseline into an optional palette.
 
 - Ordinary POJOs/entities use `class` with `@Data`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Accessors(chain = true)`, a context-selected `@Builder` or `@SuperBuilder`, and `@EqualsAndHashCode(callSuper = true)` when superclass state participates in equality. Only immutable value objects may use `record`; see `references/egon-java-cqe-contract.md` for compile-safe root-class exceptions and collection immutability.
 - An immutable value object may use `record` without mutable class annotations; a small field count does not establish value-object semantics.
 
 - Calculate generated constructor signatures for the complete annotation baseline. Apply the documented builder/root/empty-class adaptations; remaining framework or public-contract conflicts require an explicit decision.
 - Explain constructor visibility, required fields, builder/default behavior, mutation, equality/hash, serialization, ORM/proxy requirements, and validation.
-- Reject conflicting or redundant constructor annotations and do not combine mutable `@Data` semantics with immutable `@Value` semantics.
+- Reject conflicting or redundant constructor annotations and retain the class baseline when the type is a POJO class.
 
 ## Object conversion
 
@@ -177,7 +177,7 @@ Every Spec, Plan, execution Step, and final execution audit must use these stabl
 | `MC-NAME-001` | Every new/changed Java type has its mandatory semantic role suffix and avoids `Data`/`Info`/`Param`/`Bean` ambiguity |
 | `MC-VALID-001` | Every affected layer-to-layer input handoff uses Jakarta/Spring Validation, explicit groups where reused, approved normalization, and tests |
 | `MC-MODEL-001` | Ordinary POJOs/entities use `class` with `@Data`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Accessors(chain = true)`, a context-selected `@Builder` or `@SuperBuilder`, and `@EqualsAndHashCode(callSuper = true)` when superclass state participates in equality. Only immutable value objects may use `record`; see `references/egon-java-cqe-contract.md` for compile-safe root-class exceptions and collection immutability. |
-| `MC-CONVERT-001` | MapStruct/MapStructPlus and Egon `BaseConverter` own every affected cross-layer mapping; no bypass or prohibited copying exists |
+| `MC-CONVERT-001` | MapStruct/MapStructPlus with Egon `BaseConverter` or `BaseForwardConverter` owns every affected cross-layer mapping; no bypass or prohibited copying exists |
 | `MC-LOG-001` | Every affected concrete business class uses `@Slf4j` and safe actionable logging |
 | `MC-BEAN-001` | Every affected Spring Bean has a stable explicit name, constructor injection, `@RequiredArgsConstructor`, and qualified dependencies with Lombok propagation verified |
 | `MC-UTIL-001` | Utilities use only the approved JDK/Commons/Guava/Tika policy and do not duplicate existing helpers |

@@ -1,6 +1,6 @@
 ---
 name: stellar-enclosure-coding-create-new-module
-description: 用唯一的非 open Egon-COLA Maven archetype 生成一个真实业务项目，或为多个生成项目设计/创建明确要求的外层聚合 POM，并说明新项目如何使用 Egon-COLA 组件与平台依赖。用户要求新建模块、询问父 POM 或初始依赖关系，或运行 /stellar-enclosure-coding-create-new-module 时使用。不选 -open，不复制 source-projects，不手写业务骨架。不替代 write-spec、write-plan 或 exec-plan。
+description: 生成一个非 open Egon-COLA Maven 业务项目（light、service、web 或 agent），或设计/创建用户明确要求的外层 Maven reactor。用于脚手架创建与初始 parent/BOM 关系，不用于已有业务实施、open archetype 或前端脚手架。
 ---
 
 # 用非 open archetype 生成业务项目
@@ -21,8 +21,8 @@ description: 用唯一的非 open Egon-COLA Maven archetype 生成一个真实�
 2. 先判断是独立生成项目、纯聚合外层 reactor，还是明确需要共享父 POM 的继承。独立生成项目已自带根 POM；默认外层 reactor 不设 `<parent>`，生成项目继续直接继承 `stellar-enclosure-archetypes-parent`。
 3. 要生成时从选型表选择且只选择一个 archetype；两个都合适才询问。只要求父 POM 时跳过 archetype 生成。
 4. 一次问齐实际创建所必需且无法从现有文件确定的信息：生成项目的 GAV、包名、输出父目录；外层 reactor 的业务 GAV 与准确子项目目录。Web/Service 的对端 Facade 四项坐标可以全不传；若要传入，必须四项齐全。不得编造对端 Facade。
-5. 从 Stellar-Enclosure-COLA 仓库根的 `pom.xml` 读取版本。生成业务项目时在该仓库根使用 `./mvnw`；只回答父 POM 时不运行生成命令。
-6. archetype 无法解析时给出 Maven 错误；本地安装前询问用户。不要发布或运行 `scripts/generate_archetypes.sh`。
+5. 按 `references/archetype-selection.md` 的前置检查解析 checkout、版本和输出位置；确认目标目录尚不存在后，才在该仓库根使用 `./mvnw` 执行带正确引用的命令。只回答父 POM 时不运行生成命令。
+6. archetype 无法解析时给出 Maven 错误及准确缺失坐标。本地安装需要授权；已有对该安装的准确授权则继续，否则先准备具体命令及范围再询问。不要发布，也不要隐式改用 checkout 的 archetype 打包脚本。
 7. 完成适用的生成检查及外层 reactor 检查；失败时报告证据，不靠改写生成项目的父 POM 强行通过。
 8. 报告聚合/继承关系；发生生成时再报告 archetype GAV/版本、输出路径、拓扑、codegen 适用范围以及下述样例清理交接。仅创建请求到此完成；已经要求业务工作时继续进入 Spec skill，不要求用户再调用一个清理 skill。
 
@@ -39,7 +39,7 @@ description: 用唯一的非 open Egon-COLA Maven archetype 生成一个真实�
 - 用户没要求时，不把项目加进外层 reactor POM。单纯聚合不修改生成项目的 `<parent>`。
 - 不启动进程、数据库或浏览器。
 
-native `light`、`web`、`service` 仅在初始 CREATE 建表时用 `scripts/stellar-enclosure-codegen.sh` 生成模板；之后的 ALTER 等结构变更由 agent 按获批 Plan 修改代码。`agent` 是合法的非 open archetype，但不在生成器范围内；不要为它编造持久化模板。
+native `light`、`web`、`service` 的初始 CREATE 建表使用后续 Spec/Plan/Execute skill 内置的 codegen helper；本创建 skill 不包含、也不运行该 helper。之后的 ALTER 等结构变更由 agent 按获批 Plan 修改代码。`agent` 是合法的非 open archetype，但不在生成器范围内；不要为它编造持久化模板。
 
 ## 示例与首次业务请求
 

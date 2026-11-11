@@ -99,7 +99,7 @@ For Java work, read `references/user-mandated-java-rules.md` and `references/jav
 | --- | --- | --- | --- | --- |
 | Architecture profile | `<actual tree, selected traditional or exact Archetype evidence>` | `<Spec section>` | `<preserved modules/packages/dependency direction>` | `Step N; MC-ARCH-001` |
 | Reuse/capability | `<Spring/Starter/Egon/module candidate path or dependency>` | `<reuse/gap decision>` | `<exact reused type/configuration or approved addition>` | `Step N; MC-REUSE-001 / MC-DEP-001` |
-| Naming/model/validation/conversion | `<nearby types, ValidationUtils, BaseConverter, MapStruct evidence>` | `<Spec sections>` | `<exact suffixes, groups, record/Lombok, converter contract>` | `<Steps and MC IDs>` |
+| Naming/model/validation/conversion | `<nearby types, ValidationUtils, Egon converter and MapStruct evidence>` | `<Spec sections>` | `<exact suffixes, groups, record/Lombok, converter contract>` | `<Steps and MC IDs>` |
 | Bean/logging/util/JSON/time/config | `<stereotypes, lombok.config, profiles, dependencies>` | `<Spec sections>` | `<exact annotations, libraries, types, profile files>` | `<Steps and MC IDs>` |
 | Business variation/pattern | `<current branch/rule/state evidence>` | `<mandatory pattern for Complex / direct only for Simple>` | `<participants, selection/wiring, or Simple evidence>` | `Step N; MC-PATTERN-001` |
 
@@ -119,8 +119,8 @@ Read `references/user-mandated-java-rules.md`. Preserve each original rule indep
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Rule 1 | `<Spec §6.2/§8/§10>` | `<all affected Java types>` | `<ordered type/consumer files>` | `<mandatory suffixes and reuse>` | `<inventory/compile/search>` | `<Step N>` | PASS / N/A / BLOCKED |
 | Rule 2 | `<Spec §6.2/§7/§9/§10>` | `<all affected layer handoffs>` | `<tests, groups, boundary files>` | `<@Valid/@Validated/group/ValidationUtils/libphonenumber>` | `<positive/negative/group tests>` | `<Step N>` | PASS / N/A / BLOCKED |
-| Rule 3 | `<Spec §6.2/§10>` | `<objects/converters/BaseConverter>` | `<tests, model, converter, consumers>` | `<value-object record/class Lombok baseline/MapStruct>` | `<constructor/mapping compile/tests>` | `<Step N>` | PASS / N/A / BLOCKED |
-| Rule 4 | `<Spec §6.2/§7/§13>` | `<business Beans/lombok.config>` | `<tests, business files, config>` | `<@Slf4j/name/@RequiredArgsConstructor/@Qualifier>` | `<compile/wiring/log review>` | `<Step N>` | PASS / N/A / BLOCKED |
+| Rule 3 | `<Spec §6.2/§10>` | `<objects, MapStruct and BaseConverter or BaseForwardConverter>` | `<tests, model, converter, consumers>` | `<value-object record/class Lombok baseline/MapStruct>` | `<constructor/mapping compile/tests>` | `<Step N>` | PASS / N/A / BLOCKED |
+| Rule 4 | `<Spec §6.2/§7/§13>` | `<business Beans/lombok.config>` | `<tests, business files, config>` | `<@Slf4j/name/@RequiredArgsConstructor(onConstructor_ = @Autowired)/@Qualifier>` | `<compile/wiring/log review>` | `<Step N>` | PASS / N/A / BLOCKED |
 | Rule 5 | `<Spec §6.2/§15>` | `<imports/dependencies/helpers>` | `<affected files/manifests>` | `<closed allowlist only>` | `<dependency/import search>` | `<Step N>` | PASS / N/A / BLOCKED |
 | Rule 6 | `<Spec §6.2/§9/§10>` | `<external JSON contracts>` | `<contract/tests>` | `<Jackson annotation/default decisions>` | `<serialization/compatibility tests>` | `<Step N>` | PASS / N/A / BLOCKED |
 | Rule 7 | `<Spec §6.2/§15>` | `<all profile files>` | `<base + every environment + properties/tests>` | `<identical key structure>` | `<key-parity/config tests>` | `<Step N>` | PASS / N/A / BLOCKED |
@@ -233,7 +233,7 @@ void <behavior_name>() {
 - Input/output and state mapping: `<trusted context/request/model/column -> result and state effects>`
 - Error and edge behavior: `<validation/permission/missing/duplicate/concurrency/dependency/rollback branches>`
 - Standards impact: `<applicable MC-* IDs and exact repository-consistent annotations/contracts; include reuse/dependency decision>`
-- Literal rule enforcement: `<exact Rule N values; do not replace required annotations, BaseConverter, Validation, or patterns with preferences>`
+- Literal rule enforcement: `<exact Rule N values; do not replace required annotations, the applicable Egon converter contract, Validation, or patterns with preferences>`
 - Implementation pseudocode:
 
 ```java
@@ -354,7 +354,7 @@ Complete every row individually after reconciling the Plan with the effective Sp
 | `MC-NAME-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<planned type inventory>` | `<semantic suffix conclusion>` | `<None or action/owner>` |
 | `MC-VALID-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<boundary/group/normalization plan>` | `<coverage conclusion>` | `<None or action/owner>` |
 | `MC-MODEL-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<value-object record/class Lombok baseline>` | `<construction or blocking conflict>` | `<None or action/owner>` |
-| `MC-CONVERT-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<MapStruct + mandatory BaseConverter plan>` | `<mapping/no-bypass conclusion>` | `<None or action/owner>` |
+| `MC-CONVERT-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<MapStruct and BaseConverter or BaseForwardConverter plan>` | `<mapping/no-bypass conclusion>` | `<None or action/owner>` |
 | `MC-LOG-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<business-class files>` | `<logging conclusion>` | `<None or action/owner>` |
 | `MC-BEAN-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<Bean names/injection/Qualifier/lombok.config>` | `<DI conclusion>` | `<None or action/owner>` |
 | `MC-UTIL-001` | `Applicable / Not applicable` | `PASS / N/A / FAIL / BLOCKED` | `<utility dependency/file evidence>` | `<utility conclusion>` | `<None or action/owner>` |
@@ -380,4 +380,4 @@ Read `references/egon-java-cqe-contract.md`. Record each applicable concern sepa
 
 ## Backend generation and dependency evidence
 
-Read `references/backend-code-generation.md`. For affected DDL/CRUD scaffolding record the verified generator, profile, DDL/manifest version, logical tables, output paths and exact artifacts; identify generated versus custom files and update/hash conflicts. Catalog paths are `GENERATED`. Do not plan handwritten bodies for them. After a skill-driven generator apply, or a plan that is the last authorized generator action, append the classpath SQL journal defined there. Record current dependency evidence and explicit approval for each introduction. Absent tooling or unapproved missing dependencies blocks the dependent work.
+Read `references/backend-code-generation.md`. For affected DDL/CRUD scaffolding record the verified generator, profile, DDL/manifest version, logical tables, output paths and exact artifacts; identify generated versus custom files and update/hash conflicts. Catalog paths are `GENERATED`. Do not plan handwritten bodies for them. Include the classpath SQL journal in the declared paths of the Step that runs the generator. If the request includes a generator preview, review the CLI plan output and append the journal as defined there. Record current dependency evidence and explicit approval for each introduction. Absent tooling or unapproved missing dependencies blocks the dependent work.

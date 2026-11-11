@@ -92,7 +92,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 | `MC-NAME-001` | 类型名语义明确且无含糊载体后缀 |
 | `MC-VALID-001` | 跨层输入使用 Validation、Group、获批规范化和测试 |
 | `MC-MODEL-001` | 准确规划 值对象 record/普通 class 与按场景选择的 Builder，否则构造器/框架冲突阻断 |
-| `MC-CONVERT-001` | MapStruct/MapStructPlus 与强制 Egon `BaseConverter` 负责每个新增受影响 Converter |
+| `MC-CONVERT-001` | 每个新增受影响 Converter 使用 MapStruct/MapStructPlus 与适用的 Egon `BaseConverter` 或 `BaseForwardConverter` 契约 |
 | `MC-LOG-001` | 业务类使用 `@Slf4j` 和安全日志 |
 | `MC-BEAN-001` | Bean 有稳定名称、Lombok 构造注入、Qualifier 和传播校验 |
 | `MC-UTIL-001` | 只用获准工具且不新增重复 Helper |

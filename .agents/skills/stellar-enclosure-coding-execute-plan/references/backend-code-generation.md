@@ -29,7 +29,11 @@ Legacy flat-layout files, ownership records, changed module paths or changed Dom
 
 Plans use formatVersion 2. Review the file inventory before apply: an existing path with no generator state is `CONFLICT`, as is a user-edited or intentionally removed generated file. The CLI re-reads config and DDL and independently checks template, generator and state fingerprints before writing; a v1 plan or stale input must be replanned. Do not use a handwritten patch to bypass these protections.
 
-For an approved template task, call `plan`, inspect the JSON summary, selected files and conflicts, then `apply` only the authorized actions. Read the machine summary and diff. Do not retype generated boilerplate. A missing dependency or absent classpath still blocks; do not invent a replacement generator.
+## Design, preview, and execution
+
+- A Spec or Plan request authorizes the design artifact and its relationship metadata. Describe the generator inputs, owned outputs, and execution gates there. Inspect the repository and use read-only generator commands (`templates`, or `check` when existing configuration and inputs are available) for evidence.
+- A generator preview is part of the task when the user has authorized it. The CLI's lowercase `plan` writes `.egon/codegen/plans/<plan-id>.json` under the configured output root. Review the JSON summary, selected files, and conflicts. If the preview is the last authorized generator action, append the classpath SQL journal below. Drafting the capitalized implementation Plan alone triggers neither write.
+- An authorized generation Step runs `plan`, reviews the exact file actions and conflicts, then runs `apply` for the approved scope. Include the journal in the Step's declared paths. Read the machine summary and diff after apply. Use existing authorization for the same scope. Missing dependencies or classpath still block generation, and catalog-owned output must come from the verified tool.
 
 Generate supported repetitive backend scaffolding through that command. The model supplies generation configuration and business decisions, reviews its diff, and writes only business logic/custom queries not covered by templates. Do not add empty adapters, base classes or services merely to exercise a template.
 
@@ -83,7 +87,7 @@ Append only. Do not rewrite or delete earlier entries. Consuming the same versio
 | Phase | Required result |
 | --- | --- |
 | Spec | DDL source/type, supported profile, templates, generated/custom ownership, CRUD/API semantics, dependency availability and change/conflict policy. Catalog types are generator-owned, not handwritten classes |
-| Plan | Exact configuration, executable discovery, artifact scope, output paths, required existing types, expected diff, generator/component/template versions, validations and approvals. Catalog paths are `GENERATED`; their pseudocode is the config and `plan`/`apply`, not a Java body |
+| Plan | Exact configuration, executable discovery, artifact scope, output paths, required existing types, expected diff, generator/component/template versions, validations and approvals. Mark catalog paths `GENERATED`, specify the config and `plan`/`apply` commands, and assign the classpath SQL journal to the owning Step |
 | Execute | Run the verified generator for approved templates, inspect scoped diff, preserve custom code, compile/test the affected output; append the classpath SQL journal; block missing tooling/dependencies rather than inventing them. Do not type catalog files after a SQL change |
 | Final audit | Reconcile DDL diff, selected/generated files, unresolved consumers/conflicts, manifest/dependency changes, validation results and runtime limits |
 
@@ -98,7 +102,8 @@ Map these concerns to `MC-ARCH-001`, `MC-REUSE-001`, `MC-DEP-001`, `MC-MODEL-001
 - 新业务项目由 `stellar-enclosure-coding-create-new-module` 从唯一的非 open archetype（`light`、`service`、`web`、`agent`）生成。不要复制 `source-projects`，不要手写模块骨架。已有传统三层保持现状；agent、open、传统三层按自身架构执行获批变更，不能假装 native 生成器支持它们。
 - 明确 Light/Web/Service、DDL 来源、逻辑表映射、输出根目录、精确产物范围；只生成 DAO 不得自动扩展到其他层。Agent 暂不支持，传统三层结构不迁移。
 - 重生成按基线/hash 管理，只更新未被人工修改的自有文件；不覆写自定义代码，不执行数据库 DDL，不自行添加依赖。
-- skill 驱动的生成在 `apply` 成功后，或本次只授权到 `plan` 时，向 `docs/egon/codegen/ddl-consumption-log.md` 追加一条。记下 Asia/Shanghai 时间、profile、输出根、用到的 `src/main/resources/db/` 脚本版本（执行到的最高版本）、路径、SHA-256 和完整 SQL。这不是数据库执行记录，不连接数据库。只追加，不改旧条目；没有 db 脚本就记 `throughVersion: none`。
+- 仅写 Spec 或 Plan 时，在文档中记录生成器输入、产物和实施验证，可用只读的 `templates` 或已有配置的 `check` 取证。已授权预览时，CLI 的 `plan` 会在输出根写入 `.egon/codegen/plans/<plan-id>.json`，审查其摘要、文件清单与冲突。获准生成的执行 Step 审查计划后再 `apply`，并把日志列入 Step 文件范围。
+- skill 驱动的生成在 `apply` 成功后，或本次已授权的生成器预览以 `plan` 为最后动作时，向 `docs/egon/codegen/ddl-consumption-log.md` 追加一条。记下 Asia/Shanghai 时间、profile、输出根、用到的 `src/main/resources/db/` 脚本版本（执行到的最高版本）、路径、SHA-256 和完整 SQL。这不是数据库执行记录，不连接数据库。只追加，不改旧条目；没有 db 脚本就记 `throughVersion: none`。
 
 用户于 2026-09-22 最终明确改为 FreeMarker，替代前一条 Velocity 选型。仅授权工具依赖 org.freemarker:freemarker（方案固定2.3.35），生成业务工程不增加引擎依赖，其他依赖仍须逐项批准。
 

@@ -5,7 +5,7 @@
 - `$stellar-enclosure-coding-create-new-module`：用一个非 open 的 `stellar-enclosure-archetype-{light,service,web,agent}` 生成真实业务项目。不选手写骨架，不选 `-open`。
 - `$stellar-enclosure-coding-writing-spec`：基于当前仓库编写系统架构、概要设计或详细设计 Spec，输出到 `docs/egon/spec`。
 - `$stellar-enclosure-coding-writing-plan`：基于一份明确 Spec 编写有严格文件顺序和语言化伪代码的实施 Plan，输出到 `docs/egon/plan`。
-- `$stellar-enclosure-coding-executing-plan`：基于一份已获准执行的 Plan 逐 Step 修改、验证并提交代码；每个 Step 必须形成独立提交，最后独立审核实现是否满足全部有效 Spec。
+- `$stellar-enclosure-coding-execute-plan`：基于一份已获准执行的 Plan 逐 Step 修改、验证并提交代码；每个 Step 必须形成独立提交，最后独立审核实现是否满足全部有效 Spec。
 
 每个 skill 都提供两份入口内容：
 
@@ -21,7 +21,7 @@ $stellar-enclosure-coding-writing-spec 为当前编码需求编写技术 Spec，
 用户审核并明确接受 Spec
 $stellar-enclosure-coding-writing-plan 基于 docs/egon/spec/2026-08-15-14-30-example-design.md 编写实施 Plan
 用户审核并授权执行 Plan
-$stellar-enclosure-coding-executing-plan 基于 docs/egon/plan/2026-08-15-15-10-example-implementation.md 分步实现
+$stellar-enclosure-coding-execute-plan 基于 docs/egon/plan/2026-08-15-15-10-example-implementation.md 分步实现
 在首次真实业务验收前落实 Spec §2.5 全部示例删除/替换，保留已证实的真实业务、基础设施及已应用 SQL 历史
 每个 Step：修改 -> 验证 -> 立即路径受限提交；核验提交哈希后才能开始下一 Step，禁止最后再拆分提交
 全部 Step 提交后，独立对照有效 Spec 审核并汇报未满足项
@@ -45,7 +45,7 @@ docs/egon/plan/YYYY-MM-DD-HH-MM-ABSTRACT.md
 - Plan 必须逐 Step 写明先处理哪个文件、真实符号、针对当前语言/框架的伪代码、完成该文件后的状态、验证、回滚和提交边界。
 - 两份文档都必须在交付前复核：Spec 对照原始需求和仓库；Plan 对照原始需求、有效 Spec 和当前仓库。
 - Spec 和 Plan skill 只写设计文档，不会顺带开始编码。
-- 无需另建示例清理 skill：创建 skill 交接来源，write-spec Version 8 必填 §2.5 与 `Archetype Cleanup`，Plan/Execute 消费整份 `EXAMPLE-*` 清单；已生成或部分实施项目也触发。仅按当前功能局部清理或“留作参考”都不能验收通过。
+- 无需另建示例清理 skill：创建 skill 交接来源，write-spec Version 8/9 必填 §2.5 与 `Archetype Cleanup`，Plan/Execute 消费整份 `EXAMPLE-*` 清单；已生成或部分实施项目也触发。仅按当前功能局部清理或“留作参考”都不能验收通过。
 - Execute Plan skill 同一时间只允许一个 Step 处于执行中；Step 只有达到 `Verified` 并形成已核验的 `Committed` 提交后才算完成。
 - Execute Plan skill 使用路径受限暂存与提交，保留所有无关工作；禁止空提交、跨 Step 合并提交和自动改写历史。
 - 最终 Spec 审核必须逐项标记 `Satisfied`、`Partial`、`Not satisfied` 或 `Runtime unverified`；发现缺口只汇报，不静默追加未计划实现。
@@ -58,3 +58,15 @@ docs/egon/plan/YYYY-MM-DD-HH-MM-ABSTRACT.md
 - 时间规范同步中英文：Spec Version 9 §6.3、Plan Version 5 §4.9 记录 TIME 契约，MC-TIME-001 验证发生时刻 UTC 存储/传输、纯日期语义、显式业务时区计算与前端展示转换；创建 skill 只交接真实模板证据。既有 UTC LocalDateTime 单列兼容，skill 更新不授权修改业务/数据库/历史迁移。旧版本文档按原结构契约校验。
 
 Skill 分发工具及其回归测试位于 `.agents/skills/scripts/`：用 `link-skills.sh` 向指定工程建立链接，用 `test-link-skills.sh` 在临时目录验证链接行为。
+
+## 维护验证与改名
+
+从 COLA 仓库根运行全部离线维护检查：
+
+```bash
+bash .agents/skills/scripts/validate-skills.sh
+```
+
+该命令检查四个 skill 的资源引用、三个设计/执行 skill 的 Python 回归、应当相同的共享规范与 codegen wrapper，以及临时目录中的链接分发行为；不生成业务项目、不运行 Maven、不启动服务。修改入口或 UI 元数据时，还应使用宿主 `skill-creator` 的 `quick_validate.py` 检查 frontmatter，并人工核对中英文语义、触发边界和实际场景；脚本通过不代表业务运行验收。
+
+执行 skill 的正式名称为 `stellar-enclosure-coding-execute-plan`，取代 `stellar-enclosure-coding-executing-plan`。已有消费工程可先用 `link-skills.sh --dry-run --prune <工程绝对路径>` 查看迁移，再执行同样命令去掉 `--dry-run`；只清理指向本仓库的旧链接。不要仅为改名复制第二份执行 skill。工作区根已存在正确链接时无需重新创建。

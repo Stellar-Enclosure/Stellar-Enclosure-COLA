@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stellar Enclosure Coding Write Spec"
+  short_description: "Draft a repository-grounded coding specification"
+  default_prompt: "Use $stellar-enclosure-coding-writing-spec to write a repository-grounded coding Spec with explicit scope, contracts, acceptance evidence, and review status."

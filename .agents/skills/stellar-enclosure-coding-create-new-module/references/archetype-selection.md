@@ -43,15 +43,19 @@ Omit all four properties when the new project has no peer Facade yet. The genera
 
 Light and agent have no peer-facade properties.
 
-## Version and catalog
+## Checkout, version and destination preflight
 
-Read the archetype version from the Stellar-Enclosure-COLA checkout's root `pom.xml` (`parent` / `version`) at generation time. Do not invent a version.
+Resolve this skill's real directory first, including when invoked through a symlink. Its owning Stellar-Enclosure-COLA checkout supplies the root `pom.xml`, Maven wrapper and selected definition. If the skill was copied independently, locate the checkout from project guidance or ask for its path; the caller's current directory is not proof. Resolve bundled reference paths against the skill root; `definitions/...` and build-script paths in this reference belong to the checkout, not the skill package.
 
-Generate from this checkout with `./mvnw`. Add `-DarchetypeCatalog=local` only after that version is already installed locally. If Maven cannot resolve the archetype, stop with the error and ask before any install. Do not publish, and do not run `scripts/generate_archetypes.sh`. That script packages archetypes; it does not create a business project.
+Read the current project's own root POM version, falling back to its inherited parent version only when the project version is absent. Resolve any property expression from the actual Maven model; never pass a literal `${...}` as an archetype version or reuse a historical example version. Confirm the selected definition's topology and peer properties still match the table before generation. Report material drift instead of inventing a new product profile.
+
+Generate from this checkout with `./mvnw`. Add `-DarchetypeCatalog=local` only after that version is already installed locally. If Maven cannot resolve the archetype, report the exact error and missing coordinate. Local installation requires authorization; reuse any existing exact authorization. Do not publish or invoke the checkout's packaging script as an implicit fallback: packaging archetypes is a different action from creating a business project.
 
 ## Where the project is written
 
 Ask for the output parent directory when the user has not named one. Do not create the project inside the Egon-COLA repository unless the user explicitly says it belongs there.
+
+Canonicalize the output parent and confirm that `<parent>/<artifactId>` does not exist as a file, directory or symlink (including a broken symlink). Keep `artifactId` a single valid Maven project name, not a path. Check canonical locations against the protected trees below so a parent symlink cannot bypass the boundary. Never merge generation into an existing directory. If an earlier attempt left partial output, inspect and report it; use a new destination or an explicitly authorized cleanup instead of deleting it or retrying over it automatically.
 
 Never write under:
 
@@ -63,18 +67,18 @@ Do not add the new project to an outer reactor POM unless the user asks. If requ
 
 ## Command shape
 
-Run from the Stellar-Enclosure-COLA checkout's root. Replace every angle-bracket field. Add the selected archetype's four peer flags only when the user supplied a real peer Facade.
+Run from the resolved Stellar-Enclosure-COLA checkout's root. Replace every angle-bracket field; keep each `-D` assignment one shell argument and safely quote actual user-provided values (including spaces or shell metacharacters). The quotes below illustrate argument grouping, not permission to interpolate unescaped shell text. Add the selected archetype's four peer flags only when the user supplied a real peer Facade.
 
 ```bash
 ./mvnw -B -ntp archetype:generate \
   -DarchetypeGroupId=top.egon \
-  -DarchetypeArtifactId=<stellar-enclosure-archetype-light|service|web|agent> \
-  -DarchetypeVersion=<version from pom.xml> \
-  -DgroupId=<groupId> \
-  -DartifactId=<artifactId> \
-  -Dversion=<version> \
-  -Dpackage=<package> \
-  -DoutputDirectory=<parent directory> \
+  '-DarchetypeArtifactId=<one allowed artifactId>' \
+  '-DarchetypeVersion=<resolved version from pom.xml>' \
+  '-DgroupId=<groupId>' \
+  '-DartifactId=<artifactId>' \
+  '-Dversion=<version>' \
+  '-Dpackage=<package>' \
+  '-DoutputDirectory=<absolute parent directory>' \
   -DinteractiveMode=false
 ```
 
@@ -91,6 +95,6 @@ Check all of these before reporting success:
 - For Web or Service without peer coordinates, the root and infrastructure POMs contain no peer-facade properties or dependency, and the peer client/source/configuration files are absent. With all four coordinates, verify the existing peer dependency and client remain.
 - The chosen artifactId does not contain `-open`.
 - During scaffold-only creation, report origin GAV/version and actual sample paths/registrations as pending cleanup. Before accepting first business implementation, Spec/Plan must cover unused examples across the entire generated project, not only the feature's sample domain. Preserve required infrastructure and applied SQL history; no reference-only executable example may remain in production modules.
-- Do not start the application, write SQL, or run `scripts/stellar-enclosure-codegen.sh` while creating the skeleton.
+- Do not start the application, write SQL, or run a downstream skill's codegen helper while creating the skeleton.
 
 For scaffold-only work, finish with that handoff. If business work was already requested, continue into `stellar-enclosure-coding-writing-spec` against the generated project and its cleanup gate. For `light`, `web`, and `service`, only initial CREATE scaffolding uses the generator rule in that skill; later ALTER-driven code changes are agent-owned. `agent` has no codegen profile; do not invent persistence templates for it.

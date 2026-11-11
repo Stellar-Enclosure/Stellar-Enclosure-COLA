@@ -22,21 +22,25 @@ usage() {
         "" \
         "Options:" \
         "  --dry-run  Report what would happen; touch nothing." \
-        "  --force    Also discard copies that are untracked or dirty." \
+        "  --force    Also replace otherwise blocked paths, discarding local" \
+        "             changes and untracked files, including ignored files." \
         "  --prune    Also remove links into this repository whose skill was" \
         "             renamed or deleted upstream, with their exclude entries." \
         "  -h, --help Show this help." \
         "" \
         "A same-name real directory is replaced by the symlink when the" \
         "target repository tracks it and reports it clean, because git can" \
-        "restore it. Anything else is left alone unless --force is given." \
-        "Every path this script links is added to that repository's" \
+        "restore it. Untracked or ignored content blocks replacement unless" \
+        "you pass --force." \
+        "Every link to a source skill is added to that repository's" \
         ".git/info/exclude so git status stays clean." \
         "" \
         "The target must be the root of its own repository. A linked git" \
         "worktree, or a directory that only sits inside another repository," \
         "is refused rather than written into the wrong exclude file. Links" \
         "pointing somewhere other than this repository are never pruned." \
+        "The target's .agents and .agents/skills must be real directories" \
+        "when present." \
         "" \
         "Exit codes: 0 everything requested is linked, 2 finished with" \
         "skips, 1 usage or hard error."
@@ -66,9 +70,12 @@ git_dir_of() {
 mark_excluded() {
     local exclude="$1" entry="$2"
     [[ -n "$exclude" ]] || return 0
-    [[ -f "$exclude" ]] || : >"$exclude"
     grep -qxF "$entry" "$exclude" 2>/dev/null && return 0
-    printf '%s\n' "$entry" >>"$exclude"
+    if $DRY_RUN; then
+        log would-exclude "$entry"
+    else
+        printf '%s\n' "$entry" >>"$exclude"
+    fi
 }
 
 # The inverse of mark_excluded, for links that no longer exist.
@@ -91,15 +98,20 @@ is_skill_name() {
 
 # Decide whether deleting an existing real copy is reversible:
 #   replace - tracked and clean, `git restore` brings it back
-#   force   - untracked, dirty, or not a skill directory at all
+#   force   - untracked, ignored, or dirty content
 classify() {
     local target="$1" rel="$2" tracked modified
-    tracked="$(git -C "$target" ls-files -- "$rel" 2>/dev/null)" || tracked=''
+    tracked="$(git -C "$target" ls-files -- "$rel")" ||
+        die "failed to inspect tracked files under $target/$rel"
     [[ -n "$tracked" ]] || {
         printf 'force\n'
         return 0
     }
-    modified="$(git -C "$target" status --porcelain --no-renames -- "$rel" 2>/dev/null)" || modified=''
+    # A clean default status can hide ignored files or untracked files when
+    # status.showUntrackedFiles=no. Avoid index refresh writes in dry runs.
+    modified="$(git --no-optional-locks -C "$target" status --porcelain \
+        --no-renames --untracked-files=all --ignored -- "$rel")" ||
+        die "failed to inspect local changes under $target/$rel"
     [[ -n "$modified" ]] || {
         printf 'replace\n'
         return 0
@@ -116,6 +128,7 @@ link_one() {
 
     if [[ -L "$dest" ]]; then
         if [[ "$(readlink "$dest")" == "$src" ]]; then
+            mark_excluded "$exclude" "$rel"
             log unchanged "$rel"
             return 0
         fi
@@ -132,13 +145,13 @@ link_one() {
 
     action='link'
     if [[ -e "$dest" ]]; then
-        if [[ -d "$dest" && -f "$dest/SKILL.md" ]]; then
+        if [[ -n "$exclude" && -d "$dest" && -f "$dest/SKILL.md" ]]; then
             state="$(classify "$target" "$rel")"
         else
             state='force'
         fi
         if [[ "$state" == 'force' ]] && ! $FORCE; then
-            log blocked "$rel (untracked, dirty or not a skill; --force to discard)"
+            log blocked "$rel (untracked, ignored, dirty or not a skill; --force to discard)"
             SKIPPED=$((SKIPPED + 1))
             return 0
         fi
@@ -270,6 +283,10 @@ for raw in "${TARGETS[@]}"; do
     target="$(cd "$raw" && pwd -P)"
     [[ "$target" != "$REPO_ROOT" ]] ||
         die "$target is the skill source repository; refusing to link it into itself"
+
+    for parent in "$target/.agents" "$target/.agents/skills"; do
+        [[ ! -L "$parent" ]] || die "refusing to use a symlink as a skill parent: $parent"
+    done
 
     if [[ -e "$target/.agents" && ! -d "$target/.agents" ]]; then
         die "$target/.agents exists but is not a directory"

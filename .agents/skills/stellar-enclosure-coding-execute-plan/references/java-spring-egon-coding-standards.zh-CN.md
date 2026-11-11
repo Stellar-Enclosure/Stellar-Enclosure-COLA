@@ -93,9 +93,9 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 | `MC-NAME-001` | 触达类型语义明确且无含糊载体后缀 |
 | `MC-VALID-001` | 跨层输入使用 Validation、Group、规范化和测试 |
 | `MC-MODEL-001` | 已使用 值对象 record/普通 class 与按场景选择的 Builder，否则冲突阻断 |
-| `MC-CONVERT-001` | MapStruct/MapStructPlus 与强制 Egon `BaseConverter` 负责每个新增受影响 Converter |
+| `MC-CONVERT-001` | 每个新增受影响 Converter 使用 MapStruct/MapStructPlus，双向映射使用 Egon `BaseConverter`，不可逆投影使用 `BaseForwardConverter` |
 | `MC-LOG-001` | 触达业务类使用 `@Slf4j` 和安全日志 |
-| `MC-BEAN-001` | Bean 有名称、Lombok 构造注入、Qualifier 和传播校验 |
+| `MC-BEAN-001` | 触达的 Bean 有明确名称，适用的 Lombok 注入构造器有显式 `@Autowired` 并验证 Qualifier 传播 |
 | `MC-UTIL-001` | 只用获准工具且无重复 Helper |
 | `MC-JSON-001` | Jackson 是唯一 JSON 体系且契约注解正确 |
 | `MC-TIME-001` | 时间使用 `java.time` 并明确语义 |

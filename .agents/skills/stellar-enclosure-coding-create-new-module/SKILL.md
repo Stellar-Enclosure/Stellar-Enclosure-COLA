@@ -1,15 +1,10 @@
 ---
 name: stellar-enclosure-coding-create-new-module
 description: >
-  Create one real business project from exactly one non-open Egon-COLA Maven
-  archetype (light, service, web, or agent), or design/create an explicitly
-  requested outer parent/aggregator POM for several generated projects. Use
-  when the user asks to generate a non-open archetype, runs
-  /stellar-enclosure-coding-create-new-module, or asks which parent a generated project or
-  multi-project reactor should use, including how that generated project
-  initially obtains Egon-COLA Component and Platform dependencies.
-  Do not select -open artifacts, copy source-projects, or handwrite a skeleton.
-  This skill does not replace write-spec, write-plan, or exec-plan.
+  Generate one non-open Egon-COLA Maven business project (light, service, web,
+  or agent), or design/create its explicitly requested outer Maven reactor.
+  Use for scaffold creation and initial parent/BOM relationships, not existing
+  business implementation, open archetypes, or frontend scaffolds.
 ---
 
 # Create a business project from a non-open archetype
@@ -27,9 +22,9 @@ If the work changes existing business code, stop and use `stellar-enclosure-codi
 1. Read `references/archetype-selection.md` completely for any generation. When an outer parent, multiple independent projects, Maven parent inheritance, or Egon Component/Platform dependencies in a generated project are in question, also read `references/multi-project-parent.md` completely before choosing a POM relationship.
 2. Decide whether the request is for one standalone generated project, a pure outer reactor, or explicitly shared parent inheritance. A standalone generated project already has a root POM; the default outer reactor has no Maven `<parent>` and preserves each generated root's direct `stellar-enclosure-archetypes-parent` inheritance.
 3. For generation, pick exactly one allowed archetype from the selection table. If two fit, ask before generate. If the user already named one allowed archetype, use it. For a parent-only request, skip generation.
-4. If required identities for the requested action are missing, ask once. For generation these are `groupId`, `artifactId`, `version`, `package`, and output parent. Web and Service peer-facade coordinates are optional; when supplied, require all four together. For an outer reactor the required identities are its business GAV and exact child paths. Never invent a peer facade or default it to a `source-projects` sample.
-5. Read the archetype version from the Stellar-Enclosure-COLA checkout's root `pom.xml`. For generation run the command in `references/archetype-selection.md` with `./mvnw` from that checkout's root. A parent-only answer does not run Maven generation.
-6. If the archetype cannot be resolved, stop and show the Maven error. Ask before any local install. Do not publish or run `scripts/generate_archetypes.sh`.
+4. Resolve required identities from the request and current project evidence; ask once for anything still missing. For generation these are `groupId`, `artifactId`, `version`, `package`, and output parent. Web and Service peer-facade coordinates are optional; when supplied, require all four together. For an outer reactor the required identities are its business GAV and exact child paths. Never invent a peer facade or default it to a `source-projects` sample.
+5. Resolve the checkout, version and output destination using the preflight in `references/archetype-selection.md`. Run the quoted command from that checkout's root with `./mvnw` only after proving the destination is new. A parent-only answer does not run Maven generation.
+6. If the archetype cannot be resolved, report the Maven error and the exact missing coordinate. A local install needs authorization; reuse existing authorization for that exact install, otherwise present the concrete command and scope before asking. Do not publish or run the checkout's archetype-packaging script as an implicit fallback.
 7. Run the applicable generation and optional outer-reactor checks in the references. A failure is reported with evidence; do not patch the generated tree to force a pass.
 8. Report the selected inheritance/aggregation relationship, and for generation the archetype GAV/version, output path, topology, codegen applicability, and the example-cleanup handoff below. Complete scaffold-only work; when business work was already requested, continue through the Spec skill instead of asking the user to invoke a separate cleanup skill.
 
@@ -46,7 +41,7 @@ Use the capability placement table in `references/multi-project-parent.md`. The 
 - Do not add the project to an outer reactor POM unless the user asks. Never change a generated root's Maven parent merely to add it to a reactor.
 - Do not start the process, database, or browser.
 
-Initial CREATE schemas on native `light`, `web`, and `service` can use `scripts/stellar-enclosure-codegen.sh` for catalog scaffolding, as governed by `stellar-enclosure-coding-writing-spec`. This skill does not restate that catalog. `agent` is a legal non-open archetype and is outside the generator; do not invent its persistence templates.
+Initial CREATE schemas on native `light`, `web`, and `service` use the codegen helper bundled with the downstream Spec/Plan/Execute skills. This creation skill has no codegen helper and does not run one. `agent` is a legal non-open archetype and is outside the generator; do not invent its persistence templates.
 
 ## Examples and the first business request
 

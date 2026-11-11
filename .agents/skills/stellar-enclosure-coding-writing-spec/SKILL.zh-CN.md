@@ -9,9 +9,9 @@ description: 当编码任务在实施 Plan 前需要基于仓库编写 RFC 风�
 
 ## 依赖审批与后端模板生成
 
-资源预检后，Java 依赖决策或 DDL/CRUD 模板任务必须读取 `references/backend-code-generation.md`。禁止自行引入依赖；能力不足时阻断并提交具体引入方案，获得用户明确批准后再继续。已批准的精确依赖不重复询问。生成器可用后，已支持模板必须调用 scripts/stellar-enclosure-codegen.sh；禁止虚构命令或静默手写替代。native light、web、service 仅对初始 CREATE 建表使用生成器；ALTER 等后续结构变更由 agent 按获批 Plan 分析并修改代码，不得再用生成器刷新旧产物。新业务项目由 stellar-enclosure-coding-create-new-module 按一个非 open archetype 生成，不能手写模块骨架。每次 apply 成功后，或本次只授权到 plan 时，按 references/backend-code-generation.md 追加 classpath SQL 日志。
+资源预检后，Java 依赖决策或后端模板任务必须读取 `references/backend-code-generation.md`。优先复用已有依赖。需要新增依赖时，阻断受影响工作，直到具体引入方案获批。已批准的精确依赖不重复询问。
 
-生成基础 CRUD 时按 Repo → Domain Service/实现 → Manage/实现 → Light/Web Controller 链路选择 `backend-crud`；Service 不生成 HTTP。DDL 中通用列需要校验，PO 通过 `EgonModel` 继承，不重复声明。v1/过期计划和无归属文件阻断 apply。
+在 Spec 中，明确 native light、web、service 支持的初始 CREATE 模板和显式配置的独立入站事件由生成器负责，记录 schema 或事件输入、选定产物与冲突处理规则。PO 的 `EgonModel` 通用字段继续继承。ALTER 等后续结构变更由 agent 设计具体修改。共享参考资料区分已获授权的生成器预览与获批执行 Step 中的 `apply`，并定义追加 SQL 日志的时机。
 
 生成项目开始真实业务工作前，读取 `references/archetype-example-cleanup.md`，检查整个目标项目的全部模块。在 §2.5 记录来源/扫描证据并逐项处理全部未使用样例；只清理当前功能涉及的样例不够。已有项目有遗留、或缺创建历史时也适用。保留有证据的真实业务、必要基础设施和已应用 SQL 历史。Spec 只设计删除/替换，实施按获批清单执行。
 
@@ -35,8 +35,8 @@ Spec 定义的是**必须构建什么，以及该设计为什么自洽**。它�
 
 - 仅用于已有仓库或已初始化仓库中的编码工作。
 - 每一项重要技术结论都必须来自当前仓库、用户明确决策或被引用的前置 Spec。
-- 只生成或修订 Spec 及关系元数据；不能生成 Plan、修改生产代码、执行迁移或启动项目。
-- Spec 使用用户指定的自然语言；用户未指定时，跟随用户和仓库附近文档使用的语言。源码标识符、符号、路径、schema 和协议名保持原样。
+- 仅请求 Spec 时，生成或修订 Spec 及关系元数据。不能生成 Plan、修改生产代码、执行迁移或启动项目。
+- 标题和自由填写的内容使用用户指定的自然语言。用户未指定时，跟随用户和仓库附近文档使用的语言。保留模板规定的章节名、字段名、表头、状态值、结论值和其他校验标记。源码标识符、符号、路径、schema 和协议名保持原样。
 - 新 Spec 固定保存为 `docs/egon/spec/YYYY-MM-DD-HH-MM-ABSTRACT.md`。
   - 创建时间使用用户/仓库本地时区。
   - `ABSTRACT` 替换为简洁的小写 ASCII kebab-case 摘要，通常为 3–8 个单词。
@@ -102,7 +102,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 21. 关系型数据模型、表、Key、约束或关系为 `Affected` 时，必须增加 Mermaid `erDiagram`，覆盖所有受影响清单表、直接相关邻表、真实基数、关系标签和重要 PK/FK/UK 字段，并映射准确物理表。DAO-only 查询或映射变更不得重画不变 ER 模型。
 22. 选择架构元素或分配接口 ID 前必须读取 `references/minimal-design-and-interface-necessity.zh-CN.md`。从复用现有/不新增元素的直接方案开始。每个新增或实质扩展的 API、RPC/事件、类、分层、表、缓存、Job、依赖或前端 Store/Provider，都必须证明当前需求无法由简单方案满足，并记录新增调用、状态、耦合、失败、迁移和运维成本。如果接口返回值只被原样复制到另一个请求，而目标端可以自行派生或校验，必须拒绝该“先查再转发”接口。
 23. 目标设计前必须读取 `references/change-surface-and-proportional-depth.zh-CN.md`。从需求点名符号建立影响锥，把相关区域分类为 `Affected`、`Context-only`、`Unchanged` 或 `Not applicable`，并在 Header 记录 `Change Surface` 和 `Affected Chapters`。某层存在不是重设计它的依据；仓库证据要求超出用户边界的重大扩张时，必须在扩大范围前询问用户。
-24. 每个 Java 任务必须读取 `references/java-spring-egon-coding-standards.zh-CN.md`。选择新代码前先证明架构和已有能力发现；设计语义命名、Bean Validation/Group/规范化、Record/Lombok 构造、MapStruct/MapStructPlus 与 `BaseConverter` 复用、`@Slf4j`、显式 Bean 名、Qualifier 构造注入、获准工具、Jackson、`java.time`、配置一致性和有依据设计模式。新增依赖或自研基础设施必须证明能力缺口。
+24. 每个 Java 任务必须读取 `references/java-spring-egon-coding-standards.zh-CN.md`。选择新代码前先证明架构和已有能力发现；设计语义命名、Bean Validation/Group/规范化、Record/Lombok 构造、MapStruct/MapStructPlus 与双向转换的 `BaseConverter` 或不可逆投影的 `BaseForwardConverter`、`@Slf4j`、显式 Bean 名、Qualifier 构造注入、获准工具、Jackson、`java.time`、配置一致性和有依据设计模式。新增依赖或自研基础设施必须证明能力缺口。
 25. 第 20 章必须完成阻断型 Manual Check。每个适用 `MC-*` 行必须有具体仓库/设计证据且状态为 `PASS`；不适用行必须有证据和原因且为 `N/A`。任何 `FAIL`、`BLOCKED`、`UNKNOWN`、缺失 ID、缺失证据或未关闭例外都禁止 PASS。
 26. 每份 Java Spec 必须逐字执行 `references/user-mandated-java-rules.zh-CN.md`，并按用户原编号 `1、2、3、4、5、6、7、9、10、11` 输出十行规则矩阵。禁止把原文“必须/只允许/不允许”降级为“优先/建议/按需”。任何无法满足的规则都属于需用户决策的阻断，不能成为隐含例外。
 
@@ -222,7 +222,7 @@ Complex Spec 必须显式执行四轮工作，并把分析结果保留在 Spec �
    - 可使用精确签名、字段表、状态转换、文件树和伪代码阐明设计，但不能写生产级完整方法体。
    - 包含选定的用例产物；关系型模型/关系受影响时必须包含 Mermaid ER 图。
    - 每个受影响接口、每张受影响表和每个受影响索引都必须展开；不能为了文档看起来完整而盘点不变元素。
-   - Version 8 Spec 必须保留 §2.5。Required 的每个 Delete/Replace `EXAMPLE-*` 进入 §8 和 §14，对应 `REQ-*` 进入 §4 和 §19；“参考保留”或未定期延后都不能 PASS。
+   - Version 8 或 9 的 Spec 必须保留 §2.5。Required 的每个 Delete/Replace `EXAMPLE-*` 进入 §8 和 §14，对应 `REQ-*` 进入 §4 和 §19；“参考保留”或未定期延后都不能 PASS。
 8. **复核并修复**
    - 执行 `references/review-checklist.md`。
    - 修复遗漏、矛盾、过期路径、含糊占位、追踪断点和无依据的范围膨胀。
