@@ -1,13 +1,14 @@
 # Final Spec Conformance Audit
 
-Perform this audit after all Plan Steps have verified commits. Treat it as an independent review of the repository, not a confirmation of the Plan author's assumptions.
+Perform an independent repository audit of verified delivery commits and baseline evidence. Audit completed independent scope while work remains blocked. Refresh the evidence as additional Steps complete. Final PASS requires completion evidence for every Step.
 
 ## 1. Freeze the audit baseline
 
 - Record current branch and HEAD.
 - Record the exact Plan path, status, revision, and `Implements Spec` reference.
 - Resolve the complete final `Effective Specs` set, including amendments, supersessions, and dependencies.
-- Record every Step commit and any approved corrective commit.
+- Record every Step commit, baseline completion, and attributed corrective commit.
+- Reconcile the authorized baseline with the effective documents. Check each execution revision against the original intent, rationale, affected Steps and paths, and validation evidence. Use the accepted baseline and supported clarifications when judging conformance.
 - Confirm unrelated work remains outside the delivery commits.
 - Use the recorded delivery revision for audit evidence. If unrelated changes could affect source inspection or validation, use a clean checkout of that revision without altering the user's worktree.
 
@@ -57,14 +58,14 @@ Do not downgrade a concrete implementation defect to `Runtime unverified`. If a 
 - Run every safe, authorized final command listed by the Plan.
 - Add only the smallest repository-standard regression checks needed for affected consumers.
 - Inspect complete output, exit status, skips, warnings, and generated changes.
-- Inspect the actual side effects of commands, including runtime startup hidden in module or integration tests. Run live acceptance only when authorized. Record the delivery revision, environment, commands, and actual results for an authorized run. If runtime proof is missing, record the exact outstanding requirement and what evidence would close it.
+- Inspect actual command effects. Run bounded, isolated local acceptance within the task's validation scope. Shared and live acceptance require applicable authorization. Record the delivery revision, environment, commands and results. If runtime proof is missing, record the exact requirement and evidence needed.
 - Recheck `git status --short` after validation and identify any generated or modified files.
 
 ## 6. Audit delivery discipline
 
-- Every Plan Step has a verified non-empty commit.
-- Commit order matches Step order.
-- Each commit scope matches its Step paths.
+- Every changed Step has a verified non-empty commit. Any Step recorded as `Satisfied at baseline` has reachable committed evidence and fresh verification for its complete outcome.
+- Commit order matches the effective schedule and verified dependencies. Any change in schedule is documented.
+- Each commit scope matches its effective Step paths. Revisions and validation changes are traceable.
 - Corrective commits are explicit and attributed; history was not silently rewritten.
 - No required Plan file or validation gate was skipped.
 - No unrelated work was committed.
@@ -116,18 +117,22 @@ Gate rules:
 - every applicable row is `PASS` with concrete final evidence;
 - `N/A` requires positive scope evidence and reason;
 - `MC-BLOCKER-001` is `PASS` only when every other row is `PASS` or valid `N/A`;
-- any failed/blocked/unknown/missing/unsupported Literal Rule or Manual Check row prohibits final PASS and must be reported, not silently fixed during the audit.
+- any failed, blocked, unknown, missing or unsupported Literal Rule or Manual Check row prohibits final PASS until closed with evidence. Apply the correction procedure to eligible findings.
 
-## 8. Determine the verdict
+## 8. Resolve findings and determine the verdict
+
+When a finding has a compliant local fix, add an attributed corrective Step with the original requirement, evidence, affected paths and verification in the Plan. Use the audit's execution record if the Plan is frozen. Clarify the Spec only when the accepted meaning is already established. Run the Step gates and independently commit any repository changes. Refresh the delivery revision and rerun the affected requirement checks and final gates before determining the verdict. Keep the correction and its evidence in the audit record.
+
+Choose a qualifying correction if several are available. Complete independent checks while an affected requirement is blocked. Apply the skill's blocker rule only when no authorized approach can satisfy the requirement or produce the required evidence. A deferred or unavailable runtime check retains its actual evidence status. An observed behavior defect remains a conformance gap.
 
 - `PASS — Implementation conforms to the effective Specs`: every requirement is `Satisfied`, no required runtime evidence is missing, every applicable Literal Rule is `PASS`, Rule 11 is `PASS`, and every applicable Manual Check is `PASS` with all other rows evidence-backed `N/A`.
 - `PARTIAL — Spec requirements are unmet or unverified`: one or more requirement rows are `Partial`, `Not satisfied`, or `Runtime unverified`, or one or more Literal Rules/Manual Checks are failed, blocked, unknown, missing, weakened, or unsupported.
-- `BLOCKED — Final verification could not be completed`: the effective baseline, repository evidence, or required safe validation cannot be determined.
+- `BLOCKED — Final verification could not be completed`: a blocker prevents establishing the effective baseline or reaching an evidence-backed audit verdict. Use `PARTIAL` when the audit can establish and report concrete unmet or unverified requirements.
 
-List every non-passing row with its evidence, impact, and recommended corrective Plan/Step. Do not silently implement a newly discovered gap during this audit.
+List every remaining non-passing row with its evidence, impact, remedies tried and exact prerequisite or decision needed.
 
 ## Java / CQE contract review
 
 Read `references/egon-java-cqe-contract.md`. Record each applicable concern separately: POJO/value-object/enum; components and MP starter; annotation-driven validation; business columns + deleted_at uniqueness and NULL behavior; Command/Query/Event with actual outbox or MQ delivery; source-grounded DDD or preserved three-layer architecture. Use its existing MC ID mapping and record evidence, gaps and validation limits.
 
-For affected time boundaries, read `references/time-semantics.md` and compare effective Spec TIME decisions, Plan owning Steps and MC-TIME-001 results. Verify actual UTC persistence/wire conversion, pure-date stability, business-zone ranges/grouping, frontend display/submission, applicable DST/precision and legacy compatibility. Missing required runtime evidence is not PASS; do not start an application, database or browser without authorization.
+For affected time boundaries, read `references/time-semantics.md` and compare effective Spec TIME decisions, Plan owning Steps and MC-TIME-001 results. Verify actual UTC persistence/wire conversion, pure-date stability, business-zone ranges/grouping, frontend display/submission, applicable DST/precision and legacy compatibility. Apply the local-versus-live validation boundary above and record any missing required runtime evidence.

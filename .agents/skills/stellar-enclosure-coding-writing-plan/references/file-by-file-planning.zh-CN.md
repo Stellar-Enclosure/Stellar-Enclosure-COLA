@@ -1,6 +1,6 @@
 # 详细逐文件实施规划
 
-> 本文件是 `references/file-by-file-planning.md` 的全中文审核镜像。编写第 4 章、第 5 章或任一实施 Step 前必须读取。只有实施者无需再做架构或业务决策，就能依次执行文件顺序、伪代码、中间状态、命令和提交范围时，Plan 才真正可执行。
+> 本文件是 `references/file-by-file-planning.md` 的全中文审核镜像。编写第 4 章、第 5 章或任一实施 Step 前必须读取。只有实施者无需再做架构或业务决策，就能依次执行文件顺序、变更说明、中间状态、命令和提交范围时，Plan 才真正可执行。
 
 ## 目录
 
@@ -9,7 +9,7 @@
 - [Step 边界设计](#step-边界设计)
 - [依赖与文件顺序算法](#依赖与文件顺序算法)
 - [逐文件必需设计](#逐文件必需设计)
-- [伪代码质量标准](#伪代码质量标准)
+- [变更说明与可选伪代码](#变更说明与可选伪代码)
 - [后端完整 Step 示例](#后端完整-step-示例)
 - [前端完整 Step 示例](#前端完整-step-示例)
 - [数据库 Migration 完整 Step 示例](#数据库-migration-完整-step-示例)
@@ -129,35 +129,19 @@ Proto/IDL 契约测试 -> IDL -> 生成命令/产物 -> Provider -> Client Adapt
 | Contract/signature changes | 准确 Before/After 或新签名/字段/注解/Schema |
 | Input/output and state mapping | 逐字段来源/目标、默认、空值、状态/持久化影响 |
 | Error and edge behavior | 校验、权限、不存在、重复、并发、依赖、回滚分支 |
-| Implementation pseudocode | 使用真实符号的仓库语言算法 |
+| Required change | 用简短文字说明所需变更与预期行为，仅在复杂逻辑需要时补充伪代码 |
 | Verification contribution | 哪个测试/门禁观察该文件行为 |
 | After this file | Compile/RED/GREEN/已接线状态和剩余缺口 |
 
 `DELETE` 必须说明消费者已删除、替代物、搜索证据、生成引用、兼容和如何验证不存在。`RENAME` 写明两个路径和全部引用。`GENERATED` 写明 Source of Truth 和准确生成命令，不能手改生成产物。native light/web/service 上，目录内 Java 和 Mapper XML 使用 `GENERATED`，命令是 `scripts/stellar-enclosure-codegen.sh`。遵循 `references/backend-code-generation.md`。不要为这些路径规划手写类体。
 
-## 伪代码质量标准
+## 变更说明与可选伪代码
 
-伪代码应让实施者只选择语法细节，而不再选择行为或架构。
+所需变更用简短文字表达。简单修改只写改什么、在哪改、预期结果是什么。字段映射、接线和测试场景不需要伪代码。
 
-按需包含：
+仅当复杂的执行顺序、事务、状态转换或恢复分支用几条列表更清楚时，才增加 `Complex logic (pseudocode):`。使用与语言无关的普通 Markdown 列表，只保留关键步骤、条件和结果；准确契约和边界情况分别写在对应字段。不要把架构或业务决策留到实施时。
 
-- 准确注解、可见性、Class/Interface、Method/Function 签名、参数和返回类型；
-- 校验顺序和准确错误/异常/结果映射；
-- 权威上下文派生，而不是调用方提供安全事实；
-- 协作者调用顺序和事务边界；
-- Query 条件、Join、排序、分页、影响行、锁和索引；
-- 字段映射、空/默认/枚举/时间/小数转换和敏感数据；
-- 幂等、重复、并发、重试、超时、回滚、缓存失效和事件；
-- 前端状态转换、Hook、Query Key、Loading/Empty/Error/Disabled 和用户动作；
-- 测试 Fixture、动作、断言、Mock/Fake、持久化/发布结果和否定断言。
-
-伪代码不能：
-
-- 发明 Spec 和仓库都不存在的符号；
-- 只写 `validate/process/save/handle error` 而不写条件和结果；
-- 写成应在实施阶段完成的生产级完整方法体；
-- 用“按需”“适当”“等等”隐藏未决选择；
-- 未经 Spec 必要性结论就引入 Helper、Mapper、Factory、Strategy、Endpoint 或 Cache。
+整份 Plan 不得出现具体代码，包括方法体、复制的片段、测试语法、SQL、配置片段、脚本正文和补丁。准确类型、注解、映射和断言用文字或表格记录。验证和生成命令使用行内格式。禁止围栏代码块和缩进代码块。
 
 ## 后端完整 Step 示例
 
@@ -187,24 +171,7 @@ Proto/IDL 契约测试 -> IDL -> 生成命令/产物 -> Provider -> Client Adapt
 - Error and edge behavior: 同 Hash 返回第一次结果；不同 Hash 抛 `IdempotencyConflictException`；都断言只写一笔订单。
 - Standards impact: `MC-VALID-001`、`MC-SCOPE-001`、`MC-TEST-001`——复用已批准 Command 和 Validation Group，不新增契约类型并证明行为。
 - Literal rule enforcement: `Rule 2`、`Rule 11`——执行准确 Service 边界 Group，并保持所选包结构。
-- Implementation pseudocode:
-
-```java
-@Test same_key_same_payload_returns_first_result() {
-    arrange tenantContext(TENANT_A), command(KEY_1, PAYLOAD_A)
-    first = service.create(command)
-    replay = service.create(command)
-    assertThat(replay).isEqualTo(first)
-    verify(orderDao, times(1)).insert(any())
-}
-
-@Test same_key_different_payload_conflicts_without_second_write() {
-    service.create(command(KEY_1, PAYLOAD_A))
-    assertThatThrownBy(() -> service.create(command(KEY_1, PAYLOAD_B)))
-        .isInstanceOf(IdempotencyConflictException.class)
-    verify(orderDao, times(1)).insert(any())
-}
-```
+- Required change: 写明同键重放和不同请求内容冲突两个测试场景，两者都应证明只写入一条订单。
 
 - Verification contribution: RED 命令只运行这两个测试，且必须因缺失重放/冲突行为失败。
 - After this file: 测试基于已批准契约编译，并因目标行为缺失失败，不是 Fixture 错误。
@@ -221,25 +188,12 @@ Proto/IDL 契约测试 -> IDL -> 生成命令/产物 -> Provider -> Client Adapt
 - Error and edge behavior: 同 Hash 重放，不同 Hash 冲突；唯一竞争后重读 Winner；事务失败不写部分订单/结果。
 - Standards impact: `MC-ARCH-001`、`MC-REUSE-001`、`MC-NAME-001`、`MC-VALID-001`、`MC-MODEL-001`、`MC-CONVERT-001`、`MC-LOG-001`、`MC-BEAN-001`、`MC-PATTERN-001`、`MC-SCOPE-001`——保持 `biz.service.impl`，复用带 Qualifier 的 DAO/Validator/Converter Bean，使用 `@Slf4j`；Flow 为 Complex 时必须实现 Spec 已选模式，只有 Simple Flow 保持直接。
 - Literal rule enforcement: `Rule 1`、`Rule 2`、`Rule 3`、`Rule 4`、`Rule 9`、`Rule 11`——使用最终语义类型，校验层间交接，应用强制模型/Converter/Bean 注解，为 Complex 逻辑实现 Spec 已选模式，并保持在 `biz.service.impl`。
-- Implementation pseudocode:
+- Required change: 沿用已批准的订单创建幂等设计，保留现有路由，从可信上下文取得租户。
 
-```java
-@Transactional
-OrderResult create(CreateOrderCommand command) {
-    tenantId = currentTenant.requireId()
-    hash = requestCanonicalizer.sha256(command.businessFields())
-    existing = idempotencyDao.find(tenantId, command.key())
-    if (existing != null) {
-        if (!existing.requestHash().equals(hash)) throw new IdempotencyConflictException()
-        return existing.toOrderResult()
-    }
-    validated = orderValidator.validateAndPrice(tenantId, command)
-    order = orderDao.insert(validated.order())
-    itemDao.batchInsert(order.id(), validated.items())
-    idempotencyDao.insert(tenantId, command.key(), hash, order.result())
-    return order.result()
-}
-```
+- Complex logic (pseudocode):
+  - 确认租户，对比该租户和键下已保存结果的请求摘要。
+  - 摘要相同则返回已保存结果；摘要不同则报告冲突。
+  - 新键的订单、明细和重放结果原子提交；唯一键竞争时重读获胜方的已提交结果并按相同规则比较。
 
 - Verification contribution: 顺序单测 GREEN；事务集成观察竞争/回滚。
 - After this file: 聚焦单元行为 GREEN；数据库唯一竞争仍由 File 3 集成覆盖。
@@ -256,23 +210,7 @@ OrderResult create(CreateOrderCommand command) {
 - Error and edge behavior: Loser 重读已提交 Winner；意外完整性/超时错误使测试失败；回滚不留下可重放部分结果。
 - Standards impact: `MC-VALID-001`、`MC-SCOPE-001`、`MC-TEST-001`——执行真实边界校验并证明聚焦持久化行为，不修改无关 Fixture。
 - Literal rule enforcement: `Rule 2`、`Rule 11`——证明真实 Service 到持久化交接，并保持所选模块测试结构。
-- Implementation pseudocode:
-
-```java
-@Test concurrent_same_key_creates_one_order() {
-    start two calls with tenant(TENANT_A) and command(KEY_1, PAYLOAD_A)
-    await both results and assert both equal the same OrderResult
-    assertThat(orderRows(TENANT_A, KEY_1)).hasSize(1)
-    assertThat(idempotencyRows(TENANT_A, KEY_1)).hasSize(1)
-}
-
-@Test failed_create_rolls_back_order_and_idempotency_result() {
-    arrange downstream item insert failure
-    assertThatThrownBy(() -> service.create(command(KEY_2, PAYLOAD_A)))
-    assertThat(orderRows(TENANT_A, KEY_2)).isEmpty()
-    assertThat(idempotencyRows(TENANT_A, KEY_2)).isEmpty()
-}
-```
+- Required change: 并发发起同租户同键请求，验证返回同一结果且只保存一条订单。模拟明细持久化失败，验证订单和重放记录都未写入。
 
 - Verification contribution: 基于真实持久化边界证明并发与回滚完成标准。
 - After this file: 顺序、并发与回滚行为均 GREEN，Step 可进行 Path-limited Commit。
@@ -296,23 +234,7 @@ OrderResult create(CreateOrderCommand command) {
 4. Component/Page 渲染分支和事件；
 5. 只有尚未注册时才增加 Route/Menu/Export 接线。
 
-伪代码示例：
-
-```typescript
-const mutation = useMutation({
-  mutationFn: (form: OrderFormState) => orderClient.create(mapFormToRequest(form)),
-  onSuccess: ({data}) => {
-    queryClient.invalidateQueries({queryKey: orderKeys.list()});
-    navigate(`/orders/${data.orderId}`);
-  },
-  onError: (error) => setFieldErrors(mapValidationErrors(error)),
-});
-
-if (query.isPending) return <OrderSkeleton />;
-if (query.isError) return <RetryPanel onRetry={query.refetch} />;
-if (query.data.items.length === 0) return <EmptyOrders />;
-return <OrderTable rows={query.data.items} />;
-```
+用文字描述页面行为：分别显示加载、重试、空列表或结果状态。创建成功后刷新订单列表并跳转到新订单；校验错误回填到对应表单字段。
 
 说明租户/身份来自哪里。目标 API 可派生或页面已经持有选中资源时，不能规划参数查询。写明准确测试命令、Typecheck/Build 门禁、预期结果和只能人工验证的边界。
 
@@ -328,15 +250,7 @@ return <OrderTable rows={query.data.items} />;
 4. DAO/Repository Query、影响行和锁行为；
 5. Migration、历史行、约束和 Query 集成测试。
 
-SQL 伪代码必须写执行顺序和 Guard：
-
-```sql
--- 按已批准规则分析/保护重复 Key
-ALTER TABLE orders ADD COLUMN idempotency_key varchar(64);
--- 只有 Spec 定义确定来源时才回填，否则保持可空兼容
-CREATE UNIQUE INDEX ... ON orders(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
--- 旧 Writer 退出且已批准阶段到达后才强制 NOT NULL
-```
+按顺序描述迁移：先检查重复键，再增加可为空的幂等键列，最后对已填写的租户和键组合施加唯一性约束。写明获批回填，并在旧写入方全部下线后才实施必填约束。表结构用表格说明，保护条件的结果用文字说明。
 
 说明方言、准确 Migration 路径/版本、锁/构建风险、新旧应用矩阵、批次/重启所有者、验证 SQL 与预期数量、应用回滚限制和 Forward Fix。绝不能规划修改旧 Migration。
 
@@ -382,7 +296,7 @@ Step 发明架构、重复已有能力、引入未批准依赖、使用含糊类
 
 - Step 或文件描述可以原样粘贴到无关仓库；
 - 实施者仍需选择签名、字段来源、分支、错误、事务、Query、页面状态、测试断言或文件顺序；
-- 伪代码比其声称定义的行为更短，或只用通用动词而没有真实符号；
+- 变更说明模糊、简单需求使用了伪代码，或 Plan 中出现具体代码；
 - 缺少当前仓库证据、依赖/消费者、映射、错误、验证贡献或 After-file 状态；
 - 验证缺少工作目录、准确命令/方法、预期结果和失败回退点；
 - Commit Paths 不准确或包含 Step 外文件；

@@ -2,7 +2,7 @@
 
 Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modeling, enum, MP, validation, uniqueness, CQE and architecture contract.
 
-本参考是每份 Java Plan 的强制规范。下方源区块逐字保留。Plan 必须把每条规则转成准确文件顺序、伪代码、验证和提交门禁，不能把强制规则缩成一般编码提示。
+本参考是每份 Java Plan 的强制规范。下方源区块逐字保留。Plan 必须把每条规则转成准确文件顺序、变更说明、验证和提交门禁，不能把强制规则缩成一般编码提示。
 
 ## 逐字规范源
 
@@ -31,7 +31,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 
 清单每个 Create/Rename/实质修改 Java 类型的路径、操作、职责、强制后缀、消费者和兼容影响。POJO 使用 PO、BO、VO、DTO、Query、Command、Event、Result、PageQuery、PageResult 或有依据 Entity；访问组件使用 DAO；行为类使用准确行为后缀。
 
-禁止规划 `Data`、`Info`、`Param`、`Bean` 或无后缀含糊载体。每个新类型必须证明独立边界/生命周期需要，避免后缀合规导致类爆炸。伪代码必须使用最终准确类型名。
+禁止规划 `Data`、`Info`、`Param`、`Bean` 或无后缀含糊载体。每个新类型必须证明独立边界/生命周期需要，避免后缀合规导致类爆炸。变更说明必须使用最终准确类型名。
 
 Archetype 与 code-gen 使用同一命名契约：纯协议入参使用 `*DTO`，读写意图使用 `*Query`/`*Command`，应用/协议输出保留 `*Result`/`*PageResult`（展示输出保留 `*VO`）。不新增项目自有 `*Request`/`*Response` 载体，不因后缀重复建类；保留框架/第三方契约、生成的协议类型（包括 Protobuf 消息）及范围外存量 API。生成 Java 路径必须匹配声明包与公开类型，编译、模板哈希和 `CLEAN` 不能替代该契约。
 
@@ -73,7 +73,7 @@ Plan 必须分别枚举并排序：外部输入 -> Controller/Adapter；Controll
 
 每个受影响业务 Flow 用证据分类 Simple/Complex。Complex Flow 必须使用有效 Spec 已选 Strategy、Template Method、Factory、Chain of Responsibility、State、Specification、Domain Event 等模式，按依赖顺序列参与者、必要接口/抽象、实现、Registry/Selection/Wiring、Orchestration 和测试。
 
-伪代码禁止把变化保留为 `if/else`、`switch`、类型/字符串/反射分发，也不能写直接逻辑足够。Simple Flow 保持直接，禁止仪式性模式类。
+规划设计禁止把变化保留为 `if/else`、`switch`、类型/字符串/反射分发，也不能写直接逻辑足够。Simple Flow 保持直接，禁止仪式性模式类。
 
 ## 规则 10——java.time 文件与字段映射
 
@@ -87,7 +87,7 @@ Plan 必须分别枚举并排序：外部输入 -> Controller/Adapter；Controll
 
 ## Plan 强制矩阵
 
-| 原文规则 | Spec 来源 | 仓库证据 | 准确文件与顺序 | 伪代码义务 | 验证门禁 | Steps | 状态/阻断 |
+| 原文规则 | Spec 来源 | 仓库证据 | 准确文件与顺序 | 实施义务 | 验证门禁 | Steps | 状态/阻断 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Rule 1 | `<Spec 章节>` | `<路径/符号>` | `<有序文件>` | `<强制实施细节>` | `<准确命令/审核>` | `<Step N>` | PASS / N/A / BLOCKED |
 

@@ -1,6 +1,6 @@
 # Detailed File-by-file Planning
 
-Read this reference before writing Chapter 4, Chapter 5, or any implementation Step. A Plan is executable only when an implementer can follow the stated file order, pseudocode, intermediate states, commands, and commit scopes without making architecture or business decisions.
+Read this reference before writing Chapter 4, Chapter 5, or any implementation Step. A Plan is executable only when an implementer can follow the stated file order, change descriptions, intermediate states, commands, and commit scopes without making architecture or business decisions.
 
 ## Contents
 
@@ -9,7 +9,7 @@ Read this reference before writing Chapter 4, Chapter 5, or any implementation S
 - [Step boundary design](#step-boundary-design)
 - [Dependency and file-order algorithm](#dependency-and-file-order-algorithm)
 - [Required per-file design](#required-per-file-design)
-- [Pseudocode quality bar](#pseudocode-quality-bar)
+- [Change descriptions and optional pseudocode](#change-descriptions-and-optional-pseudocode)
 - [Backend worked Step](#backend-worked-step)
 - [Frontend worked Step](#frontend-worked-step)
 - [Database migration worked Step](#database-migration-worked-step)
@@ -129,35 +129,19 @@ Every `#### File N` block must contain:
 | Contract/signature changes | Exact before/after or new signature/field/annotation/schema |
 | Input/output and state mapping | Field-by-field source/target, defaults, nulls, state/persistence effects |
 | Error and edge behavior | Validation, permission, missing, duplicate, concurrent, dependency, rollback branches |
-| Implementation pseudocode | Repository-language algorithm with real symbols |
+| Required change | Concise prose stating the change and expected behavior; optional pseudocode only when complex logic needs it |
 | Verification contribution | Which test/gate observes this file's behavior |
 | After this file | Compile/RED/GREEN/wired state and known remaining gap |
 
 For `DELETE`, explain consumers already removed, replacement if any, search proof, generated references, compatibility, and how validation proves absence. For `RENAME`, name both paths and every reference update. For `GENERATED`, name the source-of-truth file and exact generation command; never hand-edit generated output. On native light/web/service, catalog Java and Mapper XML use `GENERATED` with `scripts/stellar-enclosure-codegen.sh`. Follow `references/backend-code-generation.md`. Do not plan a handwritten class body for those paths.
 
-## Pseudocode quality bar
+## Change descriptions and optional pseudocode
 
-Pseudocode must be close enough to implementation that an executor chooses syntax details, not behavior or architecture.
+Use concise prose for the required change. For a simple adjustment, state what changes, where, and the expected result. A field mapping, wiring change, or test scenario does not need pseudocode.
 
-Include as applicable:
+Add `Complex logic (pseudocode):` only when a complex sequence, transaction, state transition, or recovery branch is clearer as a few language-neutral Markdown bullets. Name only the essential steps, conditions, and outcomes; keep exact contracts and edge cases in their own fields. Leave no unresolved architecture or business decisions.
 
-- exact annotation, visibility, class/interface, method/function signature, parameter and return types;
-- validation order and exact error/exception/result mapping;
-- authoritative context derivation rather than caller-supplied security facts;
-- collaborator calls in order and transaction boundary;
-- query predicates, joins, ordering, pagination, affected-row expectations, locks, and indexes;
-- field mapping, null/default/enum/time/decimal conversions, sensitive-data handling;
-- idempotency, duplicate, concurrency, retry, timeout, rollback, cache invalidation, and events;
-- frontend state transitions, hooks, query keys, loading/empty/error/disabled branches and user actions;
-- test fixtures, action, assertions, mocks/fakes, persisted/published effects, and negative assertions.
-
-Pseudocode must not:
-
-- invent symbols missing from both Spec and repository;
-- repeat `validate`, `process`, `save`, or `handle error` without naming conditions and outcomes;
-- contain production-ready full method bodies that belong in implementation;
-- hide an unresolved choice behind “as appropriate,” “if needed,” or “etc.”;
-- introduce a helper, mapper, factory, strategy, endpoint, or cache without a Spec necessity verdict.
+No concrete code is allowed anywhere in a Plan: no method bodies, copied snippets, test syntax, SQL, configuration fragments, script bodies, or patches. Use prose or tables for exact types, annotations, mappings, and assertions. List verification and generation commands inline. Do not use fenced or indented code blocks.
 
 ## Backend worked Step
 
@@ -187,24 +171,7 @@ Illustrative structure only; replace every symbol/path/command with repository e
 - Error and edge behavior: same hash returns first result; different hash throws `IdempotencyConflictException`; both assert one order write.
 - Standards impact: `MC-VALID-001`, `MC-SCOPE-001`, `MC-TEST-001` — reuse the approved Command and Validation Group; prove behavior without new contract types.
 - Literal rule enforcement: `Rule 2`, `Rule 11` — exercise the exact Service boundary group and preserve the selected package structure.
-- Implementation pseudocode:
-
-```java
-@Test same_key_same_payload_returns_first_result() {
-    arrange tenantContext(TENANT_A), command(KEY_1, PAYLOAD_A)
-    first = service.create(command)
-    replay = service.create(command)
-    assertThat(replay).isEqualTo(first)
-    verify(orderDao, times(1)).insert(any())
-}
-
-@Test same_key_different_payload_conflicts_without_second_write() {
-    service.create(command(KEY_1, PAYLOAD_A))
-    assertThatThrownBy(() -> service.create(command(KEY_1, PAYLOAD_B)))
-        .isInstanceOf(IdempotencyConflictException.class)
-    verify(orderDao, times(1)).insert(any())
-}
-```
+- Required change: Describe same-key replay and different-payload conflict as test scenarios; both must prove that only one order was written.
 
 - Verification contribution: RED command targets these two tests and must fail for missing replay/conflict behavior.
 - After this file: tests compile against the approved contract and fail for the stated behavior, not fixture setup.
@@ -221,25 +188,12 @@ Illustrative structure only; replace every symbol/path/command with repository e
 - Error and edge behavior: same hash replay; different hash conflict; unique race reloads winner; transaction failure writes no partial order/result.
 - Standards impact: `MC-ARCH-001`, `MC-REUSE-001`, `MC-NAME-001`, `MC-VALID-001`, `MC-MODEL-001`, `MC-CONVERT-001`, `MC-LOG-001`, `MC-BEAN-001`, `MC-PATTERN-001`, `MC-SCOPE-001` — preserve `biz.service.impl`, reuse qualified DAO/validator/converter Beans, use `@Slf4j`, and implement the Spec-selected pattern whenever the flow is Complex; only Simple flow remains direct.
 - Literal rule enforcement: `Rule 1`, `Rule 2`, `Rule 3`, `Rule 4`, `Rule 9`, `Rule 11` — use final semantic types, validate the layer handoff, apply the mandated model/converter/Bean annotations, implement the Spec-selected pattern for Complex logic, and remain under `biz.service.impl`.
-- Implementation pseudocode:
+- Required change: Use the approved idempotency design in the order creation flow. Preserve the current route and derive the tenant from trusted context.
 
-```java
-@Transactional
-OrderResult create(CreateOrderCommand command) {
-    tenantId = currentTenant.requireId()
-    hash = requestCanonicalizer.sha256(command.businessFields())
-    existing = idempotencyDao.find(tenantId, command.key())
-    if (existing != null) {
-        if (!existing.requestHash().equals(hash)) throw new IdempotencyConflictException()
-        return existing.toOrderResult()
-    }
-    validated = orderValidator.validateAndPrice(tenantId, command)
-    order = orderDao.insert(validated.order())
-    itemDao.batchInsert(order.id(), validated.items())
-    idempotencyDao.insert(tenantId, command.key(), hash, order.result())
-    return order.result()
-}
-```
+- Complex logic (pseudocode):
+  - Resolve the tenant and compare the request hash with any result stored for that tenant and key.
+  - Replay the stored result for a matching hash; report a conflict for a different hash.
+  - For a new key, persist the order, items, and replay result atomically; on a uniqueness race, reload the committed winner and apply the same comparison.
 
 - Verification contribution: makes sequential tests GREEN; transaction integration observes race/rollback.
 - After this file: focused unit behavior is GREEN; database uniqueness race still requires File 3 integration coverage.
@@ -256,23 +210,7 @@ OrderResult create(CreateOrderCommand command) {
 - Error and edge behavior: loser reloads the committed winner; unexpected integrity or timeout error fails the test; rollback never leaves a replayable partial result.
 - Standards impact: `MC-VALID-001`, `MC-SCOPE-001`, `MC-TEST-001` — execute the real boundary validation and prove focused persistence behavior without changing unrelated fixtures.
 - Literal rule enforcement: `Rule 2`, `Rule 11` — prove the actual Service-to-persistence handoff and keep tests in the selected module structure.
-- Implementation pseudocode:
-
-```java
-@Test concurrent_same_key_creates_one_order() {
-    start two calls with tenant(TENANT_A) and command(KEY_1, PAYLOAD_A)
-    await both results and assert both equal the same OrderResult
-    assertThat(orderRows(TENANT_A, KEY_1)).hasSize(1)
-    assertThat(idempotencyRows(TENANT_A, KEY_1)).hasSize(1)
-}
-
-@Test failed_create_rolls_back_order_and_idempotency_result() {
-    arrange downstream item insert failure
-    assertThatThrownBy(() -> service.create(command(KEY_2, PAYLOAD_A)))
-    assertThat(orderRows(TENANT_A, KEY_2)).isEmpty()
-    assertThat(idempotencyRows(TENANT_A, KEY_2)).isEmpty()
-}
-```
+- Required change: Exercise two requests with the same tenant and key and assert that both receive the same result with one stored order. Force item persistence to fail and verify there is no order or replay record.
 
 - Verification contribution: proves the Step's concurrency and rollback completion criteria against the real persistence boundary.
 - After this file: sequential, concurrent, and rollback behavior are GREEN and the Step is ready for its path-limited commit.
@@ -296,23 +234,7 @@ Use the same file fields. A typical order is:
 4. component/page render branches and events;
 5. route/menu/export wiring only when not already registered.
 
-Pseudocode should show, for example:
-
-```typescript
-const mutation = useMutation({
-  mutationFn: (form: OrderFormState) => orderClient.create(mapFormToRequest(form)),
-  onSuccess: ({data}) => {
-    queryClient.invalidateQueries({queryKey: orderKeys.list()});
-    navigate(`/orders/${data.orderId}`);
-  },
-  onError: (error) => setFieldErrors(mapValidationErrors(error)),
-});
-
-if (query.isPending) return <OrderSkeleton />;
-if (query.isError) return <RetryPanel onRetry={query.refetch} />;
-if (query.data.items.length === 0) return <EmptyOrders />;
-return <OrderTable rows={query.data.items} />;
-```
+Describe the page behavior in prose: show loading, retry, empty, or result states as appropriate. After a successful create, invalidate the order list and navigate to the created order. Map validation errors to the corresponding form fields.
 
 Name where tenant/identity comes from. Do not plan a parameter-fetch query when the target API derives it or the page already holds the selected resource. State the exact test command, typecheck/build gate, expected result, and manual-only boundary.
 
@@ -328,15 +250,7 @@ The traditional file order normally includes:
 4. DAO/repository query and affected-row/lock behavior;
 5. integration test for migration, historical rows, constraints, and query behavior.
 
-SQL pseudocode must name execution order and guards:
-
-```sql
--- profile/guard duplicate keys according to approved policy
-ALTER TABLE orders ADD COLUMN idempotency_key varchar(64);
--- backfill only when Spec defines a deterministic source; otherwise preserve nullable compatibility
-CREATE UNIQUE INDEX ... ON orders(tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
--- enforce NOT NULL only in the approved phase after old writers are removed
-```
+Describe the migration in order: check for duplicate keys, add the nullable idempotency key, and enforce uniqueness for populated tenant/key pairs. Describe any approved backfill and delay a required-field constraint until all old writers are retired. Record the schema facts in a table and the guard outcomes in prose.
 
 State dialect, exact migration path/version, lock/build risk, old/new application matrix, batch/restart owner, verification queries and expected counts, application rollback limit, and forward-fix. Never plan edits to an existing migration.
 
@@ -382,7 +296,7 @@ Return `REVISE` when any applies:
 
 - a Step or file description could be pasted into an unrelated repository unchanged;
 - an implementer must choose a signature, field source, branch, error, transaction, query, page state, test assertion, or file order;
-- pseudocode is shorter than the behavior it claims to define or uses generic verbs without real symbols;
+- the change description is vague, a simple change uses pseudocode, or the Plan contains concrete code;
 - current repository evidence, dependencies/consumers, mapping, errors, verification contribution, or after-file state is absent;
 - validation lacks a working directory, exact command/method, expected result, and failure return point;
 - commit paths are not exact or include files outside the Step;

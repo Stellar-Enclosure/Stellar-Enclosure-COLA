@@ -1,6 +1,6 @@
 # Java、Spring 与 Egon-COLA 执行规范
 
-Dependency introduction and DDL/CRUD templates must also follow `references/backend-code-generation.md`: no autonomous dependencies; an unmet capability requires a user-approved introduction plan.
+依赖变更和 DDL/CRUD 模板遵循 `references/backend-code-generation.md` 及执行 skill 的自主决策规则。考虑单独授权引入依赖前，先尝试利用已有能力合规实现。
 
 Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modeling, enum, MP, validation, uniqueness, CQE and architecture contract.
 
@@ -10,7 +10,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 
 依次执行：用户最新明确要求和适用 `AGENTS.md`；当前项目明确约定与已选 Archetype；有效 Specs 与已批准 Plan；本参考；最后才是兼容的附近旧风格。
 
-合规如果需要未声明契约、模块移动、依赖、Migration、文件或大范围重构，应把 Step 停为 Plan/Spec 漂移。禁止静默豁免、发明目录，或先提交已知违规再说以后清理。
+合规需要调整局部文件或实现时，按 skill 的保持原意修订流程处理，并验证合规候选。尚未解决的合规冲突和实质性变更按阻塞条件处理。每次验证候选都须检查强制规范。
 
 ## 编码前架构与复用检查
 
@@ -21,7 +21,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 3. 搜索模块和 Egon-COLA 已有 Entity/PO、BO/DTO/VO、Query/Command/Event、Converter、Validator、Component、Repository/DAO、Gateway、Service/Domain Service、Exception、Result、Enum、工具、Starter 和基础设施；
 4. 对照当前路径和解析依赖重新验证 Plan 复用账本；
 5. 优先 JDK/Spring/Spring Boot，再选已有 Starter、Egon-COLA Component/公共设施或模块内抽象；
-6. 只有有效 Spec/Plan 已记录当前能力缺口、候选、版本归属、维护/安全/运维影响和用户明确批准时，才允许额外成熟依赖或自研。
+6. 确有能力缺口时，在现有依赖内选择最小合规实现，或沿用已授权的依赖变更。记录能力缺口、候选和影响。确实需要超出当前授权的新依赖时，按依赖门禁处理。
 
 禁止混合架构或重复能力。必须重新核实 common core `BaseConverter<S,T>` / `BaseForwardConverter<S,T>`、`ValidationUtils`、MapStructPlus、Starter Validation 和 Archetype Qualifier 传播等候选。
 
@@ -46,9 +46,9 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 - 普通 POJO/实体使用 `class`，默认 `@Data`、`@NoArgsConstructor`、`@AllArgsConstructor`、`@Accessors(chain = true)`，按构造目标选择 `@Builder` 或 `@SuperBuilder`；父类状态参与相等性时使用 `@EqualsAndHashCode(callSuper = true)`。仅不可变值对象可以用 `record`；无父类等编译边界见 `references/egon-java-cqe-contract.md`。
 - 不可变值对象可用 `record`，不套用可变 class 注解；仅字段少不能证明值对象语义。
 
-核对构造目标、父类链与生成签名；按 `references/egon-java-cqe-contract.md` 的场景规则处理 Builder、无父类和零字段，其他实际框架/API 冲突记录为阻断。
+核对构造目标、父类链与生成签名；按 `references/egon-java-cqe-contract.md` 的场景规则处理 Builder、无父类和零字段。其他框架/API 冲突先尝试合规修复，无法解决时按阻塞条件处理。
 
-跨层转换用 MapStruct/MapStructPlus，每个新增受影响 Converter 必须实现/继承 Egon `BaseConverter<S,T>` / `BaseForwardConverter<S,T>`。核对泛型、空值、默认、枚举、时间、敏感字段、生成实现、Bean 和测试。禁止 Setter/Getter、`BeanUtils.copyProperties`、反射、JSON 和自建 Converter 绕过；契约冲突会阻断。
+跨层转换用 MapStruct/MapStructPlus，每个新增受影响 Converter 必须实现/继承 Egon `BaseConverter<S,T>` / `BaseForwardConverter<S,T>`。核对泛型、空值、默认、枚举、时间、敏感字段、生成实现、Bean 和测试。禁止 Setter/Getter、`BeanUtils.copyProperties`、反射、JSON 和自建 Converter 绕过。验证前修复不一致，无法在已确认原意内合规修复时按阻塞条件处理。
 
 ### Spring Bean、日志与注入
 
@@ -67,11 +67,11 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 
 ### 复杂业务行为
 
-分类每个触达业务 Flow。每个 Complex Flow 必须实现 Spec/Plan 已选 Strategy、Template Method、Factory、Chain of Responsibility、State、Specification、Domain Event 等模式的实际参与者、选择/接线、编排、失败和测试。Complex 逻辑禁止直接 `if/else`、`switch`、类型/字符串/反射分发。Simple Flow 保持直接，禁止仪式性模式类。
+分类每个触达业务 Flow。每个 Complex Flow 使用有效 Spec 要求的模式，或在实现开放时自主选择成熟模式。将选择记入 Plan 或 Step 证据，并落实参与者、选择、接线、编排、失败处理和测试。Complex 逻辑禁止直接 `if/else`、`switch` 或类型/字符串/反射分发。Simple Flow 保持直接。
 
 ## 每 Step 阻断型 Manual Check
 
-锁定 Step 时，把 Plan 适用 ID 抄入 Step Manual Check 表；当前证据显示影响新关注点时必须补 ID，遗漏不代表豁免。每项分别记录 Applicability、Status、Evidence、Finding、Required action/exception。
+锁定 Step 时，把 Plan 适用 ID 抄入 Step Manual Check 表，并补齐预检发现的适用 ID。每项分别记录 Applicability、Status、Evidence、Finding、Required action/exception。当前 Step 能修复的基线问题纳入其有效范围，在候选改动上重新核验。
 
 提交前：
 
@@ -89,7 +89,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 | --- | --- |
 | `MC-ARCH-001` | 保持唯一允许架构 |
 | `MC-REUSE-001` | 新增前已检查 Spring/Starter/Egon/模块复用 |
-| `MC-DEP-001` | 新依赖/自研有已证明获批缺口，否则未新增 |
+| `MC-DEP-001` | 新依赖变更有授权及引入依据，自研有必要的能力缺口证据 |
 | `MC-NAME-001` | 触达类型语义明确且无含糊载体后缀 |
 | `MC-VALID-001` | 跨层输入使用 Validation、Group、规范化和测试 |
 | `MC-MODEL-001` | 已使用 值对象 record/普通 class 与按场景选择的 Builder，否则冲突阻断 |
@@ -100,14 +100,14 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 | `MC-JSON-001` | Jackson 是唯一 JSON 体系且契约注解正确 |
 | `MC-TIME-001` | 时间使用 `java.time` 并明确语义 |
 | `MC-CONFIG-001` | 所有环境 Profile 保持等价配置 Key |
-| `MC-PATTERN-001` | 每个 Complex 业务 Flow 实现获批模式；只有 Simple Flow 保持直接 |
+| `MC-PATTERN-001` | 每个 Complex Flow 实现有效 Plan 中的模式。Simple Flow 保持直接。 |
 | `MC-SCOPE-001` | 触达代码合规且无无关大重构 |
 | `MC-TEST-001` | 聚焦测试/静态检查证明适用规范与行为 |
 | `MC-BLOCKER-001` | 所有阻断/失败已关闭且无静默例外 |
 
 ## 最终审核规则
 
-全部 Step 提交后，针对最终 Tree 与 Commit 重新逐项执行 17 项检查，不能只汇总 Step 断言。最终 PASS 要求所有适用项 PASS、所有 N/A 有证据。任何 Manual Check 失败、任何 `Partial`/`Not satisfied` Spec 要求或缺失强制运行时证据都产生 `PARTIAL`；无法确定基线/证据则 `BLOCKED`。只报告缺口，最终审核中不能静默实施。
+全部 Step 完成后，针对最终 Tree 与交付 Commit 重新逐项执行 17 项检查。按 `references/final-spec-audit.md` 修复符合条件的发现并刷新受影响证据。最终 PASS 要求所有适用项 PASS、所有 N/A 有证据。剩余失败、未满足要求或缺失证据按最终审核的结论规则处理。
 
 时间边界还必须遵循 `references/time-semantics.zh-CN.md`：发生时刻 UTC、纯日期语义不偏移、显式业务时区计算及前端展示转换。`MC-TIME-001` 要求适用映射/序列化/日历/夏令时/精度/兼容证据。
 

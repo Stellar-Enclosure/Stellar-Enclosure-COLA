@@ -1,6 +1,6 @@
 # Java, Spring, and Egon-COLA Execution Standards
 
-Dependency introduction and DDL/CRUD templates must also follow `references/backend-code-generation.md`: no autonomous dependencies; an unmet capability requires a user-approved introduction plan.
+Dependency changes and DDL/CRUD templates follow `references/backend-code-generation.md` and the execution skill's autonomous decision rule. Try compliant use of existing capabilities before considering a separately authorized dependency.
 
 Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modeling, enum, MP, validation, uniqueness, CQE and architecture contract.
 
@@ -10,7 +10,7 @@ Read `references/user-mandated-java-rules.md` first, then this reference before 
 
 Apply, in order: the user's latest explicit requirements and applicable `AGENTS.md`; the current project's explicit conventions and selected Egon-COLA Archetype; the effective Specs and approved Plan; this reference; compatible nearby style.
 
-If compliance requires an undeclared contract, module move, dependency, migration, file, or broad refactor, stop the Step as Plan/Spec drift. Never silently waive the rule, invent a directory, or commit a known violation for later cleanup.
+When compliance needs a local file or implementation adjustment, use the skill's intent-preserving revision procedure and verify the compliant candidate. Apply the blocker criteria to unresolved compliance conflicts and material changes. Mandatory standards remain part of every candidate's verification.
 
 ## Pre-code architecture and reuse check
 
@@ -23,7 +23,7 @@ Before editing the first Step, and again when a Step touches a new module:
 3. search the module and Egon-COLA for existing Entity/PO, BO/DTO/VO, Query/Command/Event, Converter, Validator, Component, Repository/DAO, Gateway, Service/Domain Service, Exception, Result, Enum, utility, Starter, and infrastructure capabilities;
 4. verify the Plan's reuse ledger against current paths and resolved dependencies;
 5. use JDK/Spring/Spring Boot first, then an existing Starter, Egon-COLA Component/common infrastructure, or module-local abstraction;
-6. permit an additional mature dependency or custom implementation only when the effective Spec/Plan records a current capability gap, alternatives, version ownership, maintenance/security/operational impact, and explicit user approval before dependency introduction.
+6. If a needed capability is genuinely missing, choose a minimal compliant implementation within existing dependencies or reuse an authorized dependency change. Record the capability gap, alternatives and impact. A required new dependency outside current authorization follows the dependency gate.
 
 Do not hybridize architectures or duplicate existing capability. Repository candidates must be reverified and may include common-core `BaseConverter<S,T>` / `BaseForwardConverter<S,T>` and `ValidationUtils`, MapStructPlus, starter validation, and archetype Qualifier propagation.
 
@@ -50,7 +50,7 @@ Verify constraint selection, group invocation, normalization order, null/blank b
 
 Verify construction targets, parent builders and generated signatures. Apply the scenario rules and root/empty-class exceptions in `references/egon-java-cqe-contract.md`; report remaining framework/API conflicts explicitly.
 
-Use MapStruct/MapStructPlus for cross-layer conversion and require every new affected Converter to implement/inherit the Egon `BaseConverter<S,T>` / `BaseForwardConverter<S,T>` system. Verify exact generics, null/default/enum/time/sensitive-field mappings, generated implementation, Bean wiring, and tests. Reject setter/getter mapping, `BeanUtils.copyProperties`, reflection, JSON round trips, and custom converter bypasses. A contract mismatch blocks.
+Use MapStruct/MapStructPlus for cross-layer conversion and require every new affected Converter to implement/inherit the Egon `BaseConverter<S,T>` / `BaseForwardConverter<S,T>` system. Verify exact generics, null/default/enum/time/sensitive-field mappings, generated implementation, Bean wiring, and tests. Reject setter/getter mapping, `BeanUtils.copyProperties`, reflection, JSON round trips, and custom converter bypasses. Resolve any mismatch before verification and apply the blocker criteria if there is no compliant fix within accepted intent.
 
 ### Spring Bean, logging, and injection
 
@@ -70,11 +70,11 @@ Use MapStruct/MapStructPlus for cross-layer conversion and require every new aff
 
 ### Complex business behavior
 
-Classify each touched business flow. Every Complex flow must implement the Spec/Plan-selected Strategy, Template Method, Factory, Chain of Responsibility, State, Specification, Domain Event, or other established pattern with actual participants, selection/wiring, orchestration, failure handling, and tests. Reject direct `if/else`, `switch`, type/string/reflection dispatch for Complex logic. Simple flow remains direct; reject ceremonial pattern classes there.
+Classify each touched business flow. For each Complex flow use the pattern required by the effective Spec or select an established pattern where implementation is open. Record the choice in the Plan or Step evidence and implement its participants, selection, wiring, orchestration, failure handling, and tests. Reject direct `if/else`, `switch` and type/string/reflection dispatch for Complex logic. Simple flow remains direct.
 
 ## Per-Step blocking Manual Check
 
-At Step lock, copy the Plan's applicable IDs into a Step Manual Check table. Add an ID when current evidence shows the Step affects that concern; omission is not a waiver. Record `Applicability`, `Status`, `Evidence`, `Finding`, and `Required action/exception` separately for each ID.
+At Step lock, copy the Plan's applicable IDs into a Step Manual Check table and add any applicable IDs revealed by preflight. Record `Applicability`, `Status`, `Evidence`, `Finding`, and `Required action/exception` separately for each ID. Baseline findings that the Step can repair belong in its effective scope and are checked again on the candidate.
 
 Before committing:
 
@@ -92,7 +92,7 @@ Use the six-column table from `references/step-gate-checklist.md`. Manual inspec
 | --- | --- |
 | `MC-ARCH-001` | Exactly one allowed architecture profile is preserved |
 | `MC-REUSE-001` | Spring/Starter/Egon/module reuse was inspected before additions |
-| `MC-DEP-001` | Added dependency/custom code has a proven approved gap, or none was added |
+| `MC-DEP-001` | New dependency changes are authorized and justified, and local implementations have evidence of a capability gap |
 | `MC-NAME-001` | Touched type names use semantic roles and avoid ambiguous carrier suffixes |
 | `MC-VALID-001` | Affected cross-layer inputs use Validation, groups, normalization, and tests |
 | `MC-MODEL-001` | Value-object record/ordinary class Lombok baseline is present, or conflict blocks |
@@ -103,14 +103,14 @@ Use the six-column table from `references/step-gate-checklist.md`. Manual inspec
 | `MC-JSON-001` | Jackson is the sole JSON stack and contract annotations are correct |
 | `MC-TIME-001` | Touched time modeling uses `java.time` with explicit semantics |
 | `MC-CONFIG-001` | All environment profiles preserve equivalent configuration keys |
-| `MC-PATTERN-001` | Every Complex business flow implements the approved pattern; only Simple flow remains direct |
+| `MC-PATTERN-001` | Every Complex flow implements the pattern in the effective Plan. Simple flows stay direct. |
 | `MC-SCOPE-001` | Touched code complies without unrelated broad refactoring |
 | `MC-TEST-001` | Focused tests/static checks prove applicable standards and behavior |
 | `MC-BLOCKER-001` | All blockers/check failures are closed with no silent exception |
 
 ## Final audit rule
 
-After all Step commits, repeat all 17 checks against the final tree and commits; do not merely aggregate prior Step assertions. Final PASS requires all applicable checks PASS and every N/A evidence-backed. Any Manual Check failure, any `Partial`/`Not satisfied` Spec requirement, or required missing runtime evidence produces `PARTIAL`; inability to determine the baseline/evidence produces `BLOCKED`. Report gaps; do not silently implement them during the audit.
+After all Steps are complete, repeat all 17 checks against the final tree and delivery commits. Resolve eligible findings and refresh affected evidence under `references/final-spec-audit.md`. Final PASS requires all applicable checks PASS and every N/A evidence-backed. Apply the final audit's verdict rules to remaining failures, unmet requirements, or missing evidence.
 
 Time boundaries additionally follow `references/time-semantics.md`: UTC occurred instants, unchanged pure-date semantics, explicit business-zone calculation and frontend display conversion. `MC-TIME-001` requires applicable mapping/serialization/calendar/DST/precision/compatibility evidence.
 

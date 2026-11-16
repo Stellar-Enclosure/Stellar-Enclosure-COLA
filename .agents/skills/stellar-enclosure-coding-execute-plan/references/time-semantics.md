@@ -37,7 +37,7 @@ Unchanged legacy contracts remain unchanged within the current task. When an aut
 
 ## Contract table and blocking checks
 
-New Specs (Version 9) retain §6.3; new Plans (Version 5) retain §4.9. Set `Time contract: Required` for affected time semantics/boundaries, otherwise `Time contract: Not applicable` with exact scope evidence. Plans consume the effective Spec's time decisions; missing material decisions go back to the Spec rather than being invented by the Plan.
+New Specs retain §6.3; new Plans retain §4.9. Set `Time contract: Required` for affected time semantics/boundaries, otherwise `Time contract: Not applicable` with exact scope evidence. Plans consume the effective Spec's time decisions; missing material decisions go back to the Spec rather than being invented by the Plan.
 
 Use one `TIME-NNN` row per semantic group with identical boundaries; name exact fields/symbols and split any group with different policies. Canonical table tokens remain English in documents of either language:
 

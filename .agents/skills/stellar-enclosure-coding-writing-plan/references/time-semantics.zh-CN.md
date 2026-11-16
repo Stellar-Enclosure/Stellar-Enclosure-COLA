@@ -37,7 +37,7 @@
 
 ## 契约表与阻断校验
 
-新 Spec Version 9 保留 §6.3，新 Plan Version 5 保留 §4.9。受影响时间语义/边界写 `Time contract: Required`，否则写 `Time contract: Not applicable` 并给出准确范围证据。Plan 消费有效 Spec 的时间决策；重大决策缺失时退回 Spec，不能自行补造。
+新 Spec 保留 §6.3，新 Plan 保留 §4.9。受影响时间语义/边界写 `Time contract: Required`，否则写 `Time contract: Not applicable` 并给出准确范围证据。Plan 消费有效 Spec 的时间决策；重大决策缺失时退回 Spec，不能自行补造。
 
 语义及边界相同的字段可合为一条 `TIME-NNN`，列明准确字段/符号；策略不同必须拆行。中英文产物均保留以下英文机读值：
 

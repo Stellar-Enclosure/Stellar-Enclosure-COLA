@@ -4,35 +4,48 @@ Use this checklist for every Plan Step. Record objective evidence; do not replac
 
 ## Resume an interrupted execution
 
-1. Reconcile the recorded Plan and effective Spec revisions, authorization, repository, branch and baseline. Reuse authorization for unchanged revisions. Stop on material drift or unclear ownership.
-2. From the Step record and Git history, verify each completed Step in order. The recorded commit must be non-empty, reachable from current HEAD, scoped to the declared paths, and tied to passing validation and manual evidence. Inspect later changes to its paths and prerequisites. Only resume past a Step whose completion is supported by that evidence. Reconcile any interrupted post-commit check with the actual commit before making further edits.
-3. Resume the first uncommitted Step. If all existing edits on its paths are attributable to that Step, compare them with its recorded baseline, inspect staged and unstaged changes, and refresh the required evidence before committing. Preserve the recorded RED result when it still matches the Step. If required RED evidence is missing, reproduce it on the recorded baseline in a separate scratch checkout when feasible. Never discard changes to reconstruct RED. An unexplained commit, missing evidence that cannot be recovered, or unclear edits on a Step path blocks advancement.
+1. Reconcile the authorized Plan and Spec baseline, every recorded revision, repository, branch and baseline commit. Reuse the authority for revisions covered by the skill. Diagnose drift and unclear ownership using Git history, Step evidence and safe isolation where needed.
+2. From the Step record and Git history, verify each completed Step in order. A Step commit must be non-empty, reachable from current HEAD, scoped to the effective paths, and tied to passing validation and manual evidence. A Step marked `Satisfied at baseline` needs reachable baseline commit evidence and refreshed checks of its complete required outcome. Inspect later changes to relevant paths and prerequisites and verify any interrupted post-commit check against Git.
+3. Resume the earliest runnable Step in the effective schedule. Attribute existing edits by comparing staged and unstaged changes with the recorded baseline, then refresh the required evidence. Reuse matching RED evidence or reproduce it in a scratch checkout when feasible. Preserve worktree changes. Recheck prerequisites before returning to a parked Step.
 
-## Step lock
+## Step preflight
+
+Apply this before locking or resuming each Step. If a check exposes a discrepancy, diagnose it, choose an authorized correction that preserves intent, and recheck what changed. Use the blocker rule only when a required condition cannot be met.
+
+- [ ] Reread the effective Spec requirements and compare Plan paths, symbols, consumers, migration sequence and validation commands with the current repository.
+- [ ] Inspect branch, HEAD, staged and unstaged changes, untracked paths, and file ownership. Isolate unrelated edits or baseline failures when needed to obtain valid Step evidence and preserve those edits.
+- [ ] Verify prerequisites with commit or baseline completion evidence. If a required earlier Step needs repair, execute it or its corrective commit workflow first, then refresh the dependent Step's baseline.
+- [ ] Confirm the validation setup can produce the required evidence. Restore an available local tool or fixture, or choose a documented equivalent command with the same coverage. Recheck affected preflight items.
+- [ ] For Java, inspect relevant architecture and reuse evidence and identify all applicable Literal Rules and Manual Checks, including any omitted in the Plan. Record baseline problems that the current Step can fix against its effective scope and verify the repairs on the final candidate.
+
+## Lock the effective Step
 
 - [ ] Exact Plan path and revision recorded.
-- [ ] Step number, title, requirement IDs, dependencies, and proposed commit recorded.
-- [ ] Effective Spec sections for this Step reread.
+- [ ] Step number, title, requirement IDs, verified prerequisites, effective paths, RED/GREEN intent, validation commands, rollback point and proposed commit recorded.
 - [ ] `git rev-parse HEAD` recorded as the Step baseline.
-- [ ] Current branch, `git status --short`, staged paths, and untracked paths inspected.
-- [ ] Every earlier dependency is represented by an already verified commit.
-- [ ] Declared Step paths do not overlap unrelated or concurrent edits.
-- [ ] Planned files, symbols, consumers, migration sequence, and commands still exist.
-- [ ] No material repository, Plan, or Spec drift is present.
+- [ ] If an independent Step proceeds while another is blocked, record the dependency and order check, and isolate their edits and evidence.
+- [ ] Record preflight findings, fixes, and recheck results. Identify any remaining fixes owned by this Step in its effective paths and checks.
+
+## Record an intent-preserving revision when needed
+
+- [ ] Cite the source requirement or decision and current repository evidence. Check the impact on consumers and Step dependencies against the accepted intent.
+- [ ] Update the smallest relevant Plan or Spec passage and dependent references. Record the before/after sections or revisions, affected Steps and paths, and why the change preserves intent. Keep the evidence in the Step record when a frozen document can still be implemented as written.
+- [ ] Revalidate the structure of a revised Plan in strict mode. For a proven parser false positive on a frozen Plan, record the original result, the equivalent normalization in an isolated copy, and that copy's strict result. Compare old and new coverage when a check is replaced.
+- [ ] Before completion, record actual validation and check results for affected behavior, compatibility, and commit scope. Choose a qualifying approach among viable alternatives and keep a recoverable failure `In Progress`. Apply the skill's blocker rule only when no authorized path remains.
 
 ## RED gate when the Step changes behavior
 
 - [ ] The focused test is created or modified before production behavior.
-- [ ] The exact focused command is run.
+- [ ] The effective focused command is run.
 - [ ] The test fails for the expected missing behavior.
 - [ ] Failure is not caused by compilation, fixture, dependency, environment, or unrelated errors.
-- [ ] RED evidence is recorded. If RED is legitimately impossible, the approved reason is recorded.
+- [ ] RED evidence is recorded. If the planned RED mechanism is unavailable, select and document an equivalent authorized before/after check when it can prove the same gap and coverage. If mandatory RED evidence cannot be recovered or equivalently established, apply the blocker rule.
 
 ## Implementation gate
 
 - [ ] Only one Step is `In Progress`.
-- [ ] Files are handled in the Plan's declared order.
-- [ ] Every operation is limited to declared `CREATE`, `MODIFY`, `DELETE`, `RENAME`, or `GENERATED` paths.
+- [ ] Files are handled in the effective Plan order, including documented local revisions.
+- [ ] Every operation is limited to the Step's effective `CREATE`, `MODIFY`, `DELETE`, `RENAME`, or `GENERATED` paths.
 - [ ] Implementation follows real repository APIs and conventions while preserving the Plan's semantics.
 - [ ] No undeclared public contract, dependency, migration, schema, permission, page, or architecture change was introduced.
 - [ ] No unrelated refactor, formatting sweep, debug output, secret, or generated noise was added.
@@ -98,9 +111,9 @@ Manual Check verdict rules:
 
 ## Verification gate
 
-- [ ] Commands were classified by actual side effects. Runtime startup, live-system acceptance, and changes to external state were authorized before execution. Required Step gates passed. Acceptance checks assigned to a later phase were recorded separately.
-- [ ] The checked files match the Step candidate. If unrelated work can affect results, use a scratch checkout containing the Step baseline plus only the candidate changes, or report that the gate is blocked.
-- [ ] Exact focused validation passed with complete output and exit status.
+- [ ] Commands were classified by actual side effects. Run bounded, isolated local fixtures under the task's validation scope. Check applicable authorization for shared/live systems and external writes. Required Step gates passed. Acceptance checks assigned to a later phase were recorded separately.
+- [ ] The checked files match the Step candidate. If unrelated work can affect results, isolate the Step baseline and candidate when possible and classify any remaining impediment under the blocker criteria.
+- [ ] Effective focused validation passed with complete output and exit status. Any documented replacement proves the same required outcome.
 - [ ] Required compile, typecheck, lint/format, XML/schema, module, integration, or regression gates passed.
 - [ ] Expected GREEN behavior and relevant error paths are covered.
 - [ ] Current Step requirements and effective Spec sections were reread against the implementation.
@@ -111,6 +124,8 @@ Manual Check verdict rules:
 - [ ] Failures, skips, warnings, timeouts, and unavailable runtime evidence are classified honestly.
 
 ## Pre-commit gate
+
+Use this gate when the Step changes repository files. For `Satisfied at baseline`, record reachable committed evidence for the complete outcome and the refreshed verification before advancing. A no-diff result alone is insufficient.
 
 From the repository root, capture status and the unrelated staged diff before staging. Confirm `HEAD` still equals the Step baseline and there are no conflicts. Set the `step_paths` Bash array to the exact changed Step file paths, including both sides of each rename. Review ownership before staging, including untracked files.
 
@@ -141,12 +156,12 @@ Commit immediately with `git --literal-pathspecs commit --only -m "$step_message
 - [ ] `git show --stat --oneline <hash>` was inspected.
 - [ ] The parent is the recorded baseline. The committed diff and paths match the reviewed candidate.
 - [ ] Validation commands and observed results are recorded against the hash.
-- [ ] Deviations are recorded as `None`, approved clarification, or corrective-commit explanation.
+- [ ] Deviations are recorded as `None`, recorded intent-preserving revision, separately approved change, or attributed corrective commit.
 - [ ] Unrelated staged diff and status match the snapshot taken before staging. No unrelated unstaged or untracked work was changed.
-- [ ] The Step is marked `Committed` before any later Step begins.
-- [ ] New `HEAD` hash and committed paths were recorded before the first edit of the next Step.
+- [ ] The Step is marked `Committed` before a dependent Step begins.
+- [ ] New `HEAD` hash and committed paths were recorded before editing another Step.
 
-If any required box cannot be checked, keep the Step `In Progress` or mark it `Blocked`; do not advance.
+Resolve open checks autonomously where possible. Once the blocker rule applies, retain the affected Step's evidence and advance any eligible independent Step under rule 16. Advance dependent Steps only with verified completion evidence.
 
 ## Java / CQE contract review
 

@@ -36,7 +36,7 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 
 ## 逐文件规划规范
 
-每个受影响 Java 文件块都必须在 `Standards impact` 列适用 `MC-*`，在 `Literal rule enforcement` 列原始 `Rule N`，并用仓库证据、伪代码和验证落实。
+每个受影响 Java 文件块都必须在 `Standards impact` 列适用 `MC-*`，在 `Literal rule enforcement` 列原始 `Rule N`，并用仓库证据、变更说明和验证落实。
 
 ### 语义命名
 

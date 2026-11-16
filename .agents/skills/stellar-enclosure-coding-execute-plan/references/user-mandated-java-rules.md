@@ -21,15 +21,9 @@ This reference is normative before coding, during every Step, before every Step 
 
 Literal spellings stay unchanged. During execution, `@qualify` means Spring `@Qualifier`, `convertor` means the Egon `BaseConverter<S,T>` / `BaseForwardConverter<S,T>` system, and `SpringBoot-JackSon` means Spring Boot managed Jackson.
 
-## Hard stop rule
+## Handling compliance failures
 
-The exact source and the approved Spec/Plan decide the implementation. Repository style cannot weaken the mandate. If current code, compiler behavior, framework requirements, dependencies, or the Step scope prevent literal compliance:
-
-1. do not silently choose a reduced implementation;
-2. keep the Step `In Progress` or mark it `Blocked`;
-3. record exact path/symbol/compiler/dependency evidence;
-4. report the smallest compliant correction and whether Spec/Plan/user approval is required;
-5. do not commit the Step as complete and do not advance.
+Apply the exact source to every candidate. If current code, compiler behavior, framework requirements, dependencies, or Step scope prevent literal compliance, record the exact path, symbol, compiler or dependency evidence. Keep the Step `In Progress` while a compliant fix is available and use the skill's intent-preserving revision procedure where needed. Apply its blocker criteria if compliance remains unattainable. Completing a Step requires passing all applicable Literal Rule checks.
 
 At Step lock, create the ten-row Literal Rule Gate from `references/step-gate-checklist.md`. Refresh it after the final diff. All applicable rows must PASS; N/A needs positive scope evidence.
 
@@ -57,7 +51,7 @@ Telephone input must use the approved libphonenumber path with region, E.164 nor
 - An immutable value object may use `record` without mutable class annotations; a small field count does not establish value-object semantics.
 
 
-Compile to prove the complete Lombok combination. A duplicate constructor or framework conflict blocks; do not delete an annotation without user-approved design correction.
+Compile to prove the complete Lombok combination. Resolve duplicate constructors or framework conflicts with a compliant design and apply the blocker criteria if no compliant resolution is available.
 
 Every new affected Converter must use MapStruct/MapStructPlus and implement/inherit `BaseConverter<S,T>` / `BaseForwardConverter<S,T>`. Inspect exact generics, mappings, qualifiers, null/default/enum/time/sensitive fields, generated implementation, Bean name, and tests. Reject manual setters, `BeanUtils.copyProperties`, reflection, JSON round trips, or custom Converter bypasses.
 
@@ -84,11 +78,11 @@ Inspect every touched external DTO/VO/Result/Command/Query/Event. Confirm necess
 
 When any configuration key changes, inspect the base file and every environment file after the diff. Compare normalized key paths and require identical structure/core key sets; only values may differ. Verify `@ConfigurationProperties`, defaults, validation, metadata, and tests where applicable. A one-profile-only change fails.
 
-## Rule 9 — complex business logic must contain the approved pattern
+## Rule 9 — complex business logic must use an appropriate pattern
 
-Reconfirm the Plan's Simple/Complex classification for each touched flow. A Complex flow must implement the approved Strategy, Template Method, Factory, Chain of Responsibility, State, Specification, Domain Event, or other pattern with actual participant, selection/wiring, orchestration, failure, and test code.
+Reconfirm each touched flow's Simple/Complex classification. A Complex flow must implement the pattern required by the effective Spec or an established pattern the executor selects under the skill's revision rule. Record why it fits and verify participants, selection, wiring, orchestration, failure handling, and tests.
 
-Reject long `if/else`, `switch`, type/string/reflection dispatch, or direct orchestration replacing the approved pattern. Simple logic remains direct; do not invent ceremonial pattern classes.
+Reject long `if/else`, `switch`, type/string/reflection dispatch, or direct orchestration replacing the required pattern. Simple logic remains direct.
 
 ## Rule 10 — reject java.util date/time
 

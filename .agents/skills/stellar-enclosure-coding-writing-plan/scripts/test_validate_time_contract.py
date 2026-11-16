@@ -132,7 +132,7 @@ class TimeContractValidationTest(unittest.TestCase):
             path = Path(directory) / "2026-10-13-12-00-time-policy.md"
             path.write_text(text)
             new_errors, _ = validate(path, strict=False)
-            path.write_text(text.replace("| Template Version | `5` |", "| Template Version | `4` |"))
+            path.write_text(text.replace("| Template Version | `6` |", "| Template Version | `4` |"))
             old_errors, _ = validate(path, strict=False)
         self.assertTrue(any("Missing required time subsection" in error for error in new_errors))
         self.assertFalse(any("time subsection" in error or "Time contract" in error for error in old_errors))

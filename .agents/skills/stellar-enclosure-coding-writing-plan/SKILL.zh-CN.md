@@ -1,6 +1,6 @@
 ---
 name: stellar-enclosure-coding-writing-plan
-description: 当编码任务已有明确且经过审核或接受的 Spec，需要在修改代码前编写基于仓库、可直接实施的逐文件 Plan，并明确依赖顺序、Java/Spring/Egon-COLA 规范、阻断型 Manual Check、仓库语言伪代码、验证命令和逐 Step 提交范围时使用。
+description: 当编码任务已有明确且经过审核或接受的 Spec，需要在修改代码前编写基于仓库、可直接实施的逐文件 Plan，并明确依赖顺序、Java/Spring/Egon-COLA 规范、阻断型 Manual Check、验证命令和逐 Step 提交范围时使用。
 ---
 
 # EGON 编码 Plan 编写
@@ -41,7 +41,7 @@ Plan 定义的是**先处理哪个文件、其中怎么写、接着处理哪个�
   - `ABSTRACT` 替换为简洁的小写 ASCII kebab-case 摘要，通常 3–8 个单词。
   - 示例：`docs/egon/plan/2026-08-15-16-10-account-lockout-implementation.md`。
   - 同一分钟且摘要相同时不能覆盖旧文档，应使用更具体的摘要。
-- 必须以 `assets/plan-template.md` 中的 Plan Template Version 5 为模板，保留全部编号章节。不适用的章节写有证据的 `N/A`。校验器继续按原契约接受 Version 2 至 Version 4 和既有无版本 Plan。
+- 必须以 `assets/plan-template.md` 中的 Plan Template Version 6 为模板，保留全部编号章节。不适用的章节写有证据的 `N/A`。校验器继续按原契约接受 Version 2 至 Version 5 和既有无版本 Plan。
 
 ## 时间语义与 UTC 规则
 
@@ -59,7 +59,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 
 ## 用户强制 Java 规则——逐字规范源
 
-以下规则逐字保留，是强制约束，必须转换为有序文件、伪代码、检查和逐 Step 提交，不能缩成普通编码提示。不可弱化的 Plan 执行细则见 `references/user-mandated-java-rules.zh-CN.md`。
+以下规则逐字保留，是强制约束，必须转换为有序文件、变更说明、检查和逐 Step 提交，不能缩成普通编码提示。不可弱化的 Plan 执行细则见 `references/user-mandated-java-rules.zh-CN.md`。
 
 ```text
 1 类名规范，必须以 java的pojo规范命名。以dao po bo vo dto query command event等结尾
@@ -85,18 +85,18 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 5. 不能加入有效 Spec 没有的行为、公共契约、schema 字段、页面、依赖、架构层或重构。重大 Spec 缺陷或实质仓库漂移必须先回到用户和 Spec。
 6. 只能推断保持有效设计、遵循唯一明确仓库惯例的小型、本地、可逆实现细节。有影响的推断以 `Plan Clarification` 记录证据和错误影响。
 7. 每个实施 Step 必须足够小，可独立验证，通常对应一个语义提交。仓库要求每任务一提交时必须遵守。
-8. 每个 Step 都必须写覆盖的源需求 ID、依赖、可观察结果、严格文件顺序、文件操作、符号、符合仓库语言的伪代码、中间结果、精确验证、完成标准、回滚点和建议提交信息。
+8. 每个 Step 都必须写覆盖的源需求 ID、依赖、可观察结果、严格文件顺序、文件操作、符号、所需变更的文字说明、中间结果、精确验证、完成标准、回滚点和建议提交信息。
 9. 行为变更默认测试先行：先计划聚焦且会失败的单元/契约测试，说明预期 RED 原因；再计划最小生产修改；最后重构、接线和验证。如果技术上无法测试先行，除非用户或仓库明确授权，否则视为重大决策。
-10. 伪代码必须承载实现信息，但不能成为生产代码。应使用真实类/函数/组件/表名、签名、字段映射、分支、调用、状态变化、错误路径、事务和断言，并遵循仓库语言与框架风格。
+10. 整份 Plan（含每个 Step、测试、迁移和附录）禁止粘贴或编写具体实现代码、测试代码、SQL、配置片段、脚本正文和补丁。简单需求只用文字写清要改什么及预期行为。仅当文字难以说明复杂逻辑的顺序或分支时，才在受影响的文件下用几条与语言无关的 Markdown 列表写简短伪代码。禁止围栏代码块和缩进代码块；文件路径、符号、契约事实及验证/生成命令仍可行内记录。
 11. 文件顺序由真实依赖决定。迁移、生成代码、契约发布、跨模块编译或前后端兼容要求不同顺序时，不能机械套用分层列表。
 12. 所有适用的迁移、配置、权限、可观测性、文档、兼容、发布、回滚和发布验证文件都必须进入有序步骤。
 13. 使用 MP-SDJ Starter 分布式 DDL；一个逻辑变更新增一个下一版本 SQL 与 SHA-256 Manifest 条目，保留已应用历史并定义多目标失败/续跑。native light/web/service 的初始 CREATE 模板由 `scripts/stellar-enclosure-codegen.sh plan`/`apply` 生成；ALTER 等后续结构变更必须规划 agent 修改的准确文件及消费者，生成器不刷新旧文件。遵循 `references/backend-code-generation.md`。
 14. 交付前对照 Spec 记录的原始用户需求和全部有效设计复核 Plan，自行修复遗漏与不一致。
 15. 主 Spec 未明确接受、Plan 未经用户/决策负责人批准时，不能把 Plan 标为 `Ready`。完整待审时为 `Review`；存在 Spec 或决策阻塞时为 `Draft` 或 `Blocked`。
-16. 必须完整读取 `references/file-by-file-planning.zh-CN.md`。每个 Step 都要写基线/结束状态、Test-first 适用性、准确文件顺序、验证工作目录、Commit Paths 和一个语义结果。每个文件都要写当前仓库证据、依赖/消费者、输入输出/状态映射、错误/边界行为、承载实现信息的伪代码、验证贡献和 After-file 状态。
+16. 必须完整读取 `references/file-by-file-planning.zh-CN.md`。每个 Step 都要写基线/结束状态、Test-first 适用性、准确文件顺序、验证工作目录、Commit Paths 和一个语义结果。每个文件都要写当前仓库证据、依赖/消费者、输入输出/状态映射、错误/边界行为、所需变更的文字说明、验证贡献和 After-file 状态。
 17. 规划文件前执行 Spec 简洁性与实施必要性审核。不能把无依据 API、参数 Preflight、类、分层、表、缓存、Job、依赖或页面静默编译成实施步骤。如果直接/复用方案满足同一需求，或 Spec 缺少必要性决策，必须带证据和准确 Spec 章节返回 `REVISE`/`BLOCKED`；不能在 Plan 内重新设计。
 18. 每个 Java Plan 必须完整读取 `references/user-mandated-java-rules.zh-CN.md` 和 `references/java-spring-egon-coding-standards.zh-CN.md`。分配文件前，根据当前 Tree 和已选 Archetype 证明且只证明一种允许架构，并建立覆盖 Spring、Spring Boot Starter、Egon-COLA Component/公共基础设施和模块内候选的复用账本。没有已证明能力缺口与获批影响时不能规划新依赖或自研替代。
-19. 每个 Step 都必须列出适用阻断型 `MC-*`，每个受影响 Java 文件写明规范影响。伪代码和验证必须把语义命名、每个层间交接的 Validation/Group/规范化、不可变值对象 record 与普通 class 的 Lombok 分类、MapStruct/MapStructPlus 与双向转换的 `BaseConverter` 或不可逆投影的 `BaseForwardConverter`、Bean 名/注入/Qualifier 传播、`@Slf4j`、工具、Jackson、`java.time`、配置一致性和每个 Complex Flow 的强制获批模式落实为可执行内容。
+19. 每个 Step 都必须列出适用阻断型 `MC-*`，每个受影响 Java 文件写明规范影响。变更说明和验证必须把语义命名、每个层间交接的 Validation/Group/规范化、不可变值对象 record 与普通 class 的 Lombok 分类、MapStruct/MapStructPlus 与双向转换的 `BaseConverter` 或不可逆投影的 `BaseForwardConverter`、Bean 名/注入/Qualifier 传播、`@Slf4j`、工具、Jackson、`java.time`、配置一致性和每个 Complex Flow 的强制获批模式落实为可执行内容。
 20. 第 12 章逐项完成全部 Manual Check。适用行必须有具体仓库/Plan 证据且为 `PASS`，不适用行必须有证据地 `N/A`。缺失 ID/证据、`FAIL`、`BLOCKED`、`UNKNOWN` 或未关闭例外都禁止 PASS。
 21. 必须逐字执行 `references/user-mandated-java-rules.zh-CN.md`。第 4 章按原编号 `1、2、3、4、5、6、7、9、10、11` 保留十个独立行；每个 Step 写 `Literal Rules:`，每个受影响文件写 `Literal rule enforcement:`。禁止把强制措辞改成“优先/考虑/兼容时”。冲突必须返回 Spec/用户并阻断 PASS。
 22. 现有仓库命令无法覆盖的门禁需要临时验收 harness。其创建必须规划在仓库 `scripts/work/` 下，命名为 `<plan-id>-<verb>.sh`——禁止写入 `scripts/` 顶层，那里只放长期工具——并在最后一个 Step 明确处置：升格进仓库长期检查集、并入它实际守护的子系统，或删除。`scripts/work/` 中留有未判定 harness 的 Plan 不能标为 `Ready`。
@@ -150,7 +150,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
    - 每个 Create/Modify/Delete 路径只列一次，并标注符号、职责、需求映射和所属 Step。
 7. **编写有序实施步骤**
    - 每项行为先写聚焦失败测试，再写生产实现。
-   - 每个文件给出语言/框架相关伪代码和完成该文件后的仓库状态。
+   - 每个文件用文字写明所需变更和完成后的仓库状态；只在必要时为复杂逻辑补充简短伪代码。
    - 每个 Step 以定向验证、客观完成证据、回滚方式和一个建议提交结束。
    - 记录基线/结束状态、Test-first 门禁、验证工作目录和准确 Commit Paths；使用 `references/file-by-file-planning.zh-CN.md` 要求的全部逐文件字段。
    - 为 Step 列出适用 `MC-*`，为每个 Java 文件写规范影响；Step 验证必须在建议提交前证明这些检查。
@@ -166,7 +166,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
     - 报告 Plan 路径/状态、目标/有效 Specs、Step 数量、Clarification、阻塞项和验证边界。
     - 停止并等待用户审核，不能顺带开始实现。
 
-## 文件顺序与伪代码契约
+## 文件顺序与变更说明契约
 
 每个 Step 必须遵循以下顺序：
 
@@ -183,7 +183,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
    - 要新增/修改的签名、契约和字段；
    - 输入/输出/字段/状态映射，包括空值/默认/枚举/时间/精度和持久化/副作用；
    - 适用的校验、权限、不存在、重复、并发、依赖、回滚和兼容行为；
-   - 针对控制流、映射、持久化、错误和测试的语言相关伪代码；
+   - `Required change:`：用简短文字写明需要完成的变更及预期行为；只有复杂逻辑才可补充 `Complex logic (pseudocode):`，用几条普通 Markdown 列表说明关键顺序、分支和状态；
    - 适用 Java/Spring/Egon-COLA 规范、准确注解/契约和 Manual Check ID；
    - 准确原始 Rule 编号及本文件不可弱化的具体落实；
    - 本文件贡献的准确测试/门禁；
@@ -191,7 +191,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 4. 写明验证工作目录、准确聚焦命令、准确成功结果和失败回退点。
 5. 写明完成证据、回滚点、准确 Commit Paths 和一个语义提交信息。
 
-好的 Java 伪代码会写出注解、方法签名、协作者、事务边界、领域调用、Mapper/Repository 操作、异常和断言。目录内文件是例外：伪代码写生成器配置和 `scripts/stellar-enclosure-codegen.sh` 命令，不写类体。遵循 `references/backend-code-generation.md`。好的 TypeScript/React 伪代码会写出 props/type、hook/state、API 调用、渲染分支、事件和组件测试。好的 SQL 伪代码会写出新迁移、DDL/DML、约束、索引、回填、保护条件和回滚/forward-fix 边界。
+用文字或表格记录准确的符号、字段、注解、契约和断言。测试写场景与预期结果，迁移写目标结构、保护条件和顺序；生成文件写输入配置的路径、所需键、输出和运行命令，不贴配置内容。只有关键顺序、状态转换、并发或恢复分支难以用文字说明时，才用简短伪代码；不写方法体、调用链或断言语法。
 
 不能使用“实现 Service”“处理错误”“更新前端”“运行测试”等占位描述。实施者不应再发明架构或文件顺序。
 
@@ -203,7 +203,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 4. **实现策略与依赖顺序**——Spec 简洁性/必要性审核、顺序理由、变更单元依赖、测试策略、迁移/兼容约束、并行关系和提交边界。
 5. **变更文件树**——完整 Create/Modify/Delete/Rename/Generated 树，映射当前证据、准确符号、最终状态、Steps、需求和验证所有者。
 6. **前置条件、约束与 Plan Clarifications**——命令、环境、不可变文件/契约、决策、脏工作树保护和小型有证据推断。
-7. **有序逐文件实施 Steps**——严格路径顺序和上述伪代码契约。
+7. **有序逐文件实施 Steps**——严格路径顺序和上述变更说明契约。
 8. **测试、验证与质量门禁**——RED/GREEN 点、聚焦/模块/全量检查、预期结果和失败回退点。
 9. **迁移、兼容、发布与回滚**。
 10. **需求到 Step 追踪矩阵**。
@@ -230,7 +230,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 | 把新 API/表/页面当作 Plan Clarification | 停止并经用户批准修订 Spec |
 | 忠实规划“先查再转发”或其他无依据 Spec 元素 | 记录仓库/直接方案证据，返回 `REVISE`/`BLOCKED` 给 Spec；详细 Plan 不能替代必要性 |
 | 只列阶段，不列精确文件 | 展开成严格文件顺序和符号 |
-| 使用“实现校验”等泛化伪代码 | 写出签名、字段、分支、协作者、错误和断言 |
+| 简单需求写伪代码，或在 Plan 中写具体代码 | 简单需求只用文字；复杂逻辑只补充必要的简短伪代码 |
 | 文件块缺少仓库证据、消费者、映射、边界行为或 After-file 状态 | 补齐所有必需字段，使实施不再需要架构或行为决策 |
 | 验证只写“运行测试/构建” | 增加工作目录、准确命令/Selector/环境、预期退出/结果和失败回退点 |
 | 所有测试都放在生产代码之后 | 每项行为先规划聚焦 RED 测试 |
@@ -239,8 +239,8 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 | Plan 文件树无升级就偏离 Spec | 除非证据证明是语义不变重命名，否则回到 Spec |
 | 未检查当前 Tree 就规划混合/新分层 | 选择既有传统形态或准确 Archetype 形态，否则阻断并找用户决策 |
 | 未发现 Spring/Egon/模块复用就新增 Helper/依赖 | 完成复用账本并证明能力缺口，否则移除新增项 |
-| Java 伪代码遗漏 Validation Group、转换、Bean 名/Qualifier、时间/JSON/配置语义或适用注解 | 补充准确且符合仓库惯例的实施与验证结果 |
-| 用摘要或“最佳实践”段落替代用户编号规则 | 恢复逐字区块，把每个原始规则映射到文件、伪代码、验证和 Step |
+| Java 变更说明遗漏 Validation Group、转换、Bean 名/Qualifier、时间/JSON/配置语义或适用注解 | 补充准确且符合仓库惯例的实施与验证结果 |
+| 用摘要或“最佳实践”段落替代用户编号规则 | 恢复逐字区块，把每个原始规则映射到文件、变更说明、验证和 Step |
 | 只规划 Controller 校验 | 增加每个受影响层间交接、Group/调用/错误和测试 |
 | 缩减 class 的 Lombok 基线或绕过适用的 Egon 转换契约 | 阻断并返回 Spec/用户，不能规划静默例外 |
 | 把 Complex 业务变化保留为直接分支 | 增加有效 Spec 已选模式的参与者、接线、编排和测试 |

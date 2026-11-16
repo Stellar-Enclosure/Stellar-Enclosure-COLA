@@ -41,7 +41,7 @@ class UserMandatedJavaRulesTest(unittest.TestCase):
 
     def test_current_template_has_exact_rule_matrix_and_markers(self) -> None:
         text = (self.root / "assets/plan-template.md").read_text(encoding="utf-8")
-        self.assertIn("| Template Version | `5` |", text)
+        self.assertIn("| Template Version | `6` |", text)
         start = text.index("### 4.8 User-mandated Java Rule Implementation Matrix")
         end = text.index("\n## 5. Change File Tree", start)
         rows = re.findall(r"(?m)^\| Rule (\d+) \|", text[start:end])

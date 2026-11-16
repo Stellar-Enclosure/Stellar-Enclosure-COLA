@@ -58,7 +58,7 @@ Order:
 5. Append the classpath SQL journal in this reference.
 6. Implement business behavior and custom queries outside the generated baseline. Later ALTER-driven changes are agent-owned and require explicit review even if they touch a formerly generated file.
 
-Do not hand-write initial CREATE catalog types so the SQL will compile. Do not copy `.ftl` into the business project or edit a `.ftl` to fit one schema. Do not treat Plan Java pseudocode as permission to retype initial generator output. `CONFLICT` or `BLOCKED_TOOLING` stops that generator action; later ALTER work follows the agent-owned Plan instead.
+Do not hand-write initial CREATE catalog types so the SQL will compile. Do not copy `.ftl` into the business project or edit a `.ftl` to fit one schema. In a Plan, name the inputs and expected outputs in prose and give the generator invocation inline; do not include generated source or configuration snippets. `CONFLICT` or `BLOCKED_TOOLING` stops that generator action; later ALTER work follows the agent-owned Plan instead.
 
 `agent`, every `-open` archetype, and an existing traditional three-layer tree are outside this generator. Their approved implementation uses their existing architecture, without pretending the native CLI supports them. Keep an existing traditional tree (Rule 11). Ask before moving that work onto native `light`, `web`, or `service`. A new business project is created by `stellar-enclosure-coding-create-new-module` from exactly one non-open archetype (`light`, `service`, `web`, or `agent`). Do not copy `source-projects` and do not write a module skeleton.
 
@@ -87,7 +87,7 @@ Append only. Do not rewrite or delete earlier entries. Consuming the same versio
 | Phase | Required result |
 | --- | --- |
 | Spec | DDL source/type, supported profile, templates, generated/custom ownership, CRUD/API semantics, dependency availability and change/conflict policy. Catalog types are generator-owned, not handwritten classes |
-| Plan | Exact configuration, executable discovery, artifact scope, output paths, required existing types, expected diff, generator/component/template versions, validations and approvals. Mark catalog paths `GENERATED`, specify the config and `plan`/`apply` commands, and assign the classpath SQL journal to the owning Step |
+| Plan | Configuration path and required keys/values described in prose, executable discovery, artifact scope, output paths, required existing types, expected diff, generator/component/template versions, validations and approvals. Mark catalog paths `GENERATED`, specify the config and `plan`/`apply` commands, and assign the classpath SQL journal to the owning Step |
 | Execute | Run the verified generator for approved templates, inspect scoped diff, preserve custom code, compile/test the affected output; append the classpath SQL journal; block missing tooling/dependencies rather than inventing them. Do not type catalog files after a SQL change |
 | Final audit | Reconcile DDL diff, selected/generated files, unresolved consumers/conflicts, manifest/dependency changes, validation results and runtime limits |
 

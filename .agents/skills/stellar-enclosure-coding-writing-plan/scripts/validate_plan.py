@@ -18,8 +18,8 @@ SOURCE_ID_RE = re.compile(
 )
 REQ_ID_RE = re.compile(r"\bREQ-\d{3}\b")
 VALID_STATUSES = {"Draft", "Review", "Ready", "In Progress", "Completed", "Blocked", "Superseded"}
-CURRENT_TEMPLATE_VERSION = 5
-SUPPORTED_TEMPLATE_VERSIONS = {2, 3, 4, 5}
+CURRENT_TEMPLATE_VERSION = 6
+SUPPORTED_TEMPLATE_VERSIONS = {2, 3, 4, 5, CURRENT_TEMPLATE_VERSION}
 MANUAL_CHECK_IDS = (
     "MC-ARCH-001",
     "MC-REUSE-001",
@@ -140,6 +140,13 @@ FILE_MARKERS_V4 = [
     "- Literal rule enforcement:",
     *FILE_MARKERS_V3[9:],
 ]
+FILE_MARKERS_V6 = [
+    "- Required change:" if marker == "- Implementation pseudocode:" else marker
+    for marker in FILE_MARKERS_V4
+]
+FENCED_BLOCK_RE = re.compile(
+    r"^[ \t]*(?:>[ \t]*)*(?:(?:[-+*]|\d+[.)])[ \t]+)?(?:`{3,}|~{3,})"
+)
 PLACEHOLDER_PATTERNS = [
     re.compile(r"\b(?:TBD|TODO|FIXME|XXX)\b", re.IGNORECASE),
     re.compile(
@@ -454,6 +461,16 @@ def extract_file_blocks(step: str) -> list[tuple[int, str, str, str]]:
     return files
 
 
+def validate_prose_plan(text: str) -> list[str]:
+    """Check the Markdown boundary; review still checks for unfenced code and excess pseudocode."""
+    return [
+        f"Line {number}: fenced blocks are forbidden in Template Version 6; "
+        "use prose, Markdown lists/tables, and inline command references"
+        for number, line in enumerate(text.splitlines(), start=1)
+        if FENCED_BLOCK_RE.match(line)
+    ]
+
+
 def parse_spec(path: Path) -> tuple[str, set[str]]:
     text = path.read_text(encoding="utf-8")
     fields = parse_header_table(text)
@@ -522,8 +539,11 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
         if heading not in text:
             errors.append(f"Missing required section: {heading}")
 
-    # Restore the audit checks in v5 while preserving the published v4 validator contract.
-    if template_version in {2, 3, 5}:
+    if template_version == 6:
+        errors.extend(validate_prose_plan(text))
+
+    # v5 restored the audit checks without changing the published v4 contract.
+    if template_version in {2, 3, 5, 6}:
         required_detailed_headings = [
             "### 4.5 Spec Simplicity and Implementation-necessity Audit",
             "### 4.6 Change-unit Dependency Matrix",
@@ -542,7 +562,7 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
             errors.append(
                 f"Template Version {template_version} requires the change-unit dependency matrix"
             )
-    if template_version in {3, 4, 5}:
+    if template_version in {3, 4, 5, 6}:
         if "### 4.7 Java, Spring, and Egon-COLA Implementation Standards" not in text:
             errors.append(
                 f"Template Version {template_version} is missing required subsection: "
@@ -555,15 +575,16 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
             )
         if "| Need | Candidates inspected | Exact evidence | Fit/gap | Decision |" not in strategy:
             errors.append(f"Template Version {template_version} requires the capability reuse ledger")
-    if template_version in {4, 5}:
+    if template_version in {4, 5, 6}:
         literal_heading = "### 4.8 User-mandated Java Rule Implementation Matrix"
         if literal_heading not in text:
             errors.append(f"Template Version {template_version} is missing required subsection: {literal_heading}")
         strategy = section(text, "## 4. Implementation Strategy and Dependency Order")
         literal_body = heading_body(strategy, literal_heading)
+        obligations = "Implementation obligations" if template_version == 6 else "Pseudocode obligations"
         expected_header = (
             "| Literal rule | Spec source | Repository evidence | Exact files and order | "
-            "Pseudocode obligations | Validation gate | Steps | Status/blocker |"
+            f"{obligations} | Validation gate | Steps | Status/blocker |"
         )
         if expected_header not in literal_body:
             errors.append(f"Template Version {template_version} requires the canonical literal-rule implementation table")
@@ -621,7 +642,7 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
             f"actual={actual_primary_status or 'unknown'}"
         )
 
-    if template_version == 5:
+    if template_version in {5, 6}:
         errors.extend(validate_time_contract(text, "### 4.9 Time semantics and conversion contract"))
 
     steps = extract_steps(text)
@@ -632,7 +653,10 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
 
     step_requirements: set[str] = set()
     for step_number, step in steps:
-        if template_version in {4, 5}:
+        if template_version == 6:
+            step_markers = STEP_MARKERS_V4
+            file_markers = FILE_MARKERS_V6
+        elif template_version in {4, 5}:
             step_markers = STEP_MARKERS_V4
             file_markers = FILE_MARKERS_V4
         elif template_version == 3:
@@ -648,13 +672,13 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
             if marker not in step:
                 errors.append(f"Step {step_number} missing required marker: {marker}")
 
-        if template_version in {2, 3, 4, 5}:
+        if template_version in SUPPORTED_TEMPLATE_VERSIONS:
             test_first = re.search(r"(?m)^- Test-first gate:\s*(.+)$", step)
             if test_first and not re.match(r"(?:`)?(?:Required|Not applicable)\b", test_first.group(1), re.IGNORECASE):
                 errors.append(
                     f"Step {step_number} Test-first gate must start with Required or Not applicable"
                 )
-        if template_version in {3, 4, 5}:
+        if template_version in {3, 4, 5, 6}:
             manual_line = re.search(r"(?m)^- Manual Checks:\s*(.+)$", step)
             manual_ids = set(MANUAL_CHECK_RE.findall(manual_line.group(1))) if manual_line else set()
             if manual_line and not manual_ids:
@@ -672,7 +696,7 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
                     f"Step {step_number} Manual Checks must include: "
                     + ", ".join(missing_step_checks)
                 )
-        if template_version in {4, 5}:
+        if template_version in {4, 5, 6}:
             literal_line = re.search(r"(?m)^- Literal Rules:\s*(.+)$", step)
             literal_numbers = (
                 {int(number) for number in LITERAL_RULE_RE.findall(literal_line.group(1))}
@@ -714,26 +738,30 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
             for marker in file_markers:
                 if marker not in block:
                     errors.append(f"Step {step_number} File {file_number} missing marker: {marker}")
-            pseudocode = re.search(
-                r"(?s)- Implementation pseudocode:\s*\n\s*```[^\n]*\n(.+?)\n```",
-                block,
-            )
-            if not pseudocode:
-                errors.append(f"Step {step_number} File {file_number} needs a fenced pseudocode block")
+            if template_version == 6:
+                if not re.search(r"(?m)^- Required change:[ \t]*\S", block):
+                    errors.append(f"Step {step_number} File {file_number} needs a prose Required change")
             else:
-                pseudocode_body = pseudocode.group(1)
-                if GENERIC_PSEUDOCODE.search(pseudocode_body):
-                    warnings.append(
-                        f"Step {step_number} File {file_number} contains generic, non-implementable pseudocode"
-                    )
-                if template_version in {2, 3, 4, 5}:
-                    nonempty_lines = [line for line in pseudocode_body.splitlines() if line.strip()]
-                    if len(re.sub(r"\s+", " ", pseudocode_body).strip()) < 120 or len(nonempty_lines) < 3:
-                        errors.append(
-                            f"Step {step_number} File {file_number} pseudocode is too shallow "
-                            f"for Template Version {template_version}"
+                pseudocode = re.search(
+                    r"(?s)- Implementation pseudocode:\s*\n\s*```[^\n]*\n(.+?)\n```",
+                    block,
+                )
+                if not pseudocode:
+                    errors.append(f"Step {step_number} File {file_number} needs a fenced pseudocode block")
+                else:
+                    pseudocode_body = pseudocode.group(1)
+                    if GENERIC_PSEUDOCODE.search(pseudocode_body):
+                        warnings.append(
+                            f"Step {step_number} File {file_number} contains generic, non-implementable pseudocode"
                         )
-            if template_version in {3, 4, 5}:
+                    if template_version in {2, 3, 4, 5}:
+                        nonempty_lines = [line for line in pseudocode_body.splitlines() if line.strip()]
+                        if len(re.sub(r"\s+", " ", pseudocode_body).strip()) < 120 or len(nonempty_lines) < 3:
+                            errors.append(
+                                f"Step {step_number} File {file_number} pseudocode is too shallow "
+                                f"for Template Version {template_version}"
+                            )
+            if template_version in {3, 4, 5, 6}:
                 standards = re.search(r"(?m)^- Standards impact:\s*(.+)$", block)
                 standards_ids = set(MANUAL_CHECK_RE.findall(standards.group(1))) if standards else set()
                 if standards and not standards_ids:
@@ -746,7 +774,7 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
                         f"Step {step_number} File {file_number} contains unknown Manual Check IDs: "
                         + ", ".join(unknown_standards_ids)
                     )
-            if template_version in {4, 5}:
+            if template_version in {4, 5, 6}:
                 literal_enforcement = re.search(
                     r"(?m)^- Literal rule enforcement:\s*(.+)$", block
                 )
@@ -772,7 +800,7 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
                         + ", ".join(sorted(unknown_file_rules))
                     )
 
-        if template_version in {2, 3, 4, 5} and files:
+        if template_version in SUPPORTED_TEMPLATE_VERSIONS and files:
             commit_paths = re.search(r"(?m)^- Commit paths:\s*(.+)$", step)
             if commit_paths:
                 commit_scope = commit_paths.group(1)
@@ -812,7 +840,7 @@ def validate(path: Path, strict: bool) -> tuple[list[str], list[str]]:
     elif status in {"Review", "Ready"} and "BLOCKED — Spec or user decision required" in present_verdicts:
         errors.append(f"Status {status} cannot use the BLOCKED verdict")
 
-    if template_version in {3, 4, 5}:
+    if template_version in {3, 4, 5, 6}:
         errors.extend(
             validate_manual_checks(
                 text,

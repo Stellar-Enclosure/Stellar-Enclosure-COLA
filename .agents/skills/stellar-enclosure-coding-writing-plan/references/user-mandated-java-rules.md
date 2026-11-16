@@ -2,7 +2,7 @@
 
 Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modeling, enum, MP, validation, uniqueness, CQE and architecture contract.
 
-This reference is normative for every Java Plan. The source block is preserved byte-for-byte. A Plan must turn each rule into exact ordered files, pseudocode, validation, and a commit gate; it must not reduce a mandatory rule to a general coding note.
+This reference is normative for every Java Plan. The source block is preserved byte-for-byte. A Plan must turn each rule into exact ordered files, change descriptions, validation, and a commit gate; it must not reduce a mandatory rule to a general coding note.
 
 ## Effective normative source
 
@@ -31,7 +31,7 @@ Every Java Plan contains the ten-row matrix in Chapter 4 using original numbers 
 
 Inventory every created, renamed, or materially changed Java type with path, operation, role, mandatory suffix, consumers, and rename/compatibility impact. POJOs use semantic `PO`, `BO`, `VO`, `DTO`, `Query`, `Command`, `Event`, `Result`, `PageQuery`, `PageResult`, or justified `Entity`; access components use `DAO`; behavior classes use exact behavior suffixes.
 
-Plan no `Data`, `Info`, `Param`, `Bean`, or suffixless ambiguous carrier. For each new type, prove a distinct boundary/lifecycle need so suffix compliance does not create class explosion. Pseudocode uses the final exact type name, never a placeholder.
+Plan no `Data`, `Info`, `Param`, `Bean`, or suffixless ambiguous carrier. For each new type, prove a distinct boundary/lifecycle need so suffix compliance does not create class explosion. The change description uses the final exact type name, never a placeholder.
 
 Archetype and code-gen use the same naming contract: protocol-only inputs use `*DTO`, read/write intents use `*Query`/`*Command`, and application/protocol outputs keep `*Result`/`*PageResult` (presentation output keeps `*VO`). Do not introduce project-owned `*Request`/`*Response` carriers or duplicate a type just for a suffix. Preserve framework/third-party contracts, generated protocol types (including Protobuf messages) and unrelated existing APIs. Generated Java paths must match their declared package and public type; compilation, template hashes and `CLEAN` do not prove that contract.
 
@@ -59,7 +59,7 @@ Telephone handling plans libphonenumber dependency evidence, region, parse, E.16
 
 Verify construction targets, parent builders and generated signatures. Apply the scenario rules and root/empty-class exceptions in `references/egon-java-cqe-contract.md`; report remaining framework/API conflicts explicitly.
 
-Every new affected Converter file uses MapStruct/MapStructPlus and implements/inherits `BaseConverter<S,T>` / `BaseForwardConverter<S,T>`. Pseudocode names exact generics, Mapper/Adapter annotations, Bean name, field mappings, qualifiers, null/default/enum/time/sensitive-field handling, and tests. Use Common BaseForwardConverter for irreversible projection; report a gap only if neither shared contract fits. Do not plan setters, BeanUtils, reflection, JSON mapping, or a separate converter hierarchy.
+Every new affected Converter file uses MapStruct/MapStructPlus and implements/inherits `BaseConverter<S,T>` / `BaseForwardConverter<S,T>`. The change description names exact generics, Mapper/Adapter annotations, Bean name, field mappings, qualifiers, null/default/enum/time/sensitive-field handling, and tests. Use Common BaseForwardConverter for irreversible projection; report a gap only if neither shared contract fits. Do not plan setters, BeanUtils, reflection, JSON mapping, or a separate converter hierarchy.
 
 ## Rule 4 — exact business-class annotations and injection
 
@@ -90,7 +90,7 @@ When a configuration key changes, list the base file and every environment file 
 
 Classify each affected business flow Simple or Complex with evidence. A Complex flow must have an effective-Spec-selected Strategy, Template Method, Factory, Chain of Responsibility, State, Specification, Domain Event, or other appropriate pattern. The Plan lists participant files, interface/abstract contract where the chosen pattern actually requires it, implementations, registry/selection/wiring, orchestration change, and focused tests in dependency order.
 
-Pseudocode may not leave the variation as `if/else`, `switch`, type/string/reflection dispatch, nor say direct logic is sufficient. Simple flows stay direct and must not receive ceremonial pattern classes.
+The planned design may not leave the variation as `if/else`, `switch`, type/string/reflection dispatch, nor say direct logic is sufficient. Simple flows stay direct and must not receive ceremonial pattern classes.
 
 ## Rule 10 — java.time file and field mapping
 
@@ -104,7 +104,7 @@ Before deriving Steps, show the observed current tree and choose exactly traditi
 
 ## Mandatory Plan matrix
 
-| Literal rule | Spec source | Repository evidence | Exact files and order | Pseudocode obligations | Validation gate | Steps | Status/blocker |
+| Literal rule | Spec source | Repository evidence | Exact files and order | Implementation obligations | Validation gate | Steps | Status/blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Rule 1 | `<Spec section>` | `<paths/symbols>` | `<ordered files>` | `<mandatory implementation details>` | `<exact command/review>` | `<Step N>` | PASS / N/A / BLOCKED |
 

@@ -2,9 +2,13 @@
 
 # Stellar Enclosure Coding Plan 分步执行
 
+## 自主执行
+
+有获授权的方案能满足原意和必需检查时，执行者直接选择、实现、验证并继续。优先沿用仓库惯例，选择改动小、可逆、容易取证的方案。遇到不确定情况先查源码或做聚焦试验。多个方案都合规时自主选定，记录影响结果的假设，无需请用户确认。引用文件写有审批或停止时也按本原则判断，遵守用户和仓库的明确限制。
+
 ## 依赖审批与后端模板生成
 
-资源预检后，Java 依赖决策或 DDL/CRUD 模板任务必须读取 `references/backend-code-generation.md`。禁止自行引入依赖；能力不足时阻断并提交具体引入方案，获得用户明确批准后再继续。已批准的精确依赖不重复询问。生成器可用后，已支持模板必须调用 scripts/stellar-enclosure-codegen.sh；禁止虚构命令或静默手写替代。native light、web、service 支持初始 CREATE 建表和显式配置的独立入站事件生成。ALTER 等后续结构变更由 agent 按获批 Plan 分析并修改代码，不得再用生成器刷新旧产物。新业务项目由 stellar-enclosure-coding-create-new-module 按一个非 open archetype 生成，不能手写模块骨架。每次 apply 成功后，或本次只授权到 plan 时，按 references/backend-code-generation.md 追加 classpath SQL 日志。
+资源预检后，Java 依赖决策或 DDL/CRUD 模板任务读取 `references/backend-code-generation.md`。有合规的局部实现、现有组件或构建路径时直接采用。只有剩余合规路径必须修改尚未授权的依赖时，才触发引入审批。沿用已有授权，包括已获授权基线涵盖的依赖变更。已支持的模板使用已验证的 scripts/stellar-enclosure-codegen.sh。native light、web、service 支持初始 CREATE 建表和显式配置的独立入站事件生成。ALTER 等后续结构变更按有效 Plan 实现。新业务项目由 stellar-enclosure-coding-create-new-module 使用非 open archetype 创建。每次 apply 成功后，或本次只授权到 plan 时，按 references/backend-code-generation.md 追加 classpath SQL 日志。
 
 生成基础 CRUD 时按 Repository → Domain Service → CQERS Exe → Manage → Controller 完整链路选择 `backend-crud`；只在支持 HTTP 的 Light/Web profile 生成 Controller，Service 不生成 HTTP。DDL 中通用列需要校验，PO 通过 `EgonModel` 继承，不重复声明。v1/过期计划和无归属文件阻断 apply；使用 v2 生成器计划并审查准确文件清单。
 
@@ -22,9 +26,19 @@ Read `references/egon-java-cqe-contract.md` after resource preflight for every J
 
 ## 目的
 
-严格按照一份已获准执行的 coding Plan 逐 Step 落地。每次只完成一个 Step；只有该 Step 已通过验证并形成独立提交后，才能开始下一个 Step。全部 Step 完成后，必须脱离 Plan 的“已完成”结论，重新对照最终生效的 Spec 审核实际仓库，并如实报告所有未满足、部分满足或仅缺少运行时验证的要求。
+执行一份已获授权的 coding Plan，一次只推进一个 Step，每个完成的实现改动都有经验证的独立提交。可以隔离阻塞时继续独立 Step。对照最终生效的 Spec 审核交付仓库，报告未满足、部分满足和缺少运行时验证的要求。
 
-Plan 决定实现顺序，最终生效的 Spec 决定实现是否正确。Plan 全部执行完，不等于实现一定满足 Spec。
+有效 Spec 定义已确认的交付结果和约束，Plan 定义实现顺序和验收证据。预检、恢复执行和最终审查均适用以下修订权限。
+
+## 保持原意的 Spec 和 Plan 修订
+
+对基线的执行授权涵盖有当前仓库证据支持的小规模修订。只要保持已确认的需求、非目标、可观察契约、架构、安全与权限边界、数据与迁移保证、兼容性和验收覆盖，执行者就应自行做最小合规修正并继续。根据对消费者和依赖的影响判断修订范围。
+
+- **Plan**。可以选择或调整内部实现细节。有效 Spec 留有选择空间时，由执行者选设计模式。可以纠正过期路径、符号、文件顺序和验证命令，并为已有需求补入必要的内部文件、接线点、夹具或测试，遵守 Step 依赖和归属。先同步受影响的文件清单、提交路径、命令和下游引用，再使用修订。
+- **Spec**。已确认需求、有效契约或验收标准及仓库证据能够确定原意时，可以澄清或纠正最小相关段落，保留其约束含义。仅涉及实现方式时，只修订 Plan。
+- 记录原需求或决策、仓库证据、文档修订前后的版本或段落、受影响 Step 和路径、保持原意的理由及验证结果。同步受影响的引用和版本元数据。遵守明确冻结的文档，能按原文落实的澄清记入 Step 证据。文档路径只有属于该 Step 已授权的仓库和范围时才纳入其提交。
+- 复核依赖和受影响需求，Plan 变化后重跑严格结构校验，并刷新受影响的行为、兼容性和范围检查。替代验证须以等效覆盖和证据证明同一要求。解析器误报经确认后，将触发误报的内容改写为等效文字，保留 Plan 模板要求和引用。Plan 冻结时在隔离副本上验证该改写。记录原诊断、具体改写和两次校验结果。
+- 依赖引入、真实系统变更和实际运行 DDL 等现有授权边界继续适用。升级条件见“失败与阻塞处理”。用户或仓库明确限制修订时，按其要求处理相关文档。
 
 ## 时间语义与 UTC 规则
 
@@ -38,7 +52,7 @@ Plan 决定实现顺序，最终生效的 Spec 决定实现是否正确。Plan �
 python3 <skill-root>/scripts/validate_skill_resources.py
 ```
 
-必须用解析后的绝对目录替换 `<skill-root>`。内置资源使用相对 Skill 根的 `references/` 或 `scripts/` 路径。预检报告缺失、越界、歧义或本地链接失效时，停止执行并报告准确诊断，修复/重装 Skill；不能用虚构或不完整 Checklist 继续。
+必须用解析后的绝对目录替换 `<skill-root>`。内置资源使用相对 Skill 根的 `references/` 或 `scripts/` 路径。预检报告缺失、越界、歧义或本地链接失效时，先诊断并恢复经验证的资源。无法恢复时，报告准确诊断并阻塞依赖该资源的工作。
 
 ## 用户强制 Java 规则——逐字规范源
 
@@ -67,14 +81,14 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 2. 解析并完整阅读 `Implements Spec` 指向的主 Spec，以及 `Effective Specs` 中的全部文档、修订、替代和依赖关系。
 3. 阅读当前仓库及目标目录适用的全部 `AGENTS.md` 和仓库规则。
 4. 确认 Plan 修订版本和仓库基线；针对下一 Step 重新核实真实路径、符号、迁移版本、消费者和验证命令。
-5. 核实准确 Plan 及有效 Spec 版本的执行授权。通常 Plan 为 `Ready`、主 Spec 为 `Accepted` 或 `Implemented`，且能追溯到用户或决策负责人批准的证据。仅凭状态字段不能确认授权。用户也可明确授权执行仍处于审核阶段的准确版本。已获得的同版本授权无需重复询问。
+5. 确定已获授权的 Plan 和有效 Spec 基线，核对修订记录。用户要求执行可识别的 Plan，即授权按有效基线执行，恢复执行或文档仍为 `Review` 时也适用。记录授权来源，并遵守明确的开工限制。
 6. 使用已安装 `stellar-enclosure-coding-writing-plan` skill 提供的结构校验器，对准确 Plan 启用 Strict Mode 校验。
 7. 检查 `git status`、当前分支与 HEAD、暂存改动和未跟踪文件，保留所有无关工作。
 8. Java 工作完整读取 `references/user-mandated-java-rules.zh-CN.md` 和 `references/java-spring-egon-coding-standards.zh-CN.md`。确认实际项目 Tree 是既有传统分层或准确已选 Egon-COLA Archetype；增加代码/依赖前重新验证 Plan 的 Spring/Starter/Egon/模块能力复用账本。
 
-出现以下任一情况时，停止实现并找用户确认：Plan 目标不明确、缺少授权、有效 Spec 互相冲突、重大决策未关闭、Plan 结构无效，或者仓库漂移改变了架构、行为、契约、数据、安全、迁移、兼容性或 Step 的文件归属。
+根据已授权基线和当前证据解决入口差异，按修订流程在实现前纠正局部漂移或结构错误。无法确定目标、授权或约束性决策，或无法满足必需的结构校验时，按阻塞条件处理。
 
-运行验证命令前，检查实际副作用，包括模块测试隐式启动的服务或数据库。启动运行环境、在真实系统中做验收、改变外部状态及长时间运行的运行时测试须已获明确授权。范围内的常规只读取证可继续进行。必须在当前 Step 完成的门禁无法运行时，Step 保持阻断。Plan 明确安排在最终验收或交付后执行的运行时验证单独追踪，当前 Step 仍须通过本 Step 的全部门禁。
+运行验证前检查实际副作用。当前任务的执行授权涵盖仓库常规本地验证，包括使用临时本机服务、浏览器会话或测试库的有界测试，前提是环境隔离且没有明确限制。共享引用中的本地测试按本执行规则处理。核实目标、限制运行范围并清理资源。共享和真实环境、外部写入及其他受限操作须具备适用授权。可行时使用已授权的等效验证。另行追踪安排在后续阶段的运行验收。
 
 ## Step 状态机
 
@@ -84,60 +98,57 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 待处理（Pending） -> 执行中（In Progress） -> 已验证（Verified） -> 已提交（Committed）
                          |                         |
                          +------> 阻塞（Blocked） <+
+                         |
+                         +------> 基线已满足（Satisfied at baseline）
 ```
 
 - `Pending`：尚未开始修改该 Step 拥有的文件。
-- `In Progress`：只允许修改当前 Step 声明的文件。
+- `In Progress`：范围限于当前 Step 及其已记录、保持原意的修订。
 - `Verified`：当前 Step 的候选改动通过全部必需门禁，拥有最新证据，且 diff 复核通过。
 - `Committed`：已经形成一个路径受限、语义明确的提交，并核实了提交哈希与范围。
-- `Blocked`：在获批 Plan 范围内无法安全达到 `Verified` 或 `Committed`。
+- `Satisfied at baseline`：`In Progress` 的无改动完成路径。可达的已提交源码与最新验证按规则 12 证明 Step 的完整结果。
+- `Blocked`：经诊断，已无获授权且保持原意的路径实现、验证或交付必需结果。
 
-**Step N 未达到 `Committed` 前，绝不能开始 Step N+1。** 只有测试通过、代码写完或已经暂存，都不算完成。
-Step N 的验证和 diff 复核一通过，就把提交作为该 Step 的最后一个动作立即执行。禁止先完成多个 Step，最后再拆分提交；最终审核也不能补救缺失的逐 Step 提交。开始 Step N+1 的第一处编辑前，必须记录 Step N 新的 `HEAD` 哈希和提交路径清单。
+**前置 Step 达到 `Committed` 或 `Satisfied at baseline` 后，才可开始依赖它的 Step 的实现。** 预检可调查和解决尚未满足的前置条件。按有效调度执行。有改动的 Step 核验后立即提交，记录 `HEAD` 和提交路径。未完成的候选确实阻塞时，按规则 16 隔离，再编辑独立 Step。
 
 ## 不可协商的执行规则
 
-1. 严格按照 Plan 的 Step 顺序执行，不能提前修改后续 Step，也不能把多个 Step 合并为一次工作区改动或一次提交。
+1. 按有效 Plan 顺序逐一执行，每个 Step 的候选改动和提交范围独立。
 2. 同一时间最多只能有一个 Step 处于 `In Progress`。
-3. 遵循当前 Step 规定的文件顺序、操作、真实符号、伪代码、需求和验证门禁，不能在执行阶段自行重新设计。
+3. 遵循当前有效 Step 的文件顺序、操作、必需结果和验证门禁。按“保持原意的 Spec 和 Plan 修订”调整实现细节。
 4. Plan 规定 RED/GREEN 的行为变更必须测试优先：先写聚焦测试并观察预期失败，再实现满足要求的最小代码，最后在持续通过测试的前提下重构或接线。
-5. 只能修改当前 Step 声明的文件及其明确声明的生成产物。如果必须增加未声明的文件、公开契约、迁移、依赖或行为，则属于 Plan 漂移，必须停止并申请修订 Plan/Spec。
+5. 改动限于当前 Step 的有效路径和生成产物。先记录允许的局部修订，再编辑新发现的必要路径。需要实质性变更时按“失败与阻塞处理”升级。
 6. 保留所有无关的已修改或已暂存工作。只暂存当前 Step 的准确文件路径，禁止暂存整个仓库或目录。
-7. 不得覆盖、回退、格式化、暂存或提交其他人的无关修改。无关修改与当前 Step 文件重叠时必须停止并报告。
+7. 保留无关改动，包括同路径的重叠改动。必要时在临时 checkout 或 worktree 隔离候选，确认交付分支能包含该 Step 提交并保留无关改动。重叠仍妨碍安全交付时才升级。
 8. 运行当前 Step 明确要求的验证，并补充能够证明该 Step 内部完整性的最小编译、静态或回归检查。
 9. 必须阅读完整命令输出和退出码。进程句柄丢失、日志不完整、超时、测试跳过，或仓库规则视为失败的警告，都不能算通过。
 10. 提交前根据当前 Step 要求和有效 Spec 审查 diff，移除意外文件、调试输出、秘密信息、生成噪声和无关重构。
-11. 每个已验证 Step 必须立即形成独立、路径受限、语义明确的提交；Plan 建议的提交信息与最终 diff 及仓库规范一致时优先采用。
-12. 禁止用空提交伪造 Step 完成。已完成 Step 须按恢复检查核实。没有完成记录的 Step 已被实现或没有语义 diff 时，停止并报告仓库/Plan 漂移。
+11. 每个已验证且有实现改动的 Step 必须立即形成独立、路径受限、语义明确的提交。Plan 建议的提交信息与最终 diff 及仓库规范一致时优先采用。
+12. 出现无语义 diff 时，对照预期结果和 Git 历史核实。恢复检查能确定已有 Step 提交的来源和证据时直接复用。已提交基线已满足完整结果时，通过适用门禁，在 Plan 以 `Satisfied at baseline` 记录基线提交及通过的验证。Plan 冻结时记入 Step 证据。注明行为已存在，Plan 明确要求历史 RED 时复用或恢复相应证据。
 13. 提交后核实提交哈希、文件列表、diff 摘要、验证证据以及剩余工作区状态，记录 Step 与提交的对应关系后才能继续。
-14. 不得自动 amend、squash、reset 或改写已经形成的提交历史。如果后续 Step 暴露了早期提交的缺陷，应暂停推进，以最小的独立纠正提交归属到原 Step，重新执行受影响验证并报告偏差。
-15. 使用 MP-SDJ Starter 分布式受管 DDL。仅实现 Plan 声明的新 SQL 版本与 Manifest 更新，保留已应用历史并验证各目标重试语义。实际运行 DDL 须已获明确授权。生成器仅用于获批的初始 CREATE 模板或显式配置的独立入站事件，并按要求追加 SQL 日志。后续结构 DDL 由 agent 按 Plan 实现，不重新生成 CREATE 产物。生成器冲突或 classpath 缺失时，阻断依赖生成器的 Step。
-16. 不得静默跳过、重排、合并、拆分或扩大 Step。任何实质性的执行顺序变化都必须获得用户批准。
+14. 保留已提交历史。后续 Step 发现早期缺陷时，按修订条件判断，将最小合规修复归属到原 Step，核验后独立提交并记录，再继续推进。符合阻塞条件时升级。
+15. 使用 MP-SDJ Starter 分布式受管 DDL。落实 Plan 的新 SQL 版本与 Manifest 更新，保留已应用历史并验证各目标重试语义。在授权验证范围内可使用隔离的临时夹具测试。共享或真实环境执行 DDL 须具备运维授权。生成器读取 SQL 输入并写文件，用于获批的初始 CREATE 模板或显式配置的独立入站事件，并按要求追加 SQL 日志。后续结构 DDL 按 Plan 实现。先诊断生成器冲突和 classpath 缺失，再判断是否无法生成。
+16. 在保留前置依赖、约束性顺序、验证、回滚和独立提交的前提下，自主调整剩余调度。Step 编号本身不能形成依赖。在 Plan 记录有效顺序和理由，Plan 冻结时记入 Step 记录。候选及证据可以隔离时，保留真正阻塞的 Step，推进前置已满足的独立 Step。
 17. 每个 Coding Step 都有阻断型 Manual Check。锁定 Step 时，从 `references/java-spring-egon-coding-standards.zh-CN.md` 枚举全部适用稳定 `MC-*`；提交前逐项用具体 Diff/路径/符号/命令证据人工校验。`MC-SCOPE-001` 与 `MC-TEST-001` 始终适用。
 18. 只要任一适用 Manual Check 为 `FAIL`、`BLOCKED`、`UNKNOWN`、缺失、无证据或例外未关闭，Step 就不能到 `Verified`，也不能按完成提交。只有关注点真实不在 Step 范围时才允许有证据的 `N/A`。
-19. 触达 Java 代码必须执行语义后缀、每个受影响交接的 Jakarta/Spring Validation 与 Group、获批规范化、不可变值对象 record 与普通 class 的 Lombok 分类、MapStruct/MapStructPlus 与适用的 Egon Converter 基类、`@Slf4j`、显式 Bean 名、带 Qualifier 的 Lombok 构造注入、获准工具、Jackson、`java.time`、多环境配置一致性，以及每个 Complex 业务 Flow 的强制获批模式；不能借机大范围清理。
+19. 触达 Java 代码必须执行语义后缀、每个受影响交接的 Jakarta/Spring Validation 与 Group、获批规范化、不可变值对象 record 与普通 class 的 Lombok 分类、MapStruct/MapStructPlus 与适用的 Egon Converter 基类、`@Slf4j`、显式 Bean 名、带 Qualifier 的 Lombok 构造注入、获准工具、Jackson、`java.time`、多环境配置一致性，以及每个 Complex 业务 Flow 适用的设计模式；不能借机大范围清理。
 20. 必须逐字执行 `references/user-mandated-java-rules.zh-CN.md`。锁定 Step 和提交前分别执行 Rule 1、2、3、4、5、6、7、9、10、11，Rule 11 始终适用。禁止把规则压缩成泛化 Manual Check、改成建议或因测试通过而豁免。
-21. 普通 POJO 必须保留强制 Lombok 基线。每个新增受影响 Converter 必须使用 MapStruct/MapStructPlus，双向映射使用 Egon `BaseConverter`，不可逆投影使用 `BaseForwardConverter`。构造器、框架或 Converter 冲突必须阻断。校验每个受影响的层间交接，每个 Complex 业务 Flow 落地获批模式。
+21. 普通 POJO 必须保留强制 Lombok 基线。每个新增受影响 Converter 必须使用 MapStruct/MapStructPlus，双向映射使用 Egon `BaseConverter`，不可逆投影使用 `BaseForwardConverter`。诊断构造器、框架或 Converter 冲突，存在合规解法时直接修复。校验每个受影响的层间交接，每个 Complex 业务 Flow 落地有效 Plan 中的模式。
 
 ## 单个 Step 的执行流程
 
-锁定和验证 Step 时使用 `references/step-gate-checklist.md`。恢复执行时，编辑前按其中的恢复规程核对已完成的提交和中断的 Step。
+使用 `references/step-gate-checklist.md` 预检、锁定和验证 Step。恢复执行时，编辑前核对已完成的提交和中断的 Step。
 
-### 1. 锁定 Step
+### 1. 预检并修复
 
-- 记录 Step 编号与标题、需求编号、依赖、声明路径、预期 RED/GREEN 行为、验证命令、回滚点和建议提交。
-- 用 `git rev-parse HEAD` 记录本 Step 的基线。
-- 确认所有依赖都已经由更早的提交哈希提供。
-- 确认 Step 路径不会覆盖无关工作。
-- 把 Plan 的适用 `MC-*` 写入 Step Manual Check 表；当前证据新暴露关注点时补充 ID，并在编辑前记录架构/复用基线。
-- 把全部十个原始 `Rule N` 写入 Literal Rule Gate；编辑前记录适用性/证据，Rule 11 始终为 `Applicable`。
+开始或恢复每个 Step 前，核对当前基线、前置依赖、文件归属、实际路径和符号、消费者、迁移顺序及验证环境。Java Step 另外检查相关架构和复用证据、依赖、`lombok.config`、Converter、Validator、环境 Profile 和附近代码惯例。
 
-### 2. 重新验证当前仓库
+发现不符合项时，有保持原意且获授权的解法就自主修复。纠正过时的 Plan/Spec 细节或恢复本地验证条件，再重查受影响的预检项。属于当前 Step 的代码修复，纳入其有效范围，由该 Step 的门禁验证。前置 Step 需要纠正时，先按所属 Step 或独立纠正提交的流程处理，再刷新基线。可行时隔离无关的基线失败，记录对验证的影响。只有必需的前置条件或检查仍无法满足时，才按阻塞规则处理。
 
-- 编辑前重新打开真实文件和符号，不能只依赖 Plan 中的伪代码。
-- 确认 Plan 的实现方向仍符合当前 API、消费者、语言/框架风格和迁移序列。
-- 语义漂移必须作为阻塞处理；只有 `Plan Clarification` 已允许或仓库惯例唯一明确的机械性局部细节，才能自行补齐。
-- Java Step 重新检查准确架构、Spring/Egon/模块候选、依赖、`lombok.config`、Converter/Validator、全部环境 Profile 和相关命名/模型/Bean 惯例。
+### 2. 锁定有效 Step
+
+- 记录 Step 编号与标题、需求、已核验的前置依赖、当前 `HEAD`、有效路径、验证项、回滚点和建议提交。记下预检发现、已修复事项及本 Step 负责的待修项。
+- 记录适用的 `MC-*` 和全部十条 Literal Rule 的当前证据。Rule 11 始终为 `Applicable`。当前 Step 能修复的基线问题纳入实现，提交前以最终候选的验证通过为准。
 
 ### 3. 按文件顺序执行
 
@@ -152,7 +163,7 @@ Step N 的验证和 diff 复核一通过，就把提交作为该 Step 的最后�
 - 运行当前 Step 和仓库要求的编译、lint/格式、Mapper/XML/Schema、模块或跨模块检查。
 - 对 Step 路径运行 `git diff --check`。
 - 重读当前 Step 的需求和相关 Spec 章节，逐项确认本 Step 承担的行为、错误路径、字段、状态、权限、迁移、UI 状态和测试义务已经落实。
-- 使用 `references/step-gate-checklist.md` 逐项执行全部适用 Manual Check，分别记录证据与结论；关闭失败，否则把 Step 标为阻断。
+- 使用 `references/step-gate-checklist.md` 逐项执行全部适用 Manual Check。分别记录证据与结论，修复可恢复的失败并重跑受影响检查。
 - 针对最终 Diff 重新执行每个 Literal Rule Gate 行；Test/Static Search 只能补充，不能替代逐条人工复核。
 
 任何失败门禁都会使 Step 保持 `In Progress` 或变为 `Blocked`，不得作为已完成进行提交。
@@ -161,25 +172,17 @@ Step N 的验证和 diff 复核一通过，就把提交作为该 Step 的最后�
 
 按 Checklist 执行路径受限提交。以 Step 基线复核完整候选改动，包括已暂存改动和新增文件。只提交已验证的 Step 路径，核对提交的父提交、哈希和路径，并确认无关的暂存区和工作区改动仍被保留。
 
-只有到此才能把 Step 标记为 `Committed` 并开始下一 Step。
+核验后将有改动的 Step 标记为 `Committed`。无需改动的 Step 先记录 `Satisfied at baseline` 及对应证据，再推进。
 
 ## 失败与阻塞处理
 
-出现以下情况时，停止当前 Step 并报告证据：
+有实现、修复、等效验证或安全隔离路径能满足要求时，保持 `In Progress`。定位原因并尝试符合要求的最小替代方案。只有证据表明已无获授权的路径实现、验证或交付必需结果，才把受影响工作标为 `Blocked`。这包括约束性要求存在无法协调的冲突，或缺少产品决策导致所有可行路径都超出原意。
 
-- Plan 或 Spec 不明确、互相矛盾、未获授权或已发生重大过时；
-- 必需文件、符号或消费者不存在，或已被不同语义的修改占用；
-- 当前 Step 需要未声明的契约、表/列、迁移、依赖、页面、权限或架构调整；
-- 验证失败且无法在当前 Step 获批范围内修复；
-- 需要但无法获得凭证、权限、外部服务或运行时状态；
-- 其他改动与当前 Step 文件重叠；
-- 无法形成安全的路径受限提交。
-
-不能把阻塞项标为完成，不能跳到后续 Step，也不能创建误导性提交。报告必须包含受影响 Step、证据、Spec/Plan 影响、安全选项和建议下一步。
+按规则 16 继续独立的已授权工作。报告受影响 Step 与需求、证据、已考虑的方案和准确缺失的前置条件。只有用户的某个具体答案或授权能解除该阻塞时，才提出一个聚焦问题。
 
 ## 提交契约
 
-每个实现 Step 在进入下一 Step 前，至少必须产生一个非空、语义明确的提交。
+有实现改动的 Step 须形成经过核验的非空语义提交才算完成。未完成的阻塞改动按规则 16 隔离。`Satisfied at baseline` 记录已有可达提交和最新验证证据。
 
 | 证据 | 必填值 |
 | --- | --- |
@@ -191,13 +194,13 @@ Step N 的验证和 diff 复核一通过，就把提交作为该 Step 的最后�
 | Validation | 实际执行的命令和观察结果 |
 | Manual Check | 全部稳定 ID 为 `PASS` 或有证据的 `N/A`，没有未关闭行 |
 | Literal Rules | Rule 1、2、3、4、5、6、7、9、10、11 分别为 `PASS` 或有证据的 `N/A`，Rule 11 为 `PASS` |
-| Deviations | `None`、已批准的澄清或纠正提交说明 |
+| Deviations | `None`、有记录的保持原意修订、另行批准的变更或归属明确的纠正提交 |
 
 必须使用路径受限的暂存与提交，不能因为无关工作已经暂存就把它带入提交。除非用户另行授权，不得 push、创建 PR、merge 或 release。
 
 ## 最终 Spec 一致性审核
 
-全部 Plan Step 提交后，读取 `references/final-spec-audit.md` 并进行一次全新审核，不能只依赖 Plan 自带的追踪矩阵。
+读取 `references/final-spec-audit.md`，独立审查已确认基线、修订记录和交付提交。有 Step 阻塞时，先审核已完成的独立范围，后续交付完成再刷新审核。所有 Step 均有完成证据且所有需求均满足后才可得出最终 PASS。
 
 1. 重新解析最终生效的全部 Spec 和准确修订版本。
 2. 提取每一项有效需求、验收标准、非目标、接口、模型/Schema 规则、UI 行为、测试义务、非功能约束、迁移、兼容性、发布和回滚要求。
@@ -209,12 +212,12 @@ Step N 的验证和 diff 复核一通过，就把提交作为该 Step 的最后�
    - `Not satisfied`：实现遗漏或违反要求。
    - `Runtime unverified`：源码/模块证据存在，唯一缺失的是必需的真实运行环境验证。
 6. 审核非目标和范围边界，确认没有意外增加行为、依赖、迁移或无关重构。
-7. 确认每个 Plan Step 都有已核验提交，且没有静默遗漏计划文件或验证门禁。
+7. 确认每个 Plan Step 都有已核验的提交或基线证据，且每个必需文件和验证门禁均有交代。
 8. 处置执行期间新建的每一个临时验收 harness：升格进长期检查集、并入它实际守护的子系统，或删除，并逐个报告所选结果。仓库 `scripts/work/` 中留有未判定脚本即是一项发现，绝不能当作静默通过。
 9. 针对最终 Tree 和 Delivery Commit 重新执行十个原始 Literal Rule 与全部 17 项 Manual Check。适用行必须 `PASS`，每个 `N/A` 要有证据与原因，Rule 11 和 `MC-BLOCKER-001` 必须通过并与全部发现一致。
 10. 报告全部 `Partial`、`Not satisfied`、`Runtime unverified`、失败/阻断 Literal Rule、Manual Check 和静默例外尝试及其证据、影响和建议下一步。
 
-最终审核发现缺口时，不得静默追加未计划修复；应先报告并等待用户批准纠正 Plan/Step。
+最终审核发现可以在已确认原意内修复的缺口时，在 Plan 记录发现和最小纠正 Step。Plan 冻结时记入审核的执行记录。按 Step 门禁执行，有仓库改动时形成独立纠正提交。刷新审查基线，对纠正后的交付版本重跑受影响的需求检查与最终门禁。剩余缺口按“失败与阻塞处理”处置。
 
 ## 最终报告契约
 
@@ -227,7 +230,7 @@ Step N 的验证和 diff 复核一通过，就把提交作为该 Step 的最后�
 - 包含全部稳定 `MC-*` 的最终 Manual Check 矩阵，逐项写 Applicability、Status、Evidence、Finding 与 Required action/exception；
 - 包含 Rule 1、2、3、4、5、6、7、9、10、11 的最终 Literal Rule 矩阵，逐项写 Applicability、Status、Diff Evidence、Validation Evidence、Finding 与 Action；
 - 明确列出的未满足、部分满足和运行时未验证要求；
-- 已批准偏差和纠正提交；
+- 保持原意的修订及其理由、文档变更和证据，以及另行批准的偏差和纠正提交；
 - 执行期间每个临时验收 harness 的处置结果，以及仓库 `scripts/work/` 中不存在未判定脚本的确认；
 - 剩余工作区状态，以及无关工作得到保留的确认；
 - 明确说明哪些运行时、数据库、浏览器、部署、push、PR 或 release 操作没有执行；
@@ -242,24 +245,24 @@ Step N 的验证和 diff 复核一通过，就把提交作为该 Step 的最后�
 
 | 错误 | 必须采取的纠正措施 |
 | --- | --- |
-| 未提交当前 Step 就提前修改多个 Step | 仅安全回退未经批准的后续 Step 改动，先完成并提交当前 Step |
-| 测试通过但未提交就开始 Step N+1 | 停止，核验并提交 Step N |
+| 混入多个 Step 未完成的改动 | 隔离各 Step 的候选与证据，每次完成一个可执行 Step |
+| 测试通过但未提交就开始依赖步骤 | 先核验并提交前置 Step |
 | 提交了无关的已暂存文件 | 使用路径受限提交并核对提交文件列表 |
-| 为 Step 创建空提交 | 停止并报告 Plan/基线漂移 |
+| Step 没有语义 diff | 核实已提交基线是否满足 Step，记录证据。剩余缺口按阻塞条件处理。 |
 | 把 Plan 执行完成当作满足 Spec | 独立运行最终 Spec 审核 |
-| 最终审核中直接修复未计划的 Spec 缺口 | 报告缺口并申请纠正 Plan/Step |
+| 最终审核发现可局部修复的缺口 | 记录修正并通过 Step 门禁验证，再刷新最终审查 |
 | 用单测/模块测试宣称真实运行验收通过 | 将对应要求标记为 `Runtime unverified` |
 | 后续工作暴露缺陷后改写早期提交 | 保留历史，创建归属明确的纠正提交并报告 |
 | Manual Check 失败、缺失或未知仍提交 Step | 保持 `In Progress`/`Blocked`，逐项补证据并关闭后再提交 |
-| 没有当前 Spring/Egon/模块复用证明就新增依赖/Helper | 停止，重建复用账本；复用现有能力，或返回 Spec/Plan 批准缺口 |
-| 执行中创建混合分包 Tree | 停止；保持已有传统或准确 Archetype 形态，并申请结构性 Plan/Spec 修订 |
+| 没有当前 Spring/Egon/模块复用证明就新增依赖/Helper | 重新核对现有能力，有合规局部解法时直接采用。无法避免引入未授权依赖时才触发审批。 |
+| 执行中创建混合分包 Tree | 在已有传统或准确 Archetype 形态内实现，有证据支持时局部修订 Plan |
 | 最终审核用一句话概括 Manual Check | 针对最终 Commit/Tree 逐项重新执行并记录全部稳定 ID |
 | 用一般编码规范摘要替代准确编号规则 | 恢复逐字源，逐项重新执行全部原始 Rule |
-| 测试通过但普通 class 缺必要 Lombok 基线，或 Converter 绕过适用的 Egon 基类 | 保持 Step 阻断；编译或测试通过不能豁免 Rule 3 |
+| 测试通过但普通 class 缺必要 Lombok 基线，或 Converter 绕过适用的 Egon 基类 | 修复 Rule 3 合规性并重跑检查后才完成 Step |
 | 只校验 Controller 输入 | 提交前增加并验证每个受影响层间交接的 Validation/Group |
-| Complex 业务仍为 `if/else` 或 `switch` | 提交前实现获批模式参与者和测试 |
-| 自动启动项目 | 除非用户明确要求，否则把运行测试留给用户 |
-| 将 ALTER 交给只支持 CREATE 的生成器，或手写补完 CREATE 生成冲突 | ALTER 按 agent-owned Plan 实施；初始 CREATE 才调用 `scripts/stellar-enclosure-codegen.sh`，遇到 `CONFLICT` 或 `BLOCKED_TOOLING` 即停止 |
+| Complex 业务仍为 `if/else` 或 `switch` | 提交前实现有效模式的参与者和测试 |
+| 必需测试会启动服务 | 检查实际影响，任务授权涵盖时运行有界的隔离夹具。关键证据依赖不可用的外部环境时，按阻塞条件处理。 |
+| 将 ALTER 交给只支持 CREATE 的生成器，或手写补完 CREATE 生成冲突 | ALTER 按 agent-owned Plan 实施。初始 CREATE 诊断 `CONFLICT` 或 `BLOCKED_TOOLING`，可恢复时继续用已验证的生成器。 |
 
 ## Skill 维护
 

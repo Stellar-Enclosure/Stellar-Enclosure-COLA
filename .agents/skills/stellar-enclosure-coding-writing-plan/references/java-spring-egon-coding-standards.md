@@ -38,7 +38,7 @@ Do not invent a third architecture, generic DDD interpretation, hybrid `biz.*`/C
 
 ## Per-file planning rules
 
-Every affected Java file block must name its applicable `MC-*` IDs in `Standards impact`, its original `Rule N` values in `Literal rule enforcement`, show repository evidence, and make these decisions explicit in pseudocode and validation:
+Every affected Java file block must name its applicable `MC-*` IDs in `Standards impact`, its original `Rule N` values in `Literal rule enforcement`, show repository evidence, and make these decisions explicit in the change description and validation:
 
 ### Semantic naming
 

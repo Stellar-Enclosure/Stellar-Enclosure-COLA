@@ -49,17 +49,18 @@
 - [ ] Each affected cross-layer input plans Jakarta/Spring Validation, `@Valid`/`@Validated`, groups for reused objects, approved normalization, error mapping, and tests; telephone rules use an approved mature standard rather than a duplicate Validator.
 - [ ] Each object uses the mandated Value-object record/ordinary class Lombok classification; every new affected Converter uses MapStruct/MapStructPlus and the applicable Egon `BaseConverter` or `BaseForwardConverter` contract without manual/BeanUtils/JSON copying.
 - [ ] Each affected Spring Bean plans a stable explicit name, `@RequiredArgsConstructor`, final qualified dependencies, verified `lombok.config` propagation, and `@Slf4j` for concrete business classes.
-- [ ] Utility, Jackson-only JSON, `java.time`, `@ConfigurationProperties`, and all-environment key-parity consequences appear in exact files/pseudocode/tests.
+- [ ] Utility, Jackson-only JSON, `java.time`, `@ConfigurationProperties`, and all-environment key-parity consequences appear in exact files/change descriptions/tests.
 - [ ] Pattern decisions assign an actual pattern to every Complex flow; only Simple flow evidence permits direct logic, and neither hard-coded complexity nor ceremonial abstraction remains.
 - [ ] Every Step lists applicable `MC-*` IDs, every file has an evidence-bearing `Standards impact`, and its validation proves the checks before commit.
 - [ ] Chapter 12 contains all stable Manual Check IDs exactly once; every applicable row is `PASS`, every `N/A` has evidence/reason, and `MC-BLOCKER-001` matches all unresolved rows.
 
-## Step and pseudocode quality
+## Step and change-description quality
 
 - [ ] Every Step has source requirements, dependencies, baseline/end state, one observable outcome, a `Required` or evidence-backed `Not applicable` test-first gate, ordered files, validation working directory, verification, expected result, completion criteria, rollback, exact commit paths, and one commit.
-- [ ] Every file has operation, exact path, symbols, purpose, repository evidence, dependencies/consumers, sequence reason, contract/signature changes, input/output/state mapping, error/edge behavior, language-appropriate pseudocode, verification contribution, and after-file state.
-- [ ] Pseudocode names real methods/types/fields/calls/branches/errors/transactions/assertions rather than generic actions.
-- [ ] Pseudocode is concrete enough to define control flow and mapping while leaving only syntax—not architecture or behavior choices—to implementation.
+- [ ] Every file has operation, exact path, symbols, purpose, repository evidence, dependencies/consumers, sequence reason, contract/signature changes, input/output/state mapping, error/edge behavior, a concise description of the required change, verification contribution, and after-file state.
+- [ ] Simple changes are described only in prose: what must change, where, and the expected result.
+- [ ] Pseudocode is optional and limited to a few language-neutral Markdown bullets for essential order, branches, or state in complex logic.
+- [ ] No concrete implementation, test, SQL, configuration, script or patch appears anywhere, including inline snippets, code blocks and appendices. Inline identifiers, contract facts and verification/generation commands remain precise.
 - [ ] File order respects compilation, RED/GREEN, schema/data, contract publication, consumer, frontend/backend, configuration, and rollout dependencies.
 - [ ] Steps are independently verifiable and small enough for semantic commits.
 - [ ] Parallel steps have non-overlapping write scopes; sequential constraints are explicit.

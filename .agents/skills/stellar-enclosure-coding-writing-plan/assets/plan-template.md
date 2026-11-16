@@ -3,7 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Document | `YYYY-MM-DD-HH-MM-abstract.md` |
-| Template Version | `5` |
+| Template Version | `6` |
 | Status | `Draft` |
 | Created | `YYYY-MM-DD HH:mm ZONE` |
 | Updated | `YYYY-MM-DD HH:mm ZONE` |
@@ -115,7 +115,7 @@ Any unresolved architecture selection, duplicate capability, dependency gap, or 
 
 Read `references/user-mandated-java-rules.md`. Preserve each original rule independently and in exact numbering order. Do not merge rows into broad “code quality” work. A non-Java Plan retains every row with evidence-backed `N/A`.
 
-| Literal rule | Spec source | Repository evidence | Exact files and order | Pseudocode obligations | Validation gate | Steps | Status/blocker |
+| Literal rule | Spec source | Repository evidence | Exact files and order | Implementation obligations | Validation gate | Steps | Status/blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Rule 1 | `<Spec §6.2/§8/§10>` | `<all affected Java types>` | `<ordered type/consumer files>` | `<mandatory suffixes and reuse>` | `<inventory/compile/search>` | `<Step N>` | PASS / N/A / BLOCKED |
 | Rule 2 | `<Spec §6.2/§7/§9/§10>` | `<all affected layer handoffs>` | `<tests, groups, boundary files>` | `<@Valid/@Validated/group/ValidationUtils/libphonenumber>` | `<positive/negative/group tests>` | `<Step N>` | PASS / N/A / BLOCKED |
@@ -139,13 +139,11 @@ Time contract: `<Required / Not applicable>`
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `TIME-001` | `<exact fields/symbols>` | `<Occurred instant / Pure date / Local time / Zoned schedule / Duration>` | `<exact type>` | `<UTC instant / Pure date / Local time / Local + zone / Duration / Legacy UTC / Not persisted>` | `<UTC Z / Pure date / Local / Local + zone / Duration / Internal>` | `<authoritative zone source/precedence or Not applicable: reason>` | `<user preference/business zone/browser fallback or Not applicable: reason>` | `<input normalization, calendar range and DST gap/overlap policy where relevant>` | `<DB/wire precision, Clock and truncation or Not applicable: reason>` | `<preserved legacy contracts, verified UTC conversion or Not applicable: reason>` | `<Step N; TEST-NNN and exact commands in §8>` |
 
-One row may group only fields with identical semantic/boundary policies. Keep canonical English policy tokens in either document language. New occurred instants use UTC storage and ISO 8601 `Z` output; pure dates remain dates. Legacy UTC storage requires exact existing-contract/conversion evidence. Business zones are explicit and independent from server/browser defaults. Consume the effective Spec time decisions and map each row to owning Steps/files, pseudocode and §8 checks. Material missing decisions return to the Spec; do not invent them.
+One row may group only fields with identical semantic/boundary policies. Keep canonical English policy tokens in either document language. New occurred instants use UTC storage and ISO 8601 `Z` output; pure dates remain dates. Legacy UTC storage requires exact existing-contract/conversion evidence. Business zones are explicit and independent from server/browser defaults. Consume the effective Spec time decisions and map each row to owning Steps/files, change descriptions and §8 checks. Material missing decisions return to the Spec; do not invent them.
 
 ## 5. Change File Tree
 
-```text
-<complete target tree with CREATE / MODIFY / DELETE / RENAME / GENERATED markers>
-```
+List the complete target tree as a Markdown list using inline paths and CREATE / MODIFY / DELETE / RENAME / GENERATED markers.
 
 | Operation | Path | Current evidence/symbol | Final symbols/state | Responsibility | Step | Requirements | Validation owner |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -182,7 +180,7 @@ Write `None` when no clarification is needed. Never place new business/design de
 
 ## 7. Ordered File-by-file Implementation Steps
 
-> Every Step is independently verifiable and normally commit-sized. Every marker below is required.
+> Every Step is independently verifiable and normally commit-sized. Use concise prose for `Required change:`. Do not include implementation code, test code, SQL, configuration snippets, script bodies, patches, or code blocks anywhere in the Plan. Only when complex logic needs it, add `Complex logic (pseudocode):` under the affected file and describe the key sequence or branches in a few language-neutral Markdown bullets. Omit this optional section for simple work. Put exact verification and generation commands inline.
 
 ### Step 1 — <imperative, observable goal>
 
@@ -208,16 +206,7 @@ Write `None` when no clarification is needed. Never place new business/design de
 - Error and edge behavior: `<invalid/missing/duplicate/concurrent/failure assertions and negative effects>`
 - Standards impact: `<applicable MC-* IDs; exact naming, validation/group, modeling, converter, Bean/logging, JSON/time/config/pattern consequences or evidence-backed N/A>`
 - Literal rule enforcement: `<exact Rule N values and the concrete mandatory behavior/evidence in this file>`
-- Implementation pseudocode:
-
-```java
-@Test
-void <behavior_name>() {
-    // arrange repository-consistent fixtures and real collaborators
-    // call the public production symbol named in the Spec
-    // assert result, state transition, persisted/published effects, and error semantics
-}
-```
+- Required change: <Describe the test scenario, triggering input, and expected result or side effects in one sentence.>
 
 - Verification contribution: `<exact RED/GREEN test selector and what this file proves>`
 - After this file: The focused test compiles when possible and fails for the expected missing-behavior reason, not for a fixture or environment error.
@@ -234,17 +223,7 @@ void <behavior_name>() {
 - Error and edge behavior: `<validation/permission/missing/duplicate/concurrency/dependency/rollback branches>`
 - Standards impact: `<applicable MC-* IDs and exact repository-consistent annotations/contracts; include reuse/dependency decision>`
 - Literal rule enforcement: `<exact Rule N values; do not replace required annotations, the applicable Egon converter contract, Validation, or patterns with preferences>`
-- Implementation pseudocode:
-
-```java
-<ReturnType> <method>(<TypedInput> input) {
-    validate <Spec-defined preconditions>
-    load <state> through <existing repository/port>
-    invoke <domain invariant or state transition>
-    persist/publish through <named existing abstraction>
-    map <domain result/error> to <repository-standard contract>
-}
-```
+- Required change: <Describe the required behavior and outcome in prose. Add a few pseudocode bullets only if the complex flow needs them.>
 
 - Verification contribution: `<which focused/integration assertion observes this implementation>`
 - After this file: The focused test reaches GREEN with the smallest Spec-compliant implementation; no unrelated behavior changes.
@@ -261,14 +240,7 @@ void <behavior_name>() {
 - Error and edge behavior: `<missing registration, denied/error/loading/compatibility behavior>`
 - Standards impact: `<applicable MC-* IDs; stable Bean name/Qualifier/configuration/profile/contract consequences>`
 - Literal rule enforcement: `<exact Rule N values and the concrete wiring/mapping/configuration proof>`
-- Implementation pseudocode:
-
-```text
-register or inject <named implementation>
-map <exact source fields> to <exact target fields>
-preserve <compatibility/error/permission branch>
-expose the behavior only through <Spec-defined entry point>
-```
+- Required change: <Describe the connection or mapping to change and the expected consumer behavior.>
 
 - Verification contribution: `<call-path/contract/component test and assertion>`
 - After this file: The Step's complete call path is connected and ready for focused verification.
@@ -284,7 +256,7 @@ expose the behavior only through <Spec-defined entry point>
 
 ### Step 2 — <next imperative goal>
 
-Repeat the same structure. Do not replace exact file order with “update service, controller, and frontend.” Adapt pseudocode fences to Java, TypeScript, SQL, XML, YAML, shell, or the repository's actual language.
+Repeat the same structure. Do not replace exact file order with “update service, controller, and frontend.” Describe straightforward changes in prose even when another file in the same Step needs pseudocode.
 
 ## 8. Test, Validation, and Quality Gates
 
@@ -302,7 +274,7 @@ Every gate must first try an existing repository command. When none covers it, t
 
 ## 9. Migration, Compatibility, Rollout, and Rollback
 
-Define the exact order for applicable migration files, generated contracts, data backfill, dual-read/write, API/event compatibility, configuration, feature flags, deployment, post-deploy checks, rollback, and forward-fix. For MP-SDJ managed DDL, name the next SQL version, manifest entry, physical targets and partial-failure recovery; preserve applied SQL/history. On native light/web/service, catalog Java and Mapper XML paths touched by that SQL are later `GENERATED` steps. Their pseudocode is the generator config and `scripts/stellar-enclosure-codegen.sh plan`/`apply`, not a class body. Follow `references/backend-code-generation.md`.
+Define the exact order for applicable migration files, generated contracts, data backfill, dual-read/write, API/event compatibility, configuration, feature flags, deployment, post-deploy checks, rollback, and forward-fix. For MP-SDJ managed DDL, name the next SQL version, manifest entry, physical targets and partial-failure recovery; preserve applied SQL/history. On native light/web/service, catalog Java and Mapper XML paths touched by that SQL are later `GENERATED` steps. Name the generator config path and required keys in prose and list the exact `scripts/stellar-enclosure-codegen.sh plan`/`apply` commands inline. Follow `references/backend-code-generation.md`.
 
 Write `N/A` with a target-Spec section and repository reason when no such work applies.
 
@@ -340,7 +312,7 @@ Confirm every path/symbol/command against the current baseline, exact dependency
 
 ### 12.4 Test and release completeness
 
-Confirm RED/GREEN order, requirement coverage, migration safety, compatibility, observability, rollout, rollback, and validation boundaries.
+Confirm RED/GREEN order, requirement coverage, migration safety, compatibility, observability, rollout, rollback, and validation boundaries. Review the entire Plan for concrete code snippets in every format, including inline examples; check that simple work stays in prose and any pseudocode is brief and needed for complex logic.
 
 ### 12.5 Blocking Manual Check
 

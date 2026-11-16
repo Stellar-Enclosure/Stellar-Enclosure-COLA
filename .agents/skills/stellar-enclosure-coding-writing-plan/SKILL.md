@@ -1,6 +1,6 @@
 ---
 name: stellar-enclosure-coding-writing-plan
-description: Use when a coding task has a specific reviewed or accepted specification and needs a repository-grounded, implementation-ready, file-by-file plan with exact dependency order, Java/Spring/Egon-COLA standards, blocking Manual Checks, repository-language pseudocode, validation commands, and per-Step commit scopes before code changes begin.
+description: Use when a coding task has a specific reviewed or accepted specification and needs a repository-grounded, implementation-ready, file-by-file plan with exact dependency order, Java/Spring/Egon-COLA standards, blocking Manual Checks, validation commands, and per-Step commit scopes before code changes begin.
 ---
 
 # Stellar Enclosure Coding Plan Writing
@@ -39,7 +39,7 @@ The Plan defines **which file is handled first, what is written there, which fil
   - Replace `ABSTRACT` with a concise lowercase ASCII kebab-case summary, normally 3–8 words.
   - Example: `docs/egon/plan/2026-08-15-16-10-account-lockout-implementation.md`.
   - Never overwrite a same-minute/same-abstract document; choose a more specific abstract.
-- Start from Plan Template Version 5 in `assets/plan-template.md`. Keep all numbered chapters. Use evidence-backed `N/A` when a chapter does not apply. The validator continues to accept Version 2 through Version 4, and existing unversioned Plans under their original contracts.
+- Start from Plan Template Version 6 in `assets/plan-template.md`. Keep all numbered chapters. Use evidence-backed `N/A` when a chapter does not apply. The validator continues to accept Version 2 through Version 5, and existing unversioned Plans under their original contracts.
 
 ## Time semantics and UTC policy
 
@@ -57,7 +57,7 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 
 ## User-mandated Java rules — effective normative source
 
-The following source rules are preserved exactly. They are mandatory and must be compiled into ordered files, pseudocode, checks, and Step commits. Read `references/user-mandated-java-rules.md` for the non-weakened planning contract.
+The following source rules are preserved exactly. They are mandatory and must be compiled into ordered files, change descriptions, checks, and Step commits. Read `references/user-mandated-java-rules.md` for the non-weakened planning contract.
 
 ```text
 1 类名规范，必须以 java的pojo规范命名。以dao po bo vo dto query command event等结尾
@@ -83,18 +83,18 @@ Do not translate, renumber, correct, shorten, or paraphrase this block. `referen
 5. Do not introduce behavior, public contracts, schema fields, pages, dependencies, architectural layers, or refactors absent from the effective Spec. A major Spec defect or material repository drift must return to the user and the Spec before planning continues.
 6. Infer only small, local, reversible implementation details that preserve the effective design and follow one clear repository convention. Record consequential inferences as `Plan Clarification` entries with evidence and impact if wrong.
 7. Every implementation Step must be small enough to verify independently and normally map to one semantic commit. Respect repository instructions requiring one commit per task.
-8. Every Step must name covered source requirement IDs, dependencies, observable outcome, a strict ordered file list, file operation, symbols, repository-language pseudocode, intermediate result, exact validation, completion criteria, rollback point, and proposed commit message.
+8. Every Step must name covered source requirement IDs, dependencies, observable outcome, a strict ordered file list, file operation, symbols, the required change in prose, intermediate result, exact validation, completion criteria, rollback point, and proposed commit message.
 9. Plan behavior changes test-first: first write or modify a focused failing unit/contract test, state its expected RED reason, then plan the minimum production change, then refactor/wire/verify. If test-first is technically impossible, treat the exception as a major decision unless the user or repository explicitly authorizes it.
-10. Pseudocode must be implementation-bearing but not production code. Use actual class/function/component/table names, signatures, field mappings, branches, calls, state changes, error paths, transactions, and assertions in the repository's language and framework style.
+10. Never include concrete implementation code, test code, SQL, configuration snippets, script bodies, or patches anywhere in the Plan, including Steps and appendices. Describe simple changes and their expected behavior in prose only. For complex logic whose ordering or branches are hard to convey in prose, add a few language-neutral pseudocode bullets only under the affected file. Do not use fenced or indented code blocks. Keep file paths, symbols, contract facts, and verification/generation commands as inline references.
 11. Determine file order from real dependencies. Do not mechanically apply a layer list when migration, generated code, contract publication, cross-module compilation, or frontend/backend compatibility requires a different order.
 12. Include all applicable migrations, configuration, permissions, observability, documentation, compatibility, rollout, rollback, and release verification files in the ordered steps.
 13. Use the MP-SDJ starter distributed DDL runner. For one database change, plan one next SQL version plus its SHA-256 manifest entry; preserve applied scripts/history and define per-target failure/retry behavior. Initial CREATE-only scaffolding on native light/web/service is `GENERATED` through `scripts/stellar-enclosure-codegen.sh plan`/`apply`. For ALTER or other later structural DDL, plan exact agent-owned edits and affected consumers; the generator does not refresh those paths. Follow `references/backend-code-generation.md`.
 14. Review the finished Plan against both the original user requirements recorded by the Spec and the effective Spec design. Fix omissions and inconsistencies before delivery.
 15. Do not mark a Plan `Ready` without an explicitly accepted primary Spec and explicit user/decision-owner approval of the Plan. A complete Plan awaiting review is `Review`; a Spec or decision blocker requires `Draft` or `Blocked`.
-16. Read `references/file-by-file-planning.md` completely. Every Step must state baseline/end state, test-first applicability, exact ordered files, validation working directory, commit paths, and one semantic outcome. Every file must include current repository evidence, dependencies/consumers, input/output/state mapping, error/edge behavior, implementation-bearing pseudocode, verification contribution, and after-file state.
+16. Read `references/file-by-file-planning.md` completely. Every Step must state baseline/end state, test-first applicability, exact ordered files, validation working directory, commit paths, and one semantic outcome. Every file must include current repository evidence, dependencies/consumers, input/output/state mapping, error/edge behavior, the required change in prose, verification contribution, and after-file state.
 17. Before planning files, perform a Spec simplicity and implementation-necessity audit. Do not silently compile an unjustified API, parameter-preflight flow, class, layer, table, cache, job, dependency, or page into implementation. When the direct/reuse alternative satisfies the same requirements or the Spec lacks a necessity decision, return `REVISE`/`BLOCKED` with evidence and exact Spec sections; do not redesign inside the Plan.
 18. For every Java Plan, read `references/user-mandated-java-rules.md` and `references/java-spring-egon-coding-standards.md` completely. Before assigning files, prove exactly one allowed architecture profile from the current tree and selected Archetype, then build a reuse ledger covering Spring, Spring Boot Starters, Egon-COLA Components/common infrastructure, and module-local candidates. Do not plan a new dependency or custom replacement without a proven capability gap and approved impact.
-19. Every Step must list the applicable blocking `MC-*` IDs, and every affected Java file must state its standards impact. The pseudocode and validation must make semantic naming, every layer-handoff Validation/groups/normalization, exact Value-object record/ordinary class Lombok modeling, MapStruct/MapStructPlus with Egon `BaseConverter` for bidirectional conversion or `BaseForwardConverter` for irreversible projection, Bean names/injection/Qualifier propagation, `@Slf4j`, utilities, Jackson, `java.time`, configuration parity, and the mandatory approved pattern for each Complex business flow executable rather than aspirational.
+19. Every Step must list the applicable blocking `MC-*` IDs, and every affected Java file must state its standards impact. The change descriptions and validation must make semantic naming, every layer-handoff Validation/groups/normalization, exact Value-object record/ordinary class Lombok modeling, MapStruct/MapStructPlus with Egon `BaseConverter` for bidirectional conversion or `BaseForwardConverter` for irreversible projection, Bean names/injection/Qualifier propagation, `@Slf4j`, utilities, Jackson, `java.time`, configuration parity, and the mandatory approved pattern for each Complex business flow executable rather than aspirational.
 20. Complete every Manual Check row one by one in Chapter 12. An applicable row requires `PASS` and concrete repository/Plan evidence; an inapplicable row requires evidence-backed `N/A`. Any missing ID/evidence, `FAIL`, `BLOCKED`, `UNKNOWN`, or unresolved exception prohibits a PASS verdict.
 21. Apply `references/user-mandated-java-rules.md` literally. Chapter 4 must preserve ten independent rows using original numbering `1, 2, 3, 4, 5, 6, 7, 9, 10, 11`; every Step must contain `Literal Rules:` and every affected file `Literal rule enforcement:`. Mandatory wording may not be converted into “prefer/consider/when compatible.” A conflict returns to the Spec/user and blocks PASS.
 22. A gate no existing repository command covers needs a scratch verification harness. Plan its creation under repository `scripts/work/` as `<plan-id>-<verb>.sh` — never in the `scripts/` top level, which is reserved for durable tools — and plan its disposition in the final Step: promote it into the repository's durable check suites, move it to the subsystem it actually guards, or delete it. Any harness left undetermined in `scripts/work/` blocks a `Ready` verdict.
@@ -148,7 +148,7 @@ Treat overdesign as a material Spec defect when it changes public interaction co
    - List every Create/Modify/Delete path once with symbols, responsibility, requirement mapping, and owning Step.
 7. **Write ordered implementation Steps**
    - For each behavior, place the focused failing test before its production implementation.
-   - For each file, write language/framework-specific pseudocode and the state after that file is completed.
+   - For each file, describe the required change and after-file state in prose; add brief pseudocode only when needed for complex logic.
    - End each Step with targeted verification, objective completion evidence, rollback, and one proposed commit.
    - Record baseline/end state, test-first gate, validation working directory, and exact commit paths. Use every per-file field required by `references/file-by-file-planning.md`.
    - List the applicable `MC-*` IDs for the Step and the standards impact for every Java file. The Step validation must prove those checks before its proposed commit.
@@ -164,7 +164,7 @@ Treat overdesign as a material Spec defect when it changes public interaction co
     - Report the Plan path/status, target/effective Specs, Step count, clarification entries, blockers, and validation boundary.
     - Stop for user review. Do not begin implementation as a side effect.
 
-## File-order and pseudocode contract
+## File-order and change-description contract
 
 Each Step must use this sequence contract:
 
@@ -181,7 +181,7 @@ Each Step must use this sequence contract:
    - signatures/contracts/fields that must be added or changed;
    - input/output/field/state mapping, including null/default/enum/time/precision and persistence/side effects;
    - validation, permission, missing, duplicate, concurrent, dependency, rollback, and compatibility behavior as applicable;
-   - language-appropriate pseudocode for control flow, mapping, persistence, errors, and tests;
+   - `Required change:` concise prose stating the change and expected behavior; optionally add `Complex logic (pseudocode):` followed by a few ordinary Markdown bullets for essential order, branches, and state changes;
    - applicable Java/Spring/Egon-COLA standards, exact annotations/contracts, and Manual Check IDs;
    - exact effective Rule numbers and the concrete non-weakened enforcement for this file;
    - the exact test/gate to which this file contributes;
@@ -189,7 +189,7 @@ Each Step must use this sequence contract:
 4. State the validation working directory, exact focused verification command, exact success result, and failure return point.
 5. State completion evidence, rollback point, exact commit paths, and one semantic commit message.
 
-Good Java pseudocode names annotations, method signatures, collaborators, transaction boundaries, domain calls, mapper/repository operations, exceptions, and assertions. Catalog-owned files are the exception: their pseudocode names the generator config and `scripts/stellar-enclosure-codegen.sh` command, not a class body. Follow `references/backend-code-generation.md`. Good TypeScript/React pseudocode names props/types, hooks/state, API calls, render branches, events, and component tests. Good SQL pseudocode names the new migration, DDL/DML, constraints, indexes, backfill, guards, and rollback/forward-fix limits.
+Record exact symbols, fields, annotations, contracts, and assertions in prose or tables. Describe test scenarios and expected results, migration outcomes and guards, and generator input paths, required keys, outputs, and invocation. Reserve pseudocode for essential ordering, state transitions, concurrency, or recovery branches that need it. Do not write method bodies, call chains, or assertion syntax.
 
 Avoid placeholders such as “implement service,” “handle errors,” “update frontend,” or “run tests.” The implementer must not need to invent architecture or file order.
 
@@ -201,7 +201,7 @@ Avoid placeholders such as “implement service,” “handle errors,” “upda
 4. **Implementation strategy and dependency order** — Spec simplicity/necessity audit, why the sequence works, change-unit dependencies, test strategy, migration/compatibility constraints, parallelism, and commit boundaries.
 5. **Change file tree** — complete Create/Modify/Delete/Rename/Generated tree mapped to current evidence, exact symbols, final state, Steps, requirements, and validation owners.
 6. **Prerequisites, constraints, and Plan Clarifications** — commands, environments, immutable files/contracts, decisions, dirty-worktree precautions, and small evidence-backed inferences.
-7. **Ordered file-by-file implementation Steps** — exact path order and pseudocode contract above.
+7. **Ordered file-by-file implementation Steps** — exact path order and change-description contract above.
 8. **Test, validation, and quality gates** — RED/GREEN points, focused/module/full checks, expected results, and failure return points.
 9. **Migration, compatibility, rollout, and rollback**.
 10. **Requirement-to-Step traceability matrix**.
@@ -228,7 +228,7 @@ Use exactly one:
 | Treating a new API/table/page as a Plan clarification | Stop and amend the Spec with user approval |
 | Faithfully planning a fetch-then-forward or otherwise unjustified Spec element | Record repository/direct-alternative evidence and return `REVISE`/`BLOCKED` to the Spec; planning detail cannot substitute for necessity |
 | Listing phases without exact files | Expand each Step into strict file order and symbols |
-| Generic pseudocode such as “implement validation” | Name signatures, fields, branches, collaborators, errors, and assertions |
+| Pseudocode for a simple change, or concrete code anywhere in the Plan | Use prose for simple changes; reserve brief pseudocode for complex logic that needs it |
 | File blocks omit repository evidence, consumers, mapping, edge behavior, or after-file state | Complete every required field so execution needs no architecture or behavior decision |
 | Validation says only “run tests/build” | Add working directory, exact command/selectors/environment, expected exit/result, and failure return point |
 | Putting all tests after production code | Plan focused RED tests before each behavior implementation |
@@ -237,8 +237,8 @@ Use exactly one:
 | Plan file tree differs from Spec without escalation | Return to the Spec unless it is a proven semantic-preserving rename |
 | Planning a hybrid/new package structure without inspecting the current tree | Select the existing traditional profile or exact Archetype profile; otherwise block for a user decision |
 | Adding a helper/dependency before Spring/Egon/module reuse discovery | Complete the reuse ledger and prove the capability gap, or remove the addition |
-| Java pseudocode omits validation groups, mapping, Bean names/Qualifiers, time/JSON/config semantics, or applicable annotations | Add the exact repository-consistent implementation and validation consequences |
-| Replacing the user's numbered rules with a summary or “best practices” paragraph | Restore the exact block and map every original rule to files, pseudocode, validation, and Steps |
+| Java change descriptions omit validation groups, mapping, Bean names/Qualifiers, time/JSON/config semantics, or applicable annotations | Add the exact repository-consistent implementation and validation consequences |
+| Replacing the user's numbered rules with a summary or “best practices” paragraph | Restore the exact block and map every original rule to files, change descriptions, validation, and Steps |
 | Planning only Controller validation | Add each affected layer handoff, its group/invocation/error behavior, and tests |
 | Reducing the class Lombok baseline or bypassing the applicable Egon converter contract | Block and return to the Spec/user; do not plan a silent exception |
 | Leaving Complex business variation as direct branching | Add the effective-Spec-selected pattern participants, wiring, orchestration, and tests |

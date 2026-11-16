@@ -4,7 +4,7 @@
 
 - `$stellar-enclosure-coding-create-new-module`：用一个非 open 的 `stellar-enclosure-archetype-{light,service,web,agent}` 生成真实业务项目。不选手写骨架，不选 `-open`。
 - `$stellar-enclosure-coding-writing-spec`：基于当前仓库编写系统架构、概要设计或详细设计 Spec，输出到 `docs/egon/spec`。
-- `$stellar-enclosure-coding-writing-plan`：基于一份明确 Spec 编写有严格文件顺序和语言化伪代码的实施 Plan，输出到 `docs/egon/plan`。
+- `$stellar-enclosure-coding-writing-plan`：基于一份明确 Spec 编写有严格文件顺序和验收条件的实施 Plan，输出到 `docs/egon/plan`。
 - `$stellar-enclosure-coding-execute-plan`：基于一份已获准执行的 Plan 逐 Step 修改、验证并提交代码；每个 Step 必须形成独立提交，最后独立审核实现是否满足全部有效 Spec。
 
 每个 skill 都提供两份入口内容：
@@ -42,7 +42,7 @@ docs/egon/plan/YYYY-MM-DD-HH-MM-ABSTRACT.md
 - Plan 必须用相对路径明确引用 `Implements Spec`，并列出完整 `Effective Specs`。
 - 重大需求、契约、数据、安全、架构、迁移或兼容歧义必须找用户确认；小型、本地、可逆缺口依据仓库证据最小推断。
 - Spec 必须覆盖架构、分包与文件树、接口、实体、数据库、前端、设计模式/架构理念、测试和追踪矩阵。
-- Plan 必须逐 Step 写明先处理哪个文件、真实符号、针对当前语言/框架的伪代码、完成该文件后的状态、验证、回滚和提交边界。
+- Plan 必须逐 Step 写明先处理哪个文件、真实符号、所需变更、完成该文件后的状态、验证、回滚和提交边界。整份 Plan 禁止具体代码；简单需求只用文字，复杂逻辑必要时用简短、与语言无关的伪代码。
 - 两份文档都必须在交付前复核：Spec 对照原始需求和仓库；Plan 对照原始需求、有效 Spec 和当前仓库。
 - Spec 和 Plan skill 只写设计文档，不会顺带开始编码。
 - 无需另建示例清理 skill：创建 skill 交接来源，write-spec Version 8/9 必填 §2.5 与 `Archetype Cleanup`，Plan/Execute 消费整份 `EXAMPLE-*` 清单；已生成或部分实施项目也触发。仅按当前功能局部清理或“留作参考”都不能验收通过。
@@ -55,7 +55,7 @@ docs/egon/plan/YYYY-MM-DD-HH-MM-ABSTRACT.md
 
 三个设计/实施 skill 各自带一份必须保持相同的 `references/backend-code-generation.md`：不允许自行引入依赖，缺口必须阻断并提交用户审批方案。三个 skill 各自内置后端生成器入口 `scripts/stellar-enclosure-codegen.sh`；从解析得到的 skill 绝对目录调用 `<skill-root>/scripts/stellar-enclosure-codegen.sh`，只负责 native Light/Web/Service 的初始 `CREATE TABLE` 建表模板；独立 `CREATE INDEX` 由 agent 审核，不参与生成器建模；`ALTER` 等后续结构变更由 agent 按获批 Spec/Plan 修改代码，不再用生成器刷新。FreeMarker 2.3.35 只属于生成器工具。Agent、Open 和传统三层不在 CLI 范围内，保持各自现有架构。Repository → DAO 只校验数据库表结构约束，业务规则在上层。脚手架自带代码仅供参考，真实业务实施 Step 必须删除或替换相应样例。每次 skill 驱动的初始生成还要把用到的 `src/main/resources/db/` SQL 追加到 `docs/egon/codegen/ddl-consumption-log.md`；该文件不是数据库执行记录。
 
-- 时间规范同步中英文：Spec Version 9 §6.3、Plan Version 5 §4.9 记录 TIME 契约，MC-TIME-001 验证发生时刻 UTC 存储/传输、纯日期语义、显式业务时区计算与前端展示转换；创建 skill 只交接真实模板证据。既有 UTC LocalDateTime 单列兼容，skill 更新不授权修改业务/数据库/历史迁移。旧版本文档按原结构契约校验。
+- 时间规范同步中英文：Spec §6.3、Plan §4.9 记录 TIME 契约，MC-TIME-001 验证发生时刻 UTC 存储/传输、纯日期语义、显式业务时区计算与前端展示转换；创建 skill 只交接真实模板证据。既有 UTC LocalDateTime 单列兼容，skill 更新不授权修改业务/数据库/历史迁移。旧版本文档按原结构契约校验。
 
 Skill 分发工具及其回归测试位于 `.agents/skills/scripts/`：用 `link-skills.sh` 向指定工程建立链接，用 `test-link-skills.sh` 在临时目录验证链接行为。
 

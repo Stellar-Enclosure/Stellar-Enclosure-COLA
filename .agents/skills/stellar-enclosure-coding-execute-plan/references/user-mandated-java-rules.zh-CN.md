@@ -21,9 +21,9 @@ Read `references/egon-java-cqe-contract.md` for the effective 2026-09-22 modelin
 
 原始拼写保持不动。执行中，`@qualify` 对应 Spring `@Qualifier`，`convertor` 对应 Egon `BaseConverter<S,T>` / `BaseForwardConverter<S,T>` 体系，`SpringBoot-JackSon` 对应 Spring Boot Jackson。
 
-## 硬停止规则
+## 合规失败的处理
 
-逐字源和已批准 Spec/Plan 决定实现。仓库旧风格不能弱化规则。当前代码、编译器、框架、依赖或 Step 范围妨碍合规时：不能静默选择缩减实现；Step 保持 `In Progress` 或 `Blocked`；记录准确路径/符号/编译/依赖证据；报告最小合规修正和所需审批；禁止按完成提交和进入下一 Step。
+每个候选都应用准确逐字源。当前代码、编译器、框架、依赖或 Step 范围妨碍合规时，记录准确路径、符号、编译或依赖证据。有合规解法时保持 `In Progress`，必要时按 skill 流程做保持原意的修订。仍无法合规时按阻塞条件处理。完成 Step 前必须通过全部适用的 Literal Rule 检查。
 
 锁定 Step 时，从 `references/step-gate-checklist.md` 建立十行 Literal Rule Gate；最终 Diff 后刷新。适用行全部 PASS，N/A 必须有正向范围证据。
 
@@ -49,7 +49,7 @@ Repository → DAO 只按数据库表结构约束校验：`NOT NULL`→`@NotNull
 - 不可变值对象可用 `record`，不套用可变 class 注解；仅字段少不能证明值对象语义。
 
 
-核对构造目标、父类链与生成签名；按 `references/egon-java-cqe-contract.md` 的场景规则处理 Builder、无父类和零字段，其他实际框架/API 冲突记录为阻断。
+核对构造目标、父类链与生成签名；按 `references/egon-java-cqe-contract.md` 的场景规则处理 Builder、无父类和零字段。以合规设计解决重复构造器或框架冲突并编译验证；无合规解法时按阻塞条件处理。
 
 每个新增受影响 Converter 必须 MapStruct/MapStructPlus 且继承/实现 `BaseConverter<S,T>` / `BaseForwardConverter<S,T>`。检查泛型、Mapping、Qualifier、空值/默认/枚举/时间/敏感字段、生成实现、Bean 名和测试。拒绝 Setter、`BeanUtils.copyProperties`、反射、JSON 或自建 Converter 绕过。
 
@@ -69,11 +69,11 @@ Repository → DAO 只按数据库表结构约束校验：`NOT NULL`→`@NotNull
 
 配置 Key 变化时，在 Diff 后比较 Base 与每个环境文件的规范化 Key Path，结构/核心 Key 集合必须完全一致，只有 Value 可不同。核对 `@ConfigurationProperties`、默认、Validation、Metadata 和测试。只改一个 Profile 失败。
 
-## 规则 9——复杂业务必须包含获批模式
+## 规则 9——复杂业务必须使用合适的模式
 
-重新确认每个触达 Flow 的 Simple/Complex 分类。Complex Flow 必须实现获批 Strategy、Template Method、Factory、Chain of Responsibility、State、Specification、Domain Event 等模式的实际参与者、选择/接线、编排、失败和测试代码。
+重新确认每个触达 Flow 的 Simple/Complex 分类。Complex Flow 必须实现有效 Spec 要求的模式，或由执行者按修订规则自主选择成熟模式。记录适用理由，验证参与者、选择、接线、编排、失败处理和测试。
 
-拒绝长 `if/else`、`switch`、类型/字符串/反射分发或用直接编排替代模式。Simple 逻辑保持直接，不能新增仪式性模式类。
+拒绝长 `if/else`、`switch`、类型/字符串/反射分发或用直接编排替代必需模式。Simple 逻辑保持直接。
 
 ## 规则 10——拒绝 java.util 日期时间
 
