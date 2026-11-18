@@ -25,7 +25,7 @@ Use section 1 to design the two state owners, CQE flow, transition table, transa
 
 ## Purpose
 
-Turn a coding request and the current repository state into a reviewable system-architecture, high-level-design, or detailed-design specification. Write the artifact under `docs/egon/spec` before implementation planning or code changes.
+Turn a coding request and the current repository state into a reviewable system-architecture, high-level-design, or detailed-design specification before implementation planning or code changes.
 
 The specification defines **what must be built and why the design is coherent**. It is not an implementation sequence and must not start coding.
 
@@ -40,7 +40,7 @@ The specification defines **what must be built and why the design is coherent**.
   - Replace `ABSTRACT` with a concise lowercase ASCII kebab-case summary, normally 3–8 words.
   - Example: `docs/egon/spec/2026-08-15-14-30-account-lockout-design.md`.
   - Never overwrite a document with the same minute and abstract; choose a more specific abstract.
-- Start from Template Version 9 in `assets/spec-template.md`, including the archetype-cleanup assessment. Keep every numbered chapter, but allocate depth using `references/change-surface-and-proportional-depth.md`: fully design `Affected` areas, keep `Context-only` and `Unchanged` areas concise, and use evidence-backed `N/A` only for `Not applicable`. The validator continues to accept existing Version 2 through Version 8 Specs under their original contracts.
+- Use Template Version 9 in `assets/spec-template.md` for new documents, including the archetype-cleanup assessment. For an in-place revision, retain the existing template version and validate under its rules. Keep every required numbered chapter and allocate depth using `references/change-surface-and-proportional-depth.md`: fully design `Affected` areas, keep `Context-only` and `Unchanged` areas concise, and use evidence-backed `N/A` only for `Not applicable`.
 
 ## Time semantics and UTC policy
 
@@ -84,8 +84,8 @@ Do not translate, renumber, correct, shorten, or replace this block with a parap
 5. Do not silently decide a major ambiguity or repair a major requirement/design defect. Present repository evidence, impact, viable options, and a recommendation; ask the user to decide before finalizing affected design sections.
 6. Resolve small, local, reversible gaps with the smallest repository-consistent inference. Record consequential inferences as `ASM-*` with evidence and the impact if wrong; do not interrupt the user for ordinary naming, placement, or formatting choices.
 7. Use the same metadata header in every Spec. Use RFC-style `Amends`, `Supersedes`, `Depends On`, and `Related Specs` links to make the effective design traceable.
-8. Never silently rewrite an approved predecessor's normative design. Create a later Spec that names the earlier document and exact sections it changes. Metadata-only backlinks may be added when repository policy permits.
-9. A later Spec may fill gaps or correct earlier design. State whether the later document amends only named sections or supersedes the earlier document for a defined scope; unchanged predecessor sections remain effective.
+8. Apply feedback, corrections, and additions to the same design in its existing unapproved Spec. Edit the file in place, preserve its path, `Document`, and `Created`, and update `Updated` and review status as appropriate.
+9. Create a follow-up Spec when changing a confirmed design and no relevant unapproved follow-up already exists. Link the confirmed predecessor with `Amends` for named sections or `Supersedes` for a defined replacement scope. Preserve its normative text and add metadata-only backlinks when repository policy permits.
 10. Do not mark a Spec `Accepted` without explicit user/decision-owner approval. An internally complete draft awaiting approval is `Review`; unresolved major decisions require `Draft` and a blocked conclusion.
 11. Design every `Affected` area at detailed-design depth: exact paths/packages, symbols, contracts, fields, state rules, schema, page states, test cases, compatibility, and failure semantics as applicable. For `Context-only` and `Unchanged` areas, record only the evidence, preserved invariant, reason no change is required, and focused verification. Do not invent full production implementations or redesign adjacent layers.
 12. Review the finished Spec against the original user request and the current repository before delivery. Fix internal defects yourself; surface only unresolved major decisions.
@@ -200,8 +200,8 @@ Read `references/rfc-governance.md` for lifecycle and backlink rules.
    - Trace callers and callees only until the preserved boundary is proven; do not turn inspected context into implicit implementation scope.
    - Assess the archetype-cleanup trigger. For generated-business work, scan all target modules and complete §2.5 under `references/archetype-example-cleanup.md`; include all unused example chains, not only the touched feature. Make needed cleanup explicit scope, requirements, target paths and acceptance tests. For absent triggers, record evidence-backed `Not applicable`.
 3. **Resolve design history**
-   - Search current and legacy Spec locations.
-   - Determine whether this Spec is new, amending, superseding, dependent, or merely related.
+   - Use the Spec identified by the user or the current review context. Search current and legacy Spec locations for the same requirement and inspect its approval evidence.
+   - Apply `references/rfc-governance.md` to decide whether to revise the existing file or create a new Spec, and whether any RFC relationships apply.
 4. **Handle ambiguity**
    - Ask for major decisions before finalizing affected sections.
    - Infer small gaps and record consequential assumptions.
@@ -216,7 +216,7 @@ Read `references/rfc-governance.md` for lifecycle and backlink rules.
    - Read `references/interface-contract-design.md` and `references/database-design.md` only when their surfaces are `Affected`; for an affected external REST/GraphQL API, additionally read `references/api-rest-cqe-graphql-openapi.md` and design the protocol/CQE, documentation, generated-contract, and API blocking gates. Otherwise cite the authoritative current contract or persistence evidence and preserved invariant concisely.
    - For an affected relational model, derive a Mermaid `erDiagram` from evidenced table ownership, keys, and cardinalities before finalizing per-table details; do not redraw unchanged relationships for query-only work.
 7. **Write the Spec**
-   - Copy `assets/spec-template.md`, keep all numbered chapters, and fill them according to the change-surface disposition. Remove optional deep subsections for `Context-only`, `Unchanged`, or `Not applicable` areas instead of filling them ceremonially.
+   - Revise the selected unapproved file in place. Copy `assets/spec-template.md` only when creating a new Spec. Fill the required chapters according to the change-surface disposition. Omit optional deep subsections for `Context-only`, `Unchanged`, or `Not applicable` areas.
    - Use exact signatures, field tables, state transitions, file trees, and pseudocode where they clarify design; do not write production-ready method bodies.
    - Include the selected use-case artifact and, when the relational model/relationships are affected, the Mermaid ER diagram.
    - Expand every affected interface and every affected table/index; do not inventory unchanged elements merely to make the document look complete.
@@ -275,7 +275,8 @@ Use exactly one:
 | Listing requirements without actor goals and use cases | Add evidenced `ACTOR-*` and `UC-*` analysis using a complete table or Mermaid system-boundary view, including triggers, conditions, outcomes, failures, postconditions, and traceability |
 | Choosing major semantics because one option seems obvious | Present evidence/options and ask the user |
 | Interrupting for names or reversible local details | Infer the smallest repository-consistent choice |
-| Silently editing an approved predecessor | Create an amending or superseding Spec with exact section links |
+| Creating a new Spec to address feedback on a pending review | Apply the feedback in the existing file and retain its document identity |
+| Editing an approved predecessor's normative design | Use the applicable unapproved follow-up or create one with exact section links |
 | Listing packages without a file tree or responsibilities | Add exact target paths, operations, symbols, ownership, and `REQ-*` mapping |
 | Interfaces, entities, schema, UI, and tests disagree | Repair through field/state/requirement traceability |
 | Providing an interface inventory without expanding each contract | Add one detailed subsection per ID with exact route/symbol, request rules, response/error payloads, logic, consumers, compatibility, and tests |

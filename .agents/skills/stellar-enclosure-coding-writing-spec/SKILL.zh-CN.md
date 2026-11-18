@@ -27,7 +27,7 @@ Read `references/egon-java-cqe-contract.md` after resource preflight for every J
 
 ## 目的
 
-把编码需求和当前仓库状态转化为可审核的系统架构、概要设计或详细设计 Spec。在编写实施 Plan 或修改代码之前，将文档保存到 `docs/egon/spec`。
+在编写实施 Plan 或修改代码之前，把编码需求和当前仓库状态转化为可审核的系统架构、概要设计或详细设计 Spec。
 
 Spec 定义的是**必须构建什么，以及该设计为什么自洽**。它不是实施顺序，不能开始编码。
 
@@ -42,7 +42,7 @@ Spec 定义的是**必须构建什么，以及该设计为什么自洽**。它�
   - `ABSTRACT` 替换为简洁的小写 ASCII kebab-case 摘要，通常为 3–8 个单词。
   - 示例：`docs/egon/spec/2026-08-15-14-30-account-lockout-design.md`。
   - 同一分钟且摘要相同时不得覆盖旧文档，应使用更具体的摘要。
-- 必须以 `assets/spec-template.md` 中的 Template Version 9 为模板，包含 archetype 清理评估，保留所有编号章节，但按 `references/change-surface-and-proportional-depth.zh-CN.md` 分配深度：只完整设计 `Affected` 区域，`Context-only` 和 `Unchanged` 保持简洁，只有 `Not applicable` 才写有证据的 `N/A`。校验器继续按原契约接受既有 Version 2 至 Version 8 Spec。
+- 新文档使用 `assets/spec-template.md` 中的 Template Version 9，包含 archetype 清理评估。原地修订时沿用既有模板版本，并按该版本规则校验。保留所有必需的编号章节，按 `references/change-surface-and-proportional-depth.zh-CN.md` 分配深度。完整设计 `Affected` 区域，`Context-only` 和 `Unchanged` 保持简洁，只有 `Not applicable` 才写有证据的 `N/A`。
 
 ## 时间语义与 UTC 规则
 
@@ -86,8 +86,8 @@ python3 <skill-root>/scripts/validate_skill_resources.py
 5. 不能擅自决定重大歧义，也不能静默修补重大需求或设计缺陷。应给出仓库证据、影响、可选方案和推荐意见，在定案受影响章节前请用户决策。
 6. 小型、本地、可逆缺口采用最小且符合仓库惯例的推断。对有实际影响的推断，以 `ASM-*` 记录证据和错误影响；普通命名、放置和格式问题不要打断用户。
 7. 所有 Spec 使用相同元数据 Header。通过 RFC 风格的 `Amends`、`Supersedes`、`Depends On` 和 `Related Specs` 链接保证有效设计可追溯。
-8. 不得静默修改已获批前置 Spec 的规范正文。应新建后续 Spec，指出被修改的文档和精确章节；仓库规范允许时，只为旧文档补充反向关系元数据。
-9. 后续 Spec 可以补齐或纠正旧设计，但必须说明它只修订哪些章节，或在哪个范围内完整替代旧 Spec；未被修改的旧章节继续有效。
+8. 对同一设计的反馈、纠正和补充，直接修订尚未获批的 Spec。保留文件路径、`Document` 和 `Created`，更新 `Updated`，并按实际审核进度更新状态。
+9. 变更已确认的设计时，若没有对应的待审后续 Spec，则新建一份后续 Spec。用 `Amends` 指明部分修订的章节，或用 `Supersedes` 指明完整替代的范围。保留已确认文档的规范正文，仓库规则允许时可补充反向关系元数据。
 10. 未经用户或决策负责人明确批准，不能标记为 `Accepted`。内部完整、等待审核时为 `Review`；仍有重大未决项时必须为 `Draft`，结论为阻塞。
 11. 所有 `Affected` 区域都要达到适用的详细设计深度：精确路径/包、符号、契约、字段、状态规则、Schema、页面状态、测试用例、兼容与失败语义。`Context-only` 和 `Unchanged` 区域只记录证据、保持不变量、无需修改的原因和聚焦验证。不能编写完整生产实现，也不能重设计相邻层。
 12. 交付前必须对照原始用户需求和当前仓库复核。内部缺陷自行修复，只把仍未解决的重大决策交给用户。
@@ -202,8 +202,8 @@ Complex Spec 必须显式执行四轮工作，并把分析结果保留在 Spec �
    - Caller/Callee 只追踪到足以证明保持边界为止，不能把检查过的上下文隐式变成实施范围。
    - 判定 archetype 清理触发条件。生成项目的业务工作按 `references/archetype-example-cleanup.md` 扫描全部模块并填写 §2.5，涵盖全部未使用样例链路，不限当前功能；所需清理明确进入范围、REQ、目标路径和验收。触发条件不适用时记录有证据的 `Not applicable`。
 3. **解析设计历史**
-   - 搜索当前和旧 Spec 位置。
-   - 判断本 Spec 是全新、修订、替代、依赖还是仅相关。
+   - 优先定位用户指定或当前审核上下文中的 Spec，在当前和旧 Spec 目录查找同一需求并核实审批证据。
+   - 根据 `references/rfc-governance.md` 决定原地修订还是新建，以及适用的 RFC 关系。
 4. **处理歧义**
    - 受影响章节定案前询问重大决策。
    - 推断小缺口并记录有影响的假设。
@@ -218,7 +218,7 @@ Complex Spec 必须显式执行四轮工作，并把分析结果保留在 Spec �
    - 接口或数据库表面为 `Affected` 时才读取 `references/interface-contract-design.zh-CN.md` 和 `references/database-design.zh-CN.md`；外部 REST/GraphQL API 受影响时，还要读取 `references/api-rest-cqe-graphql-openapi.zh-CN.md`，并设计协议/CQE、文档、生成契约和 API 阻断门禁；否则只简洁引用权威当前契约/持久化证据和保持不变量。
    - 关系型模型受影响时，先根据已有表所有权、Key 和基数推导 Mermaid `erDiagram`，再定案逐表详情；查询单独变化时不能重画不变关系。
 7. **编写 Spec**
-   - 复制 `assets/spec-template.md`，保留所有编号章节，并按变更面处置类型填写。`Context-only`、`Unchanged` 或 `Not applicable` 区域应删除可选深度子章节，不能为了形式填满。
+   - 直接修订选定的未获批文件。仅在新建 Spec 时复制 `assets/spec-template.md`。按变更面处置类型填写必需章节，省略 `Context-only`、`Unchanged` 或 `Not applicable` 区域的可选深度子章节。
    - 可使用精确签名、字段表、状态转换、文件树和伪代码阐明设计，但不能写生产级完整方法体。
    - 包含选定的用例产物；关系型模型/关系受影响时必须包含 Mermaid ER 图。
    - 每个受影响接口、每张受影响表和每个受影响索引都必须展开；不能为了文档看起来完整而盘点不变元素。
@@ -277,7 +277,8 @@ Complex Spec 必须显式执行四轮工作，并把分析结果保留在 Spec �
 | 只有需求清单，没有参与者目标与用例 | 增加有证据的 `ACTOR-*` 和 `UC-*` 分析，使用完整表格或 Mermaid 系统边界视图，包含触发、条件、结果、失败、后置条件和追踪 |
 | 因某个重大语义看似明显就直接选择 | 给出证据/选项并询问用户 |
 | 为命名或可逆本地细节打断用户 | 采用最小且符合仓库惯例的选择 |
-| 静默修改已获批前置文档 | 新建修订或替代 Spec，并精确链接章节 |
+| 为回应待审 Spec 的反馈另建文档 | 直接在原文件落实反馈，保留文档标识 |
+| 修改已获批前置文档的规范正文 | 使用对应的待审后续 Spec，或新建后续 Spec 并精确链接章节 |
 | 只列包名，不列文件树与职责 | 增加精确目标路径、操作、符号、职责和 `REQ-*` 映射 |
 | 接口、实体、schema、UI 和测试不一致 | 通过字段/状态/需求追踪修复 |
 | 只有接口清单，没有逐个展开 | 每个 ID 增加独立详情，写清路由/符号、入参规则、成功/错误载荷、逻辑、消费者、兼容与测试 |

@@ -5,7 +5,7 @@
 - File: `docs/egon/spec/YYYY-MM-DD-HH-MM-<lowercase-kebab-abstract>.md`.
 - The timestamp is the local creation minute and is part of the document identity.
 - The abstract is concise, stable, and specific enough to avoid collisions.
-- Never reuse a path for a different design and never overwrite a predecessor. If a collision occurs, choose a more specific abstract.
+- If a new document would collide with an existing path, choose a more specific abstract.
 - Header `Document`, `Created`, and `Updated` values must agree with the file and actual history.
 - New Specs use `Template Version: 9` plus `Complexity`, `Complexity Drivers`, `Change Surface`, `Affected Chapters`, `Archetype Cleanup`/§2.5, time-semantics contract §6.3, the literal-rule compliance matrix, the complete blocking Manual Check catalog, and the API governance/gates when an external API is affected. Version 2 through Version 8 Specs remain valid under their original contracts; older historical Specs remain usable when their design is authoritative. Do not rewrite a predecessor only to upgrade its template. Existing-business work with archetype remnants still needs the effective cleanup decision under the current skill, even when the authoritative predecessor uses an older template.
 
@@ -24,6 +24,13 @@ Draft -> Review -> Accepted -> Implemented
 - `Superseded`: a later Spec completely replaces it for a named scope.
 - `Rejected`: deliberately not adopted.
 
+## Choose the file before drafting
+
+- Identify the Spec from the user's reference or current review context. Check that it covers the same requirement. When searching the repository, match the requirement and scope as well as the filename.
+- Confirmation means explicit user or decision-owner approval of the Spec itself, recorded in its lifecycle (`Accepted` or `Implemented`) or evidenced by the approval decision. `PASS — Ready for user review` and approval of individual design decisions leave the Spec pending review.
+- For feedback, corrections, or additions to a Spec still awaiting confirmation (`Draft` or `Review`), edit that file in place. Preserve its path, `Document`, `Created`, and template version. Update `Updated`, set the current review status, and keep applicable RFC links. An in-place revision creates no `Amends` or `Supersedes` relationship to its own earlier text.
+- For a change to confirmed design, continue in any existing unapproved follow-up for that change. Otherwise create a timestamped follow-up with `Amends` or `Supersedes` as applicable. A separate requirement with no existing Spec can start its own document.
+
 ## Relationship semantics
 
 - `Amends`: changes or fills only named sections of an earlier Spec. Both documents form the effective design.
@@ -34,7 +41,7 @@ Draft -> Review -> Accepted -> Implemented
 
 Relationships use relative Markdown links and exact section references. Targets may be older design documents outside `docs/egon/spec` if they remain authoritative.
 
-A later Spec may repair an earlier one. It must identify the exact old rules it changes and the replacement rules. Update only relationship/status metadata in an accepted predecessor when repository policy allows; never silently rewrite approved normative content.
+A follow-up to confirmed design must identify the exact rules it changes and their replacements. Predecessor sections outside that scope remain effective. Keep approved normative content intact. Update relationship or lifecycle metadata only where repository policy allows.
 
 ## Effective-design resolution
 

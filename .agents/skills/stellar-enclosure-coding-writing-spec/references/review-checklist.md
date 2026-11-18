@@ -187,9 +187,10 @@
 ## RFC governance
 
 - [ ] Filename matches `YYYY-MM-DD-HH-MM-abstract.md`; header document/timestamps/status match it.
+- [ ] Feedback on an unapproved Spec is incorporated in its existing file with the original path, `Document`, and `Created` and a current `Updated` value.
 - [ ] `Amends`, `Supersedes`, `Depends On`, `Related Specs`, and `Related Plans` use valid relative links or `None`.
 - [ ] Amendment/supersession scope names exact predecessor sections and unchanged content remains effective.
-- [ ] Approved predecessor normative text was not silently rewritten.
+- [ ] Every change to confirmed design is recorded in the applicable follow-up, and the approved predecessor's normative text is intact.
 - [ ] Legacy authoritative design paths are linked directly rather than hidden because they lack a new naming convention.
 - [ ] `Accepted` is backed by explicit user/owner approval.
 
