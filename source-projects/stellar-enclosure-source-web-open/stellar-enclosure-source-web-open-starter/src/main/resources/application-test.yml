@@ -5,14 +5,20 @@ spring:
       write-dates-as-timestamps: false
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      cluster:
+        nodes: []
+      host: ${REDIS_TEST_HOST:127.0.0.1}
+      port: ${REDIS_TEST_PORT:6379}
+      username: ${REDIS_TEST_USERNAME:}
+      password: ${REDIS_TEST_PASSWORD:}
+      ssl:
+        enabled: false
   sql:
     init:
       mode: never
   autoconfigure:
     exclude:
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
       - org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration
       - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
       - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
@@ -138,6 +144,12 @@ egon:
         enabled: true
         machine-id: 0
         max-clock-backward: PT0.005S
+        redis:
+          enabled: false
+          env: test
+          app: fixture
+          lease-duration: 5m
+          renew-interval: 1m
       dtp:
         enabled: false
         report:

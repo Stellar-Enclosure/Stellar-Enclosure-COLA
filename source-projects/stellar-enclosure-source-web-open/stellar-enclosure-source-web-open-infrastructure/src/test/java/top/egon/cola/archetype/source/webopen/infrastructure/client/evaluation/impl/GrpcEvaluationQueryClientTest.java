@@ -1,6 +1,7 @@
 package top.egon.cola.archetype.source.webopen.infrastructure.client.evaluation.impl;
 
 import top.egon.cola.archetype.source.webopen.common.exception.ExternalDependencyException;
+import top.egon.cola.archetype.source.webopen.infrastructure.config.OrganizationIntegrationProperties;
 import top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.Course;
 import top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.Exam;
 import top.egon.cola.archetype.source.serviceopen.facade.evaluation.v1.GetCourseRequest;
@@ -22,6 +23,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -48,7 +50,7 @@ class GrpcEvaluationQueryClientTest {
 
     @AfterEach
     void tearDown() {
-        client.close();
+        channel.shutdownNow();
         server.shutdownNow();
     }
 
@@ -81,6 +83,45 @@ class GrpcEvaluationQueryClientTest {
         assertThatThrownBy(() -> client.getScore(1001L, 0L))
                 .isInstanceOf(ExternalDependencyException.class)
                 .hasMessageContaining("scoreId");
+    }
+
+    @Test
+    void preflights_managed_target_as_a_kubernetes_service() {
+        for (String invalid : new String[]{null, "localhost:50051", "dns:///10.1.2.3:50051",
+                "dns:///evaluation.apps.pod.cluster.local:50051"}) {
+            try (var context = clientContext("prod", invalid)) {
+                assertThatThrownBy(context::refresh)
+                        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                        .hasStackTraceContaining("Kubernetes Service");
+            }
+        }
+    }
+
+    @Test
+    void managedProfilesOwnTheNamedChannelAndShutItDown() {
+        for (String profile : new String[]{"dev", "prod"}) {
+            ManagedChannel managed;
+            try (var context = clientContext(profile, "dns:///evaluation-rpc.apps.svc.cluster.local:50051")) {
+                context.registerBean("anotherGrpcChannel", ManagedChannel.class, () -> channel);
+                context.registerBean("anotherDeadline", Duration.class, () -> Duration.ofSeconds(10));
+                context.refresh();
+                assertThat(context.getBeansOfType(GrpcEvaluationQueryClientImpl.class))
+                        .containsOnlyKeys("evaluationQueryClient");
+                managed = context.getBean("evaluationGrpcChannel", ManagedChannel.class);
+                assertThat(managed.isShutdown()).isFalse();
+            }
+            assertThat(managed.isShutdown()).isTrue();
+        }
+    }
+
+    private static AnnotationConfigApplicationContext clientContext(String profile, String target) {
+        var context = new AnnotationConfigApplicationContext();
+        context.getEnvironment().setActiveProfiles(profile);
+        var properties = new OrganizationIntegrationProperties();
+        properties.getIntegrations().getEvaluation().setGrpcTarget(target);
+        context.registerBean("organizationIntegrationProperties", OrganizationIntegrationProperties.class, () -> properties);
+        context.register(GrpcEvaluationQueryClientImpl.class);
+        return context;
     }
 
     private static ServerServiceDefinition courseService() {

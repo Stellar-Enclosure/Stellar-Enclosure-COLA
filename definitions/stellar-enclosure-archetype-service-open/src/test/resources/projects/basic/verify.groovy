@@ -8,6 +8,25 @@ def projectDir = [
 ].find { candidate -> new File(candidate, "student-management-evaluation-starter").isDirectory() }
 assert projectDir != null: "Expected generated Service Open project"
 
+def runtimeProfiles = new File(projectDir, 'student-management-evaluation-starter/src/main/resources')
+['bootstrap.yml', 'bootstrap-dev.yml', 'bootstrap-prod.yml', 'bootstrap-test.yml'].each { retired ->
+    assert !new File(runtimeProfiles, retired).exists(): "Retired bootstrap remains: ${retired}"
+}
+assert !new File(projectDir, 'deploy/compose').exists()
+assert !new File(projectDir, 'deploy/env').exists()
+def deployedWorkload = new File(projectDir, 'deploy/kubernetes/workload.yaml').text
+assert deployedWorkload.contains('name: student-management-evaluation-triple')
+assert deployedWorkload.contains('port: management')
+assert deployedWorkload.contains('file:/etc/stellar/runtime/application.yml')
+assert deployedWorkload.contains('automountServiceAccountToken: false')
+assert !deployedWorkload.contains('kind: Ingress') && !deployedWorkload.contains('type: LoadBalancer')
+assert deployedWorkload.contains('kind: GRPCRoute')
+assert deployedWorkload.contains('name: student-management-evaluation-triple-stable')
+assert deployedWorkload.contains('targetPort: 19099')
+assert deployedWorkload.contains('appProtocol: kubernetes.io/h2c')
+def openRegistryProfile = new File(runtimeProfiles, 'application.yml').text
+assert openRegistryProfile.contains('address: N/A') && openRegistryProfile.contains('qos-enable: false')
+
 // Source layout is checked before build-output assertions; a clean hash or javac pass is insufficient.
 def contractJavaSources = []
 projectDir.eachFileRecurse(FileType.FILES) { source ->
@@ -187,21 +206,12 @@ assert file("student-management-evaluation-infrastructure/pom.xml").text
 assert file("student-management-evaluation-starter/src/main/resources/application.yml").text
         .contains("queue-capacity: \${ASYNC_QUEUE_CAPACITY:1000}")
 assert file("student-management-evaluation-starter/src/main/resources/application.yml").text
-        .contains("machine-id: \${EGON_ID_MACHINE_ID}")
+        .contains("env: \${EGON_ID_REDIS_ENV}")
 assert file("student-management-evaluation-starter/src/main/resources/application-test.yml").text
         .contains("machine-id: 0")
 assert file("student-management-evaluation-starter/src/main/resources/application-test.yml").text
         .contains("enabled: false")
-assert file("deploy/env/.env.example").text.contains("NACOS_IMAGE=nacos/nacos-server:v3.0.3")
-[
-        "compose.docker.yaml", "compose.podman.yaml", "compose.nerdctl.yaml",
-        "compose.docker.prod.yaml", "compose.podman.prod.yaml", "compose.nerdctl.prod.yaml"
-].each { name ->
-    def compose = file("deploy/compose/${name}").text
-    assert compose.contains("EGON_ID_MACHINE_ID")
-    assert compose.contains("DTP_ENABLED")
-    assert compose.contains("DUBBO_REGISTRY_ADDRESS")
-}
+
 
 def reports = filesUnder(".") { candidate ->
     candidate.path.replace('\\', '/').contains('/target/surefire-reports/') && candidate.name.endsWith('.xml')
@@ -229,6 +239,16 @@ if (tripleSuite.@skipped.text() == '1') {
     assert tripleSuite.testcase.skipped.@message.text().contains('egon.test.triple.enabled'):
             'Triple test may only be skipped by its explicit listener gate'
     println 'Triple listener validation is pending: enable egon.test.triple.enabled=true to execute it'
+} else {
+    assert tripleSuite.testcase.@name.text() == 'shouldInvokeAllEvaluationMethodsThroughOneTriplePort':
+            'Expected generated Triple wire test case'
+    def listeners = tripleSuite.testcase.'system-out'.text().readLines().findAll {
+        it.contains('Start NettyPortUnificationServer bind ')
+    }
+    assert listeners.size() == 1 && listeners.every {
+        (it =~ /Start NettyPortUnificationServer bind \/\[(?:0:0:0:0:0:0:0:1|::1)\]:[0-9]+,/) &&
+                it.contains('dubbo version: 3.3.6')
+    }: 'Expected pinned Triple listener bound only to IPv6 loopback'
 }
 
 def javaFiles = []
@@ -325,8 +345,7 @@ def boundaryText = { candidate ->
 }
 [
     'top.egon.internal.archetype.source',
-    'stellar-enclosure-source-service-open',
-    '0.0.1'
+    'stellar-enclosure-source-service-open'
 ].each { forbiddenToken ->
     sourceBoundaryFiles.each { candidate ->
         assert !boundaryText(candidate).contains(forbiddenToken):
@@ -358,6 +377,8 @@ true
 
 // Verify the released parent and the actual packaged runtime, separately from BOM management.
 def releasedParent = new XmlSlurper(false, false).parse(new File(projectDir, 'pom.xml'))
+assert releasedParent.groupId.text() == 'archetype.it'
+assert releasedParent.version.text() == '0.1-SNAPSHOT'
 assert releasedParent.parent.groupId.text() == 'top.egon'
 assert releasedParent.parent.artifactId.text() == 'stellar-enclosure-archetypes-parent'
 assert releasedParent.parent.version.text() == releasedParent.properties.'stellar-enclosure.version'.text()
@@ -377,6 +398,7 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
+assert !releasedLibraries.any { it.contains('nacos') || it.startsWith('spring-cloud-starter-bootstrap-') }
 assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
@@ -404,10 +426,18 @@ def repositoryManifests = repositoryContractFiles.findAll { it.name == 'reposito
 assert repositoryManifests.size() == 1
 def repositoryManifest = new groovy.json.JsonSlurper().parse(repositoryManifests.first())
 assert repositoryManifest.family == 'service-open'
-assert repositoryManifest.scripts.size() == 1
-def initializationSql = new File(repositoryManifests.first().parentFile, 'V20260913_001__initialize_repository_schema.sql')
-assert initializationSql.isFile()
-assert repositoryManifest.scripts.first().sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(initializationSql.bytes).encodeHex().toString()
+assert repositoryManifest.scripts*.version == ['20260913_001', '20261027_001']
+assert repositoryManifest.scripts*.path == [
+        'db/egon-mp/V20260913_001__initialize_repository_schema.sql',
+        'db/egon-mp/V20261027_001__align_readwrite_shard_tables.sql'
+]
+def migrationDirectory = repositoryManifests.first().parentFile
+repositoryManifest.scripts.each { migration ->
+    def script = new File(migrationDirectory, migration.path.tokenize('/').last())
+    assert script.isFile()
+    assert migration.sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(script.bytes).encodeHex().toString()
+}
+def initializationSql = new File(migrationDirectory, 'V20260913_001__initialize_repository_schema.sql')
 assert initializationSql.text.contains('deleted_at') && initializationSql.text.contains('version BIGINT NOT NULL DEFAULT 0')
 repositoryContractFiles.findAll { it.path.replace('\\', '/').contains('/src/main/resources/mybatis/mapper/') && it.name.endsWith('DAO.xml') }.each {
     assert it.text.contains('selectActiveById') && it.text.contains('selectActiveByIds')

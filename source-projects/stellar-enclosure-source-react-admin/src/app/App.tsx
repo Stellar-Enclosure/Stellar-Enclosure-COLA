@@ -2,10 +2,10 @@ import {useRbac3Authorization, type FrontendNavigationNode} from '@stellar-enclo
 import {AppErrorBoundary, EnterpriseLayout, type EnterpriseNavigationItem} from '@stellar-enclosure/stellar-enclosure-web-shared'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {Alert, Button, Result, Spin} from 'antd'
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 import {BrowserRouter, Navigate, Route, Routes} from 'react-router-dom'
 import {AuthorizationProvider} from './AuthorizationProvider'
-import {auth} from './api'
+import {type ApplicationAuthorization, createApplicationAuthorization} from './api'
 import {RoleActivation} from './RoleActivation'
 import {routes} from './routes'
 
@@ -19,12 +19,12 @@ const navigationItem = (node: FrontendNavigationNode): EnterpriseNavigationItem 
     path, children: children.length ? children : undefined}
 }
 
-const Console = ({embedded}: {readonly embedded: boolean}) => {
+const Console = ({embedded, auth}: {readonly embedded: boolean; readonly auth: ApplicationAuthorization}) => {
   const authorization = useRbac3Authorization()
   const [logoutError, setLogoutError] = useState<string>()
   if (['UNINITIALIZED', 'LOADING_ABOUT'].includes(authorization.status)) return <Spin fullscreen description="加载权限" />
-  if (['ACTIVATION_REQUIRED', 'REPLACING_ACTIVE_ROLES'].includes(authorization.status)) return <RoleActivation />
-  if (authorization.status === 'AUTHENTICATION_REQUIRED') return <Result title="请重新登录" extra={<Button onClick={() => auth.login()}>登录</Button>} />
+  if (['ACTIVATION_REQUIRED', 'REPLACING_ACTIVE_ROLES'].includes(authorization.status)) return <RoleActivation auth={auth} />
+  if (authorization.status === 'AUTHENTICATION_REQUIRED') return <Result title="请重新登录" extra={<Button href={auth.publicHomeUrl}>登录</Button>} />
   if (authorization.status !== 'READY' || !authorization.about) return <Result status="warning" title="授权状态不可用"
     subTitle={authorization.errorCode} extra={<Button onClick={() => void authorization.retry()}>重试</Button>} />
   const {resourceRegistry, snapshot, binding, about} = authorization
@@ -34,7 +34,7 @@ const Console = ({embedded}: {readonly embedded: boolean}) => {
     .filter((value): value is EnterpriseNavigationItem => value !== null)
   return <EnterpriseLayout config={{platformName: 'Stellar Enclosure', navigation, hideHeader: embedded, hideFooter: embedded,
     user: {name: about.user.subject, menu: [{key: 'logout', label: '退出登录', onClick: () => {
-      void auth.logout().catch(failure => setLogoutError(failure instanceof Error ? failure.message : '退出登录失败'))
+      try { auth.logout() } catch { setLogoutError('退出登录失败') }
     }}]}}}>
     {logoutError && <Alert type="warning" showIcon message={logoutError} />}
     <Routes>
@@ -45,8 +45,28 @@ const Console = ({embedded}: {readonly embedded: boolean}) => {
   </EnterpriseLayout>
 }
 
-export const App = ({embedded = false}: {readonly embedded?: boolean}) => <QueryClientProvider client={queryClient}>
-  <BrowserRouter basename={import.meta.env.BASE_URL}>
-    <AppErrorBoundary><AuthorizationProvider><Console embedded={embedded} /></AuthorizationProvider></AppErrorBoundary>
-  </BrowserRouter>
-</QueryClientProvider>
+export const App = ({embedded = false}: {readonly embedded?: boolean}) => {
+  const [auth] = useState(() => {
+    try { return createApplicationAuthorization(import.meta.env, embedded) } catch { return undefined }
+  })
+  const [phase, setPhase] = useState<'LOADING' | 'READY' | 'POPUP' | 'FAILED'>('LOADING')
+  useEffect(() => {
+    if (!auth) return
+    let active = true
+    void auth.completeLogin().then(result => { if (active) setPhase(result) })
+      .catch(() => { if (active) setPhase('FAILED') })
+    return () => { active = false }
+  }, [auth])
+
+  if (!auth) return <Result status="error" title="应用登录配置无效" />
+  if (phase === 'FAILED') return <Result status="error" title="登录未完成"
+    extra={<Button href={auth.publicHomeUrl}>返回应用</Button>} />
+  if (phase === 'POPUP') return <Result title="已返回授权结果，请关闭此窗口" />
+  if (phase === 'LOADING') return <Spin fullscreen description="初始化登录" />
+
+  return <QueryClientProvider client={queryClient}>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <AppErrorBoundary><AuthorizationProvider auth={auth}><Console embedded={embedded} auth={auth} /></AuthorizationProvider></AppErrorBoundary>
+    </BrowserRouter>
+  </QueryClientProvider>
+}

@@ -78,12 +78,29 @@ class ServiceOpenVerifierTest(unittest.TestCase):
     def test_enabled_but_skipped_listener_is_rejected(self):
         self.reject("Enabled Triple test must execute", enabled=True)
 
-    def test_executed_success_report_is_accepted(self):
+    def put_executed_report(self, listener):
         tree = ET.parse(self.report)
         tree.getroot().set("skipped", "0")
         case = tree.find("./testcase")
         case.remove(case.find("skipped"))
+        if listener is not None:
+            ET.SubElement(case, "system-out").text = listener
         tree.write(self.report, encoding="utf-8", xml_declaration=True)
+
+    def test_executed_report_without_listener_is_rejected(self):
+        self.put_executed_report(None)
+        self.reject("Expected pinned Triple listener bound only to IPv6 loopback", enabled=True)
+
+    def test_executed_report_with_wildcard_listener_is_rejected(self):
+        self.put_executed_report("Start NettyPortUnificationServer bind /0.0.0.0:51051, dubbo version: 3.3.6")
+        self.reject("Expected pinned Triple listener bound only to IPv6 loopback", enabled=True)
+
+    def test_executed_report_with_wrong_version_is_rejected(self):
+        self.put_executed_report("Start NettyPortUnificationServer bind /[::1]:51051, dubbo version: 3.3.5")
+        self.reject("Expected pinned Triple listener bound only to IPv6 loopback", enabled=True)
+
+    def test_executed_success_report_is_accepted(self):
+        self.put_executed_report("Start NettyPortUnificationServer bind /[::1]:51051, dubbo version: 3.3.6")
         result = self.verify(enabled=True)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertNotIn("Triple listener validation is pending", result.stdout)

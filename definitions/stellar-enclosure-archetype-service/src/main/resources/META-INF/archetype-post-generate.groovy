@@ -97,6 +97,17 @@ if (web) {
 }
 
 
+// Both generated configuration tests retain their provider and delivery checks.
+def nativeConfig = findTest(web ? 'NativeWebConfigurationTest.java' : 'NativeServiceConfigurationTest.java')
+replaceExactly(nativeConfig,
+        '(?m)^        assertThat\\(rpc\\.getConsumer\\(\\)\\.getBindings\\(\\)\\)\\.containsOnlyKeys\\([^\\n]*\\n'
+                + '^        rpc\\.getConsumer\\(\\)\\.getBindings\\(\\)\\.forEach\\(\\(id, binding\\) -> \\{\\n'
+                + '(?:^            [^\\n]*\\n)+^        \\}\\);\\n',
+        '        assertThat(rpc.getConsumer().getBindings()).isEmpty();\n', 1)
+replaceExactly(nativeConfig, 'binds_exact_peer_methods_and_the_native_delivery_prefix',
+        'binds_the_provider_and_delivery_without_a_peer', 1)
+
+
 // The no-peer fixture must not synthesize removed bindings while checking provider security.
 def nativeSecurity = findTest('NativeSecurityContractTest.java')
 def bindingKeys = web ? '"evaluation-course-read", "evaluation-exam-read", "evaluation-score-read"'
@@ -117,36 +128,27 @@ def peerDomain = web
 replaceExactly(architecture, '(?m)^        assertExists\\("domain", "' + peerDomain + '\\.java"\\);\\n', '', web ? 4 : 3)
 
 def resources = new File(module('starter'), 'src/main/resources')
+def consumerBindings = web ? ['evaluation-course-read', 'evaluation-exam-read', 'evaluation-score-read']
+        : ['organization-user-read', 'organization-class-read']
+def removePeerConsumer = { File yaml, int indent ->
+    def section = ' ' * indent
+    def settings = section + '  '
+    def bindingKey = settings + '  '
+    replaceExactly(yaml, '(?m)^' + section + 'consumer:\\n^' + settings + 'enabled:[^\\n]*\\n',
+            section + 'consumer:\n' + settings + 'enabled: false\n', 1)
+    consumerBindings.each { binding ->
+        replaceExactly(yaml, '(?m)^' + bindingKey + Pattern.quote(binding) + ':\\n'
+                + '(?:^' + bindingKey + '  [^\\n]*\\n)+', '', 1)
+    }
+    replaceExactly(yaml, '(?m)^' + settings + 'bindings:\\n', settings + 'bindings: {}\n', 1)
+}
 ['application.yml', 'application-dev.yml', 'application-test.yml', 'application-prod.yml'].each { name ->
     def yaml = new File(resources, name)
     replaceExactly(yaml, '(?m)^    ' + peer + ':\\n(?:^      .*\\n)*', '', 1)
-    // Peer removal must remove the matching security bindings as well as the client configuration.
-    def consumerBindings = web ? ['evaluation-course-read', 'evaluation-exam-read', 'evaluation-score-read']
-            : ['organization-user-read', 'organization-class-read']
-    consumerBindings.each { binding ->
-        replaceExactly(yaml, '(?m)^                ' + binding + ':\\n(?:^                  .*\\n)*', '', 1)
-    }
-    replaceExactly(yaml, '(?m)^            consumer:\\n              enabled:.*\\n',
-            '            consumer:\n              enabled: false\n', 1)
-    replaceExactly(yaml, '(?m)^              bindings:\\n', '              bindings: {}\n', 1)
+    removePeerConsumer(yaml, 8)  // egon.cola.component.rpc.consumer
+    removePeerConsumer(yaml, 12) // egon.cola.platform.tianquan.shoubing.rpc.consumer
 
     if (web && name == 'application.yml') {
         replaceExactly(yaml, '(?m)\\norganization:\\n  integrations:\\n?\\z', '\n', 1)
-    }
-}
-
-def deploy = new File(project, 'deploy')
-def peerEnvPattern = web
-        ? ~/EVALUATION_(?:FACADE_|(?:COURSE|EXAM|SCORE)_FACADE_GROUP)/
-        : ~/ORGANIZATION_FACADE_/
-['env', 'compose'].each { directory ->
-    new File(deploy, directory).eachFileRecurse { file ->
-        if (!file.isFile()) return
-        def original = file.getText('UTF-8')
-        def lines = original.readLines().findAll { line ->
-            !peerEnvPattern.matcher(line).find() &&
-                    !line.startsWith("# Exact native ${peer} provider scope")
-        }
-        file.setText(lines.join('\n') + '\n', 'UTF-8')
     }
 }

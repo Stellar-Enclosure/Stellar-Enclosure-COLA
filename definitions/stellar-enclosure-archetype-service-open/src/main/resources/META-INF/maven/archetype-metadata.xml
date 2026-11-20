@@ -19,6 +19,13 @@
 
     <fileSets>
         <fileSet filtered="true" encoding="UTF-8">
+            <directory>deploy/kubernetes</directory>
+            <includes>
+                <include>workload.yaml</include>
+                <include>README.md</include>
+            </includes>
+        </fileSet>
+        <fileSet filtered="true" encoding="UTF-8">
             <directory></directory>
             <includes>
                 <include>pom.xml</include>
@@ -65,24 +72,6 @@
             <directory>deploy/container</directory>
             <includes>
                 <include>README.md</include>
-            </includes>
-        </fileSet>
-        <fileSet filtered="true" encoding="UTF-8">
-            <directory>deploy/env</directory>
-            <includes>
-                <include>.env.example</include>
-                <include>.env.prod.example</include>
-            </includes>
-        </fileSet>
-        <fileSet filtered="false" encoding="UTF-8">
-            <directory>deploy/compose</directory>
-            <includes>
-                <include>compose.docker.yaml</include>
-                <include>compose.podman.yaml</include>
-                <include>compose.nerdctl.yaml</include>
-                <include>compose.docker.prod.yaml</include>
-                <include>compose.podman.prod.yaml</include>
-                <include>compose.nerdctl.prod.yaml</include>
             </includes>
         </fileSet>
     </fileSets>

@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: ${APP_NAME:stellar-enclosure-source-light-open}
   http:
     converters:
       preferred-json-mapper: jackson2
@@ -6,9 +8,12 @@ spring:
       preferred-json-mapper: jackson2
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      cluster:
+        nodes: ${REDIS_CLUSTER_NODES}
+      username: ${REDIS_USERNAME}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
   profiles:
     default: dev
   sql:
@@ -58,6 +63,8 @@ spring:
           max-interval: 10s
 
 server:
+  ssl:
+    enabled: false
   port: ${SERVER_PORT:8080}
   shutdown: graceful
   tomcat:
@@ -96,8 +103,13 @@ egon:
     component:
       id:
         enabled: true
-        machine-id: ${EGON_ID_MACHINE_ID}
         max-clock-backward: PT0.005S
+        redis:
+          enabled: true
+          env: ${EGON_ID_REDIS_ENV}
+          app: ${EGON_ID_REDIS_APP}
+          lease-duration: ${EGON_ID_REDIS_LEASE_DURATION:5m}
+          renew-interval: ${EGON_ID_REDIS_RENEW_INTERVAL:1m}
       dtp:
         enabled: ${DTP_ENABLED:true}
         app-name: ${DTP_APP_NAME:${spring.application.name}}
@@ -259,5 +271,5 @@ app:
       ttl: 10m
     external-http:
       enabled: false
-      user-base-url: http://localhost:18081
-      teaching-base-url: http://localhost:18082
+      user-base-url: ${USER_SERVICE_BASE_URL}
+      teaching-base-url: ${TEACHING_SERVICE_BASE_URL}

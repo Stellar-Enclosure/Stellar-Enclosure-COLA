@@ -45,6 +45,7 @@ class EvaluationExternalFreeContextTest extends top.egon.cola.archetype.source.s
 
     @Test
     void shouldAssembleWithoutExternalInfrastructure() {
+        assertThat(environment.getProperty("dubbo.provider.export", Boolean.class)).isFalse();
         assertThat(context.containsBean("courseManage")).isTrue();
         assertThat(context.containsBean("evaluationExamManage")).isTrue();
         assertThat(context.containsBean("scoreManage")).isTrue();

@@ -47,6 +47,11 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
+                <groupId>top.egon</groupId>
+                <artifactId>stellar-enclosure-component-agent-flow-starter</artifactId>
+                <version>${agent-flow.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
                 <version>${spring-ai.version}</version>

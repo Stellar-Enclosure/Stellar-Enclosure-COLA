@@ -18,7 +18,7 @@ COMMON = {
     ("top.egon", "stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter"),
     ("top.egon", "stellar-enclosure-component-dynamic-thread-pool-starter"),
 }
-EXTERNAL = {
+RETIRED_DISCOVERY = {
     ("org.springframework.cloud", "spring-cloud-starter-bootstrap"),
     ("com.alibaba.cloud", "spring-cloud-starter-alibaba-nacos-discovery"),
     ("com.alibaba.cloud", "spring-cloud-starter-alibaba-nacos-config"),
@@ -52,9 +52,7 @@ def native(coordinate):
 
 
 AGENT_TECHNICAL = frozenset({
-    ("top.egon", "stellar-enclosure-component-rpc-tianshu-adapter"),
     ("top.egon", "stellar-enclosure-tianshu-starter"),
-    ("top.egon", "stellar-enclosure-tianshu-http-registration-starter"),
     ("top.egon", "stellar-enclosure-yuheng-starter-openapi-webmvc"),
     ("top.egon", "stellar-enclosure-tianquan-jianshen-starter"),
 })
@@ -69,12 +67,13 @@ def violations(family, coordinates, runtime=False):
     failures = []
     for group, artifact in sorted(coordinates):
         approved = family == "agent" and (group, artifact) in (AGENT_TECHNICAL_RUNTIME if runtime else AGENT_TECHNICAL)
-        if (native((group, artifact)) and not approved) or (family == "agent" and (
+        retired_discovery = (group, artifact) in RETIRED_DISCOVERY or group.startswith("com.alibaba.nacos") or "nacos" in artifact
+        if retired_discovery or (native((group, artifact)) and not approved) or (family == "agent" and (
                 group.startswith(("org.apache.dubbo", "com.alibaba.nacos"))
                 or (group.startswith("org.apache.shardingsphere") and not runtime)
                 or "nacos" in artifact or (group == "top.egon" and artifact.endswith("-admin")))):
             failures.append(f"{family}: forbidden runtime dependency {group}:{artifact}")
-    required = AI | {CORE} if family == "agent" else COMMON | EXTERNAL
+    required = AI | {CORE} if family == "agent" else COMMON
     if family == "light-open" or runtime:
         required = required | {CORE}
     if family in ("light-open", "web-open"):
@@ -122,13 +121,16 @@ def persistence_violations(root, family):
     else:
         manifest = json.loads(manifests[0].read_text())
         scripts = manifest.get("scripts", [])
-        expected_scripts = 2 if family == "light" else 1
-        if manifest.get("family") != family or len(scripts) != expected_scripts:
-            failures.append(f"{family}: incorrect initialization manifest")
+        expected_scripts = [("20260913_001", "db/egon-mp/V20260913_001__initialize_repository_schema.sql")]
+        if family == "light":
+            expected_scripts.append(("20261015_001", "db/egon-mp/V20261015_001__scope_user_uniqueness_to_tenant.sql"))
+        expected_scripts.append(("20261027_001", "db/egon-mp/V20261027_001__align_readwrite_shard_tables.sql"))
+        if manifest.get("family") != family or [(s.get("version"), s.get("path")) for s in scripts] != expected_scripts:
+            failures.append(f"{family}: incorrect managed DDL manifest")
         for script in scripts:
             resource = manifests[0].parents[2] / script["path"]
             if not resource.is_file() or hashlib.sha256(resource.read_bytes()).hexdigest() != script["sha256"]:
-                failures.append(f"{family}: initialization checksum mismatch")
+                failures.append(f"{family}: managed DDL checksum mismatch")
     return failures
 
 
@@ -201,8 +203,9 @@ def cqers_violations(root, family):
 
 
 def self_test():
-    light = COMMON | EXTERNAL | {CORE, ("org.springdoc", "springdoc-openapi-starter-webmvc-ui")}
+    light = COMMON | {CORE, ("org.springdoc", "springdoc-openapi-starter-webmvc-ui")}
     assert not violations("light-open", light)
+    assert violations("light-open", light | RETIRED_DISCOVERY), "retired discovery must fail"
     assert violations("light-open", light - {CORE}), "missing Common must fail"
     assert violations("light-open", light | {("top.egon", "stellar-enclosure-component-rpc-starter")}), "native starter must fail"
     assert not violations("agent", AI | {CORE, ("io.grpc", "grpc-core")}), "ADK gRPC is permitted"
@@ -211,9 +214,11 @@ def self_test():
                                         ("org.apache.shardingsphere", "shardingsphere-jdbc")}
                           | AGENT_TECHNICAL_RUNTIME, runtime=True), "MP-owned ShardingSphere runtime stays allowed"
     assert not violations("agent", AI | {CORE} | AGENT_TECHNICAL), "approved Agent SDK owners pass"
+    for retired in ("stellar-enclosure-component-rpc-tianshu-adapter", "stellar-enclosure-tianshu-http-registration-starter"):
+        assert violations("agent", AI | {CORE} | AGENT_TECHNICAL | {("top.egon", retired)}), retired
     assert violations("agent", AI | {CORE, ("top.egon", "stellar-enclosure-tianshu-admin")}), "Agent admin dependency fails"
     assert violations("agent", AI | {CORE, ("top.egon", "stellar-enclosure-tianquan-jianshen-admin")}), "Agent identity admin dependency fails"
-    assert violations("web-open", COMMON | EXTERNAL | {CORE} | AGENT_TECHNICAL), "Open restrictions remain unchanged"
+    assert violations("web-open", COMMON | {CORE} | AGENT_TECHNICAL), "Open restrictions remain unchanged"
     pom = ET.fromstring('<project xmlns="http://maven.apache.org/POM/4.0.0"><dependencyManagement><dependencies><dependency><groupId>top.egon</groupId><artifactId>stellar-enclosure-component-rpc-starter</artifactId></dependency></dependencies></dependencyManagement></project>')
     assert not declarations(pom), "managed dependencies must not become runtime edges"
     assert runtime_coordinates('[INFO] +- io.grpc:grpc-core:jar:1.76.2:compile') == {("io.grpc", "grpc-core")}

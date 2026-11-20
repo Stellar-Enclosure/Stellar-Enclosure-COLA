@@ -1,5 +1,12 @@
 package top.egon.cola.archetype.source.web.starter.config;
 
+import java.util.Arrays;
+import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.web.bind.annotation.RequestMapping;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.PermissionResource;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.annotation.RequiresPermissions;
+import top.egon.cola.platform.tianquan.jianshen.starter.permission.PermissionDenialAudit;
+import top.egon.cola.platform.tianquan.jianshen.starter.security.Rbac3MethodAuthorizationManager;
 import graphql.GraphQLContext;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironmentImpl;
@@ -117,6 +124,9 @@ import top.egon.cola.component.rpc.provider.server.RpcProviderExceptionMapper;
 import top.egon.cola.platform.tianquan.jianshen.contract.authorization.RuntimePolicyBinding;
 import top.egon.cola.platform.tianquan.jianshen.contract.permission.CatalogScope;
 import top.egon.cola.platform.tianquan.jianshen.contract.permission.EffectivePermissionSnapshot;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.PermissionManifest;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.PermissionManifestCanonicalizer;
+import top.egon.cola.platform.tianquan.jianshen.contract.permission.PermissionRequirement;
 import top.egon.cola.platform.tianquan.jianshen.contract.authorization.Decision;
 import top.egon.cola.platform.tianquan.jianshen.contract.authorization.FieldAccessLevel;
 import top.egon.cola.platform.tianquan.jianshen.contract.authorization.FieldPolicyDecision;
@@ -129,6 +139,9 @@ import top.egon.cola.platform.tianquan.jianshen.starter.authorization.Rbac3Obser
 import top.egon.cola.platform.tianquan.jianshen.starter.autoconfigure.Rbac3StarterProperties;
 import top.egon.cola.platform.tianquan.jianshen.starter.cache.AuthorizationSnapshotCache;
 import top.egon.cola.platform.tianquan.jianshen.starter.cache.SingleFlightSnapshotLoader;
+import top.egon.cola.platform.tianquan.jianshen.starter.cache.AuthorizationSnapshotLoader;
+import top.egon.cola.platform.tianquan.jianshen.starter.permission.PermissionExecutionGuard;
+import top.egon.cola.platform.tianquan.jianshen.starter.permission.PermissionPolicyRegistry;
 import top.egon.cola.platform.tianquan.jianshen.starter.client.Rbac3AuthorizationClient;
 import top.egon.cola.platform.tianquan.jianshen.starter.field.FieldWriteAuthorizationConverter;
 import top.egon.cola.platform.tianquan.jianshen.starter.field.FieldWriteAuthorizationCommand;
@@ -163,6 +176,7 @@ import top.egon.cola.platform.tianquan.shoubing.starter.security.UserAccessToken
 import top.egon.cola.platform.tianquan.shoubing.starter.security.VerifiedPrincipalConverter;
 import top.egon.cola.platform.tianquan.shoubing.starter.security.VerifiedTenantContextFilter;
 import top.egon.cola.platform.tianquan.shoubing.starter.security.domain.IdpAuthorizationObservationContextBO;
+import top.egon.cola.platform.tianquan.shoubing.starter.security.domain.TokenAuditProofBO;
 import top.egon.cola.platform.tianquan.shoubing.starter.security.domain.converter.TokenUsageAuditEventConverter;
 import top.egon.cola.platform.tianquan.shoubing.starter.security.rpc.IdpRpcBearerServerInterceptor;
 import top.egon.cola.platform.tianquan.shoubing.starter.security.rpc.IdpRpcSecurityContext;
@@ -236,13 +250,23 @@ public class NativeSecurityContractTest {
             return row;
         });
         try (var security = new SecurityFixture(temporary)) {
-            hostRunner(users, security).run(context -> {
+            hostRunner(users, security, security.compiledReadAdvisor).run(context -> {
                 assertThat(context).hasNotFailed();
                 var mvc = MockMvcBuilders.webAppContextSetup(context).addFilter(context.getBean("springSecurityFilterChain", Filter.class)).build();
                 mvc.perform(get("/api/v1/users/1001").header("Authorization", "Bearer " + security.token("1001", Set.of("openid"))))
                         .andExpect(status().isForbidden());
-                assertThat(security.permissionChecks).isZero(); verifyNoInteractions(users);
-                mvc.perform(get("/api/v1/users/1001").header("Authorization", "Bearer " + security.token("1002", Set.of(SecurityFixture.SYSTEM + ":user:read")))
+                assertThat(security.permissionChecks).isZero();
+                verifyNoInteractions(users);
+
+                String permission = SecurityFixture.SYSTEM + ":user:read";
+                security.permissions.remove(permission);
+                mvc.perform(get("/api/v1/users/1001").header("Authorization", "Bearer " + security.token("1002", Set.of(permission))))
+                        .andExpect(status().isForbidden());
+                verifyNoInteractions(users);
+
+                security.permissions.add(permission);
+                security.clearSnapshots();
+                mvc.perform(get("/api/v1/users/1001").header("Authorization", "Bearer " + security.token("1002", Set.of(permission)))
                                 .header("X-Tenant-Id", "9999").header("X-Actor-Id", "forged").header("X-Actor-Roles", "SYSTEM"))
                         .andExpect(status().isOk()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.name").value("Reader"));
                 assertThat(security.permissionChecks).isGreaterThan(0);
@@ -302,6 +326,11 @@ public class NativeSecurityContractTest {
     }
 
     static WebApplicationContextRunner hostRunner(UserRepository users, SecurityFixture security) {
+        return hostRunner(users, security, security.advisor);
+    }
+
+    private static WebApplicationContextRunner hostRunner(UserRepository users, SecurityFixture security,
+            AuthorizationManagerBeforeMethodInterceptor authorizationAdvisor) {
         return new WebApplicationContextRunner().withBean("jacksonObjectMapper", ObjectMapper.class, () -> security.mapper).withPropertyValues("spring.http.converters.preferred-json-mapper=jackson2", "spring.graphql.schema.locations=classpath*:graphql/**/").withConfiguration(AutoConfigurations.of(SecurityAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class,
                         SecurityFilterAutoConfiguration.class, WebMvcAutoConfiguration.class, Jackson2AutoConfiguration.class,
                         HttpMessageConvertersAutoConfiguration.class))
@@ -318,7 +347,7 @@ public class NativeSecurityContractTest {
                 .withBean("rbac3AuthorizationExceptionHandler", Rbac3AuthorizationExceptionHandler.class, Rbac3AuthorizationExceptionHandler::new)
                 .withBean("rbac3FieldWriteAuthorizationComponent", Rbac3FieldWriteAuthorizationComponent.class, () -> security.fields)
                 .withBean("egon.cola.platform.tianquan.jianshen-top.egon.cola.platform.tianquan.jianshen.starter.autoconfigure.Rbac3StarterProperties", Rbac3StarterProperties.class, () -> security.properties)
-                .withBean("rbac3MethodAuthorizationInterceptor", AuthorizationManagerBeforeMethodInterceptor.class, () -> security.advisor,
+                .withBean("rbac3MethodAuthorizationInterceptor", AuthorizationManagerBeforeMethodInterceptor.class, () -> authorizationAdvisor,
                         definition -> definition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE));
     }
 
@@ -466,24 +495,35 @@ public class NativeSecurityContractTest {
                         assertThat(security.permissionChecks).as("delegated scope must precede PDP").isZero();
                         Set<String> delegatedScopes = Set.copyOf(security.permissions);
                         security.permissions.clear();
-                        SecurityContextHolder.getContext().setAuthentication(security.authenticatedUser("1001", delegatedScopes));
+                        String verifiedBearer = security.token("1001", delegatedScopes);
+                        var caller = security.authenticate(verifiedBearer);
+                        SecurityContextHolder.getContext().setAuthentication(caller);
+                        var callback = IdpRpcSecurityContext.with(((Rbac3UserDetails) caller.getPrincipal()).identity(),
+                                verifiedBearer, (TokenAuditProofBO) caller.getDetails(),
+                                new IdpAuthorizationObservationContextBO(), delegatedScopes);
+                        var previous = callback.attach();
                         int fineGrainedEntries = 0;
-                        for (Class<?> type : List.of(GradeController.class, SchoolClassController.class, SchoolClassResolver.class,
-                                PermissionController.class, RoleController.class, UserController.class, UserResolver.class)) {
-                            Object proxy = context.getBean(type);
-                            for (var method : type.getDeclaredMethods()) {
-                                if (!method.isAnnotationPresent(org.springframework.security.access.prepost.PreAuthorize.class)) { continue; }
-                                Object[] arguments = new Object[method.getParameterCount()];
-                                var parameterTypes = method.getParameterTypes();
-                                for (int i = 0; i < arguments.length; i++) {
-                                    if (parameterTypes[i] == String.class) { arguments[i] = "1001"; }
+                        try {
+                            for (Class<?> type : List.of(GradeController.class, SchoolClassController.class, SchoolClassResolver.class,
+                                    PermissionController.class, RoleController.class, UserController.class, UserResolver.class)) {
+                                Object proxy = context.getBean(type);
+                                for (var method : type.getDeclaredMethods()) {
+                                    if (!method.isAnnotationPresent(org.springframework.security.access.prepost.PreAuthorize.class)) { continue; }
+                                    Object[] arguments = new Object[method.getParameterCount()];
+                                    var parameterTypes = method.getParameterTypes();
+                                    for (int i = 0; i < arguments.length; i++) {
+                                        if (parameterTypes[i] == String.class) { arguments[i] = "1001"; }
+                                    }
+                                    Throwable rejected = org.assertj.core.api.Assertions.catchThrowable(() -> method.invoke(proxy, arguments));
+                                    assertThat(rejected).as(type.getSimpleName() + "." + method.getName()).isInstanceOf(java.lang.reflect.InvocationTargetException.class);
+                                    assertThat(rejected.getCause()).isInstanceOfAny(org.springframework.security.access.AccessDeniedException.class,
+                                            DefaultAuthorizationService.AuthorizationDeniedException.class);
+                                    fineGrainedEntries++;
                                 }
-                                Throwable rejected = org.assertj.core.api.Assertions.catchThrowable(() -> method.invoke(proxy, arguments));
-                                assertThat(rejected).as(type.getSimpleName() + "." + method.getName()).isInstanceOf(java.lang.reflect.InvocationTargetException.class);
-                                assertThat(rejected.getCause()).isInstanceOfAny(org.springframework.security.access.AccessDeniedException.class,
-                                        DefaultAuthorizationService.AuthorizationDeniedException.class);
-                                fineGrainedEntries++;
                             }
+                        } finally {
+                            callback.detach(previous);
+                            SecurityContextHolder.clearContext();
                         }
                         assertThat(fineGrainedEntries).isEqualTo(20);
                         assertThat(security.permissionChecks).isGreaterThan(0);
@@ -686,6 +726,7 @@ public class NativeSecurityContractTest {
         public final AuthorizationService authorization;
         public final Rbac3FieldWriteAuthorizationComponent fields;
         public final AuthorizationManagerBeforeMethodInterceptor advisor;
+        public final AuthorizationManagerBeforeMethodInterceptor compiledReadAdvisor;
         public final MockRestServiceServer jwks;
         public final RSAKey key;
         public final Set<String> permissions = new HashSet<>();
@@ -694,6 +735,7 @@ public class NativeSecurityContractTest {
         public FieldAccessLevel fieldLevel = FieldAccessLevel.WRITE;
         public boolean explicitFieldRules = true;
         public int permissionChecks;
+        private final RuntimePolicyBinding runtimePolicyBinding;
         private final AtomicLong tokenIds = new AtomicLong(900);
         private final Map<AuthorizationSnapshotCache.Key,SystemAuthorizationSnapshot> stored = new ConcurrentHashMap<>();
 
@@ -780,18 +822,77 @@ public class NativeSecurityContractTest {
             fields = new Rbac3FieldWriteAuthorizationComponent(authorization,
                     new CurrentRbac3User(),
                     Mappers.getMapper(FieldWriteAuthorizationConverter.class),validator);
-            var manager = top.egon.cola.platform.tianquan.jianshen.starter.security.Rbac3MethodAuthorizationManager
-                    .createConfigured(authorization, properties.getUserScopePolicy(), observations, metrics::add, validator);
+            var manifest = httpManifest();
+            var digests = new PermissionManifestCanonicalizer().digests(manifest);
+            String artifactDigest = "a".repeat(64);
+            runtimePolicyBinding = new RuntimePolicyBinding("fixture-producer", "1", artifactDigest,
+                    digests.policyDigest(), digests.manifestDigest());
+            var policyRegistry = new PermissionPolicyRegistry(manifest, artifactDigest, clock,
+                    List.of(catalogScope("1"), catalogScope("1001"), catalogScope("1002")));
+            var policySnapshots = new AuthorizationSnapshotLoader((system, identity) -> {
+                permissionChecks++;
+                if (!snapshotAvailable) throw new Rbac3AuthorizationClient.AuthorizationUnavailableException("PDP_UNAVAILABLE");
+                return snapshot(identity);
+            }, SYSTEM, clock);
+            var guard = new PermissionExecutionGuard(policyRegistry, new CurrentRbac3User(), policySnapshots, null,
+                    properties.getUserScopePolicy(), new PermissionDenialAudit(() -> observations));
+            var compiled = new Rbac3MethodAuthorizationManager(authorization, guard);
+            compiledReadAdvisor = authorizationInterceptor(compiled, compiled);
+            var generic = Rbac3MethodAuthorizationManager.createConfigured(
+                    authorization, properties.getUserScopePolicy(), observations, metrics::add, validator);
+            advisor = authorizationInterceptor(compiled, generic);
+        }
+
+        private static AuthorizationManagerBeforeMethodInterceptor authorizationInterceptor(
+                Rbac3MethodAuthorizationManager compiled, Rbac3MethodAuthorizationManager generic) {
             var pointcut = new org.springframework.aop.support.StaticMethodMatcherPointcut() {
                 @Override public boolean matches(java.lang.reflect.Method method, Class<?> targetClass) {
-                    return manager.supports(method, targetClass);
+                    return generic.supports(method, targetClass);
                 }
             };
-            advisor = new AuthorizationManagerBeforeMethodInterceptor(pointcut, manager);
-            advisor.setOrder(org.springframework.security.authorization.method.AuthorizationInterceptorsOrder.PRE_AUTHORIZE.getOrder() + 1);
+            var interceptor = new AuthorizationManagerBeforeMethodInterceptor(pointcut, (authentication, invocation) ->
+                    (invocation.getMethod().isAnnotationPresent(PermissionResource.class) ? compiled : generic)
+                            .authorize(authentication, invocation));
+            interceptor.setOrder(org.springframework.security.authorization.method.AuthorizationInterceptorsOrder.PRE_AUTHORIZE.getOrder() + 1);
+            return interceptor;
+        }
+
+        private static PermissionManifest httpManifest() {
+            var resources = new java.util.ArrayList<PermissionManifest.ResourceDefinition>();
+            for (var controller : List.of(UserController.class, RoleController.class, PermissionController.class,
+                    GradeController.class, SchoolClassController.class)) {
+                var base = AnnotatedElementUtils.findMergedAnnotation(controller, RequestMapping.class);
+                String root = base == null ? "" : base.path()[0];
+                for (var method : controller.getDeclaredMethods()) {
+                    var declaration = method.getAnnotation(PermissionResource.class);
+                    if (declaration == null) continue;
+                    var mapping = java.util.Objects.requireNonNull(
+                            AnnotatedElementUtils.findMergedAnnotation(method, RequestMapping.class));
+                    var requirement = java.util.Objects.requireNonNull(method.getAnnotation(RequiresPermissions.class));
+                    List<String> paths = mapping.path().length == 0 ? List.of(root)
+                            : Arrays.stream(mapping.path()).map(path -> root + path).toList();
+                    var verbs = Arrays.stream(mapping.method()).map(Enum::name).toList();
+                    resources.add(new PermissionManifest.ResourceDefinition(declaration.key(), declaration.type(),
+                            Map.of("methods", verbs, "paths", paths), declaration.access(),
+                            new PermissionRequirement(requirement.mode(), List.of(requirement.codes())), null,
+                            List.of(declaration.allowedPrincipals()), List.of(declaration.oauthScopes()),
+                            new PermissionManifest.I18nReference(declaration.labelPage(), declaration.labelKey()),
+                            declaration.lifecycle()));
+                }
+            }
+            var codes = resources.stream().flatMap(resource -> resource.requirement().codes().stream()).distinct().toList();
+            return new PermissionManifest("1.0", new PermissionManifest.Application("sample", SYSTEM),
+                    new PermissionManifest.Producer("fixture-producer", PermissionManifest.ProducerKind.JAVA,
+                            PermissionManifest.SnapshotMode.FULL, List.of(SYSTEM + "."), List.of("adapter"), List.of("adapter"), false),
+                    new PermissionManifest.Artifact("https://git.example.test/sample", "a".repeat(40), "fixture-build", "1"),
+                    List.of(), codes, resources, List.of(), List.of());
         }
 
         public void clearSnapshots() { stored.clear(); }
+
+        private CatalogScope catalogScope(String tenant) {
+            return new CatalogScope("1", tenant, "sample", SYSTEM, "default", "test");
+        }
 
         public SystemAuthorizationSnapshot snapshot(IdentityPrincipal principal) {
             var fieldPolicies = new LinkedHashMap<String,FieldPolicyDecision>();
@@ -817,16 +918,19 @@ public class NativeSecurityContractTest {
                 }
             });
             var effectivePermissions = new EffectivePermissionSnapshot("https://auth.example.test/tenants/" + principal.tenantId(),
-                    principal.subject(), new CatalogScope("1", principal.tenantId(), "sample", SYSTEM, "default", "test"),
+                    principal.subject(), catalogScope(principal.tenantId()),
                     "1", "1", "2", new EffectivePermissionSnapshot.ActiveRoleContext(SYSTEM, List.of("501"), List.of("501")),
                     List.copyOf(permissions), NOW.plusSeconds(300));
-            var binding = new RuntimePolicyBinding("fixture-producer", "1", "a".repeat(64), "b".repeat(64), "c".repeat(64));
             return new SystemAuthorizationSnapshot(principal.tenantId(),principal.subject(),"2001",SecurityFixture.SYSTEM,
-                    1,2,List.of("501"),null,null,Set.copyOf(permissions),Set.copyOf(resources),Map.of(),fieldPolicies,"sha256:fixture",NOW,NOW.plusSeconds(300), effectivePermissions, binding);
+                    1,2,List.of("501"),null,null,Set.copyOf(permissions),Set.copyOf(resources),Map.of(),fieldPolicies,"sha256:fixture",NOW,NOW.plusSeconds(300), effectivePermissions, runtimePolicyBinding);
         }
 
         public Rbac3AuthenticationToken authenticatedUser(String tenant, Set<String> scopes) throws Exception {
-            var result = verifier.verifyUser(token(tenant,scopes));
+            return authenticate(token(tenant, scopes));
+        }
+
+        private Rbac3AuthenticationToken authenticate(String bearer) {
+            var result = verifier.verifyUser(bearer);
             assertThat(result).isInstanceOf(AccessTokenVerification.Valid.class);
             var verified = (AccessTokenVerification.Valid<?>) result;
             var identity = (IdentityPrincipal) verified.principal();

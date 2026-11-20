@@ -15,6 +15,7 @@
 
     <properties>
         <archetype.preflight.skip>true</archetype.preflight.skip>
+        <egon.test.triple.enabled>false</egon.test.triple.enabled>
     </properties>
     <url>https://github.com/Stellar-Enclosure/Stellar-Enclosure-COLA</url>
 
@@ -88,6 +89,14 @@
             </plugin>
             <plugin>
                 <artifactId>maven-jar-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <artifactId>maven-archetype-plugin</artifactId>
+                <configuration>
+                    <properties>
+                        <egon.test.triple.enabled>${egon.test.triple.enabled}</egon.test.triple.enabled>
+                    </properties>
+                </configuration>
             </plugin>
         </plugins>
     </build>

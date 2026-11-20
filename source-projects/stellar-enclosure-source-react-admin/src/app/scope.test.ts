@@ -1,12 +1,11 @@
 import {describe, expect, it} from 'vitest'
-import type {GatewayIdentityResult} from '@stellar-enclosure/stellar-enclosure-web-shared'
+import type {PublicOAuthIdentity} from '@stellar-enclosure/stellar-enclosure-web-shared'
 import type {PermissionSnapshot} from '@stellar-enclosure/stellar-enclosure-web-shared/permissions'
 import {matchesCurrentScope} from './scope'
 
-const identity: GatewayIdentityResult = {
-  issuer: 'https://identity.example/tenants/42', tenantId: '42', subject: 'user', appAlias: 'edge-example', clientId: 'client',
-  authorizationExpiresAt: 2_000_000_000, authenticationExpiresAt: 2_000_000_000,
-  securityVersion: {realm: '1', client: '1', subject: '1'}, ssoLogoutUri: 'https://identity.example/logout',
+const identity: PublicOAuthIdentity = {
+  issuer: 'https://identity.example/tenants/42', tenantId: '42', subject: 'user', clientId: 'client',
+  resource: 'https://resource.example/orders', accessExpiresAt: 2_000_000_000_000,
 }
 const snapshot: PermissionSnapshot = {
   issuer: identity.issuer, subject: identity.subject,

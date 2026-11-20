@@ -14,8 +14,6 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.context.ActiveProfiles;
 import top.egon.cola.component.rpc.config.EgonRpcProperties;
 import top.egon.cola.component.tianshu.autoconfigure.properties.DdcProperties;
-import top.egon.cola.component.rpc.tianshu.autoconfigure.DdcRpcProperties;
-import top.egon.cola.component.tianshu.http.registration.DdcHttpRegistrationProperties;
 import top.egon.cola.component.common.core.validation.ValidationUtils;
 import top.egon.cola.archetype.source.web.adapter.pojo.convertor.OrganizationFacadeConverter;
 import top.egon.cola.archetype.source.web.facade.user.UserFacade;
@@ -44,7 +42,7 @@ class NativeWebConfigurationTest extends top.egon.cola.archetype.source.web.supp
         assertThat(context.containsBean("ddcHttpRegistrationRuntime")).isFalse();
         assertThat(context.containsBean("ddcRedissonClient")).isFalse();
         for (String suffix : new String[]{"rpc.enabled", "rpc.provider.enabled", "rpc.consumer.enabled",
-                "tianshu.enabled", "tianshu.registry.enabled", "tianshu.redis.enabled", "tianshu.registry.http.enabled"}) {
+                "tianshu.enabled", "tianshu.delivery.enabled"}) {
             assertThat(environment.getProperty("egon.cola.component." + suffix)).as(suffix).isEqualTo("false");
         }
         assertThat(environment.getProperty("egon.cola.platform.tianquan.shoubing.enabled")).isEqualTo("false");
@@ -56,26 +54,34 @@ class NativeWebConfigurationTest extends top.egon.cola.archetype.source.web.supp
         for (String profile : new String[]{"dev", "test", "prod"}) {
             assertThat(keys(properties("application-" + profile + ".yml"))).as(profile).isEqualTo(expected);
         }
-        assertThat(properties("application-prod.yml").getProperty("egon.cola.component.rpc.tls.enabled"))
-                .isEqualTo("${RPC_TLS_ENABLED:true}");
+        var prod = properties("application-prod.yml");
+        assertThat(prod.getProperty("egon.cola.component.rpc.transport")).isEqualTo("h2c");
+        assertThat(prod.getProperty("server.ssl.enabled")).isEqualTo("false");
+        assertThat(prod.getProperty("spring.config.import[0]")).startsWith("tianshu-baseline:");
         assertThat(properties("application-test.yml").getProperty("organization.integrations.evaluation.version"))
                 .endsWith(":1.0.0}");
     }
 
     @Test
-    void binds_actual_rpc_ddc_and_http_registration_prefixes() {
+    void binds_exact_peer_methods_and_the_native_delivery_prefix() {
         var binder = Binder.get(environment);
         var rpc = binder.bind("egon.cola.component.rpc", EgonRpcProperties.class).get();
         var ddc = binder.bind("egon.cola.component.tianshu", DdcProperties.class).get();
-        var transport = binder.bind("egon.cola.component.tianshu.rpc", DdcRpcProperties.class).get();
-        var http = binder.bind("egon.cola.component.tianshu.registry.http", DdcHttpRegistrationProperties.class).get();
         assertThat(rpc.isEnabled()).isFalse();
+        assertThat(rpc.getTransport()).isEqualTo("h2c");
         assertThat(rpc.getProvider().getPort()).isEqualTo(50051);
-        assertThat(ddc.getAppCode()).isEqualTo("stellar-enclosure-source-web");
-        assertThat(ddc.getEnv()).isEqualTo("test");
-        assertThat(transport.getTls().isDevelopmentPlaintext()).isTrue();
-        assertThat(http.isEnabled()).isFalse();
-        assertThat(http.getServiceName()).isEqualTo("stellar-enclosure-source-web");
+        assertThat(rpc.getConsumer().getBindings()).containsOnlyKeys("evaluation-course-read", "evaluation-exam-read", "evaluation-score-read");
+        rpc.getConsumer().getBindings().forEach((id, binding) -> {
+            assertThat(binding.getNamespace()).isEqualTo("fixture");
+            assertThat(binding.getService()).isEqualTo("evaluation");
+            assertThat(binding.getMethods()).containsExactly(environment.getRequiredProperty(
+                    "egon.cola.platform.tianquan.shoubing.rpc.consumer.bindings." + id + ".full-method-name"));
+        });
+        assertThat(ddc.isEnabled()).isFalse();
+        assertThat(ddc.getDelivery().isEnabled()).isFalse();
+        assertThat(ddc.getDelivery().getServiceOrigin()).isEqualTo(java.net.URI.create("http://tianshu-config.platform-system.svc.cluster.local"));
+        assertThat(environment.getProperty("egon.cola.component.tianshu.baseline.scope.app-code")).isEqualTo("stellar-enclosure-source-web");
+        assertThat(environment.containsProperty("egon.cola.component.tianshu.registry.http.enabled")).isFalse();
     }
 
     private Properties properties(String path) {

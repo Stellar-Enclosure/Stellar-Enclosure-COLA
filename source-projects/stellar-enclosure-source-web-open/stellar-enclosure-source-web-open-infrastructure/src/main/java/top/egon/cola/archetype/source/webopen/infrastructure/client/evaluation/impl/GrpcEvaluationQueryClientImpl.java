@@ -1,6 +1,5 @@
 package top.egon.cola.archetype.source.webopen.infrastructure.client.evaluation.impl;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import top.egon.cola.archetype.source.webopen.common.exception.ExternalDependencyException;
 import top.egon.cola.archetype.source.webopen.common.enums.ExternalDependencyFailure;
 import top.egon.cola.archetype.source.webopen.domain.teaching.vos.EvaluationCourseBO;
@@ -22,36 +21,53 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.MethodDescriptor;
 import io.grpc.protobuf.ProtoUtils;
 import io.grpc.stub.ClientCalls;
-import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /** Standard gRPC client for the three read-only Evaluation Triple methods. */
 @Component("evaluationQueryClient")
 @Profile({"dev", "prod"})
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
+@Slf4j
 public class GrpcEvaluationQueryClientImpl implements EvaluationQueryClient {
 
     private static final String COURSE_SERVICE = "egon.evaluation.v1.CourseService";
     private static final String EXAM_SERVICE = "egon.evaluation.v1.ExamService";
     private static final String SCORE_SERVICE = "egon.evaluation.v1.ScoreService";
 
+    private static final String SERVICE_LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+    private static final Pattern KUBERNETES_TARGET = Pattern.compile(
+            "dns:///" + SERVICE_LABEL + "\\." + SERVICE_LABEL + "\\.svc\\.cluster\\.local:50051");
+
+    @Qualifier("evaluationGrpcChannel")
     private final ManagedChannel channel;
+    @Qualifier("evaluationGrpcDeadline")
     private final Duration deadline;
 
-    @Autowired
-    public GrpcEvaluationQueryClientImpl(OrganizationIntegrationProperties properties) {
-        this(ManagedChannelBuilder.forTarget(properties.getIntegrations().getEvaluation().getGrpcTarget())
-                        .usePlaintext()
-                        .build(),
-                properties.getIntegrations().getEvaluation().getGrpcDeadline());
+    @Bean(name = "evaluationGrpcChannel", destroyMethod = "shutdown")
+    static ManagedChannel evaluationGrpcChannel(
+            @Qualifier("organizationIntegrationProperties") OrganizationIntegrationProperties properties) {
+        String target = properties.getIntegrations().getEvaluation().getGrpcTarget();
+        if (target == null || !KUBERNETES_TARGET.matcher(target).matches()) {
+            throw new IllegalArgumentException("Evaluation gRPC target must name an approved Kubernetes Service");
+        }
+        log.debug("Creating the Evaluation gRPC channel for the configured Kubernetes Service");
+        return ManagedChannelBuilder.forTarget(target).usePlaintext().disableRetry().build();
     }
 
-    GrpcEvaluationQueryClientImpl(ManagedChannel channel, Duration deadline) {
-        this.channel = channel;
-        this.deadline = deadline;
+    @Bean("evaluationGrpcDeadline")
+    static Duration evaluationGrpcDeadline(
+            @Qualifier("organizationIntegrationProperties") OrganizationIntegrationProperties properties) {
+        return properties.getIntegrations().getEvaluation().getGrpcDeadline();
     }
 
     @Override
@@ -116,11 +132,6 @@ public class GrpcEvaluationQueryClientImpl implements EvaluationQueryClient {
         } catch (RuntimeException failure) {
             throw EvaluationClientFailureMapper.map(failure);
         }
-    }
-
-    @PreDestroy
-    public void close() {
-        channel.shutdown();
     }
 
     private CallOptions callOptions() {

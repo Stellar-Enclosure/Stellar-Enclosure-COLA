@@ -22,6 +22,8 @@ import org.springframework.stereotype.Component;
 public class DubboOrganizationDirectoryClientImpl implements OrganizationDirectoryClient {
 
     @DubboReference(
+            url = "${app.integrations.organization.triple-target}",
+            protocol = "tri",
             group = "${app.integrations.organization.group:student-management-organization}",
             version = "${app.integrations.organization.version:1.0.0}",
             retries = 0,
@@ -29,6 +31,8 @@ public class DubboOrganizationDirectoryClientImpl implements OrganizationDirecto
     private UserService userService;
 
     @DubboReference(
+            url = "${app.integrations.organization.triple-target}",
+            protocol = "tri",
             group = "${app.integrations.organization.group:student-management-organization}",
             version = "${app.integrations.organization.version:1.0.0}",
             retries = 0,

@@ -245,113 +245,32 @@ assertFile("README.md")
 assertFile(".dockerignore")
 assert assertFile("README.md").text.contains("Docker")
 assertPortableDockerfile("target/*.jar", "8080 50051", "8080")
-def developmentEnv = assertFile("deploy/env/.env.example").text
-def productionEnv = assertFile("deploy/env/.env.prod.example").text
+assert !new File(generatedProjectDir, "deploy/compose").exists()
+assert !new File(generatedProjectDir, "deploy/env").exists()
+def workload = assertFile("deploy/kubernetes/workload.yaml").text
+def workloadApp = new XmlSlurper(false, false).parse(assertFile("pom.xml")).artifactId.text()
 [
-    "POSTGRES_IMAGE=postgres:17-alpine",
-    "REDIS_IMAGE=redis:7.4-alpine",
-    "RABBITMQ_IMAGE=rabbitmq:4-management",
-    "POSTGRES_PASSWORD=",
-    "REDIS_PASSWORD=",
-    "RABBITMQ_PASSWORD="
-].each { expected ->
-    assert productionEnv.readLines().contains(expected):
-            "Expected production env example line ${expected}"
+    "name: ${workloadApp}-http",
+    "name: ${workloadApp}-rpc",
+    "name: ${workloadApp}-rpc-stable",
+    "targetPort: 19099",
+    "appProtocol: kubernetes.io/h2c",
+    "kind: GRPCRoute",
+    "kind: CiliumNetworkPolicy",
+    "audience: tianshu-config",
+    "fieldPath: metadata.uid",
+    "fieldPath: status.podIP",
+    "mountPath: /var/run/tianshu/config",
+    "mountPath: /var/run/tianshu/identity",
+    "port: management"
+].each { token ->
+    assert workload.contains(token.toString()): "Expected generated workload to contain ${token}"
 }
-[
-    "POSTGRES_PASSWORD=local-postgres",
-    "REDIS_PASSWORD=local-redis",
-    "RABBITMQ_PASSWORD=local-rabbitmq"
-].each { forbidden ->
-    assert !productionEnv.contains(forbidden):
-            "Production env example must not contain development credential ${forbidden}"
+['${artifactId}', '${rootArtifactId}', '${package}', 'EGON_ID_MACHINE_ID', 'hostPort:', 'kind: Ingress',
+ 'kind: Gateway', 'type: LoadBalancer', 'type: NodePort'].each { forbidden ->
+    assert !workload.contains(forbidden): "Disallowed generated workload input ${forbidden}"
 }
-assert developmentEnv.contains("IMAGE_TAG=local")
-assert developmentEnv.contains("TIANSHU_RPC_TARGET=")
-assert productionEnv.contains("REGISTRY=")
-assert productionEnv.contains("REGISTRY_NAMESPACE=")
-assert productionEnv.contains("IMAGE_TAG=")
-assert developmentEnv.contains("IMAGE_NAME=basic")
-assert developmentEnv.contains("POSTGRES_DB=student_management")
-assert developmentEnv.contains("EXTERNAL_HTTP_ENABLED=false")
-def assertDevelopmentCompose = { fileName, engine, requiredApplicationLines ->
-    def text = assertFile("deploy/compose/${fileName}").text
-    ["application:", "postgres-master-data:", "postgres-shard-0:",
-     "postgres-shard-1:", "redis:", "rabbitmq:",
-     "healthcheck:", "networks:", "volumes:", "application_logs:"].each { token ->
-        assert text.contains(token): "Expected ${fileName} to contain ${token}"
-    }
-    assert text.contains("CONTAINER_ENGINE: ${engine}")
-    assert text.contains("dockerfile: deploy/container/Dockerfile")
-    assert text.contains("context: ../..")
-    assert text.contains('stop_grace_period: ${STOP_GRACE_PERIOD:-40s}')
-    assert text.contains('SPRING_PROFILES_ACTIVE: dev')
-    assert text.contains('APP_DATASOURCE_MODE: "SHARDING"')
-    assert !text.contains('APP_DATASOURCE_MODE: ${APP_DATASOURCE_MODE')
-    assert text.contains('jdbc:postgresql://postgres-master-data:5432/${POSTGRES_DB}')
-    assert text.contains('jdbc:postgresql://postgres-shard-0:5432/${POSTGRES_DB}')
-    assert text.contains('jdbc:postgresql://postgres-shard-1:5432/${POSTGRES_DB}')
-    assert text.contains("TIANSHU_RPC_TARGET:")
-    assert text.contains("TIANSHU_REGISTRY_ACCESS_KEY:")
-    assert text.contains('pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"')
-    assert text.contains('redis-cli --no-auth-warning -a "$${REDIS_PASSWORD}" ping')
-    assert text.contains('["CMD", "rabbitmq-diagnostics", "-q", "ping"]')
-    requiredApplicationLines.each { required ->
-        assert text.contains(required): "Expected ${fileName} to contain ${required}"
-    }
-}
-def developmentComposeFiles = [
-    "compose.docker.yaml" : "docker",
-    "compose.podman.yaml" : "podman",
-    "compose.nerdctl.yaml": "nerdctl"
-]
-developmentComposeFiles.each { fileName, engine ->
-    assertDevelopmentCompose(fileName, engine, [
-        'SERVER_PORT: ${APPLICATION_PORT:-8080}',
-        'EXTERNAL_HTTP_ENABLED: "false"',
-        '"${APPLICATION_PORT:-8080}:${APPLICATION_PORT:-8080}"'
-    ])
-}
-def assertProductionCompose = { fileName, requiredApplicationLines ->
-    def text = assertFile("deploy/compose/${fileName}").text
-    ["application:", "postgres-master-data:", "postgres-shard-0:",
-     "postgres-shard-1:", "redis:", "rabbitmq:",
-     "healthcheck:", "networks:", "volumes:", "application_logs:",
-     "read_only: true", "tmpfs:", "mem_limit:", "cpus:",
-     "restart: unless-stopped"].each { token ->
-        assert text.contains(token): "Expected ${fileName} to contain ${token}"
-    }
-    assert text.contains('${REGISTRY:?Set REGISTRY}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/${IMAGE_NAME:?Set IMAGE_NAME}:${IMAGE_TAG:?Set IMAGE_TAG}')
-    assert text.contains('stop_grace_period: ${STOP_GRACE_PERIOD:-40s}')
-    assert text.contains("SPRING_PROFILES_ACTIVE: prod")
-    assert text.contains('APP_DATASOURCE_MODE: "SHARDING"')
-    assert !text.contains('APP_DATASOURCE_MODE: ${APP_DATASOURCE_MODE')
-    assert text.contains('${POSTGRES_USER:?Set POSTGRES_USER}')
-    assert text.contains('${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}')
-    assert text.contains('${REDIS_PASSWORD:?Set REDIS_PASSWORD}')
-    assert text.contains('${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD}')
-    assert text.contains('TIANSHU_REGISTRY_SECRET_KEY: ${TIANSHU_REGISTRY_SECRET_KEY}')
-    assert !text.contains("build:")
-    assert !text.contains("local-postgres")
-    assert !text.contains("local-redis")
-    assert !text.contains("local-rabbitmq")
-    assert !text.contains('${POSTGRES_PORT:-5432}:5432')
-    assert !text.contains('${RABBITMQ_MANAGEMENT_PORT:-15672}:15672')
-    requiredApplicationLines.each { required ->
-        assert text.contains(required): "Expected ${fileName} to contain ${required}"
-    }
-}
-def productionComposeFiles = [
-    "compose.docker.prod.yaml",
-    "compose.podman.prod.yaml",
-    "compose.nerdctl.prod.yaml"
-]
-productionComposeFiles.each { fileName ->
-    assertProductionCompose(fileName, [
-        'SERVER_PORT: ${APPLICATION_PORT:-8080}',
-        'EXTERNAL_HTTP_ENABLED: "${EXTERNAL_HTTP_ENABLED:-false}"'
-    ])
-}
+assert assertFile("deploy/kubernetes/README.md").text.contains("immutable ConfigMap")
 def jenkinsfile = assertFile("Jenkinsfile").text
 [
     "pipeline {",
@@ -382,31 +301,11 @@ assert !jenkinsfile.contains("podman compose")
 assert !jenkinsfile.contains("nerdctl compose")
 assert !jenkinsfile.contains("withRegistry")
 def deliveryReadme = assertFile("deploy/container/README.md").text
-def normalizedDeliveryReadme = deliveryReadme.replaceAll(/\s+/, " ")
-[
-    "One Portable Dockerfile",
-    "Docker",
-    "Podman",
-    "nerdctl",
-    "Rootless And Rootful",
-    "Development Compose",
-    "Production Compose",
-    "Persistent Data",
-    "Jenkins",
-    "does not provide high availability"
-].each { token ->
-    assert normalizedDeliveryReadme.contains(token): "Expected deployment README to contain ${token}"
+["Docker", "Podman", "nerdctl", "Jenkins", "../kubernetes/README.md"].each { token ->
+    assert deliveryReadme.contains(token): "Expected OCI README to contain ${token}"
 }
-
 def generatedReadme = assertFile("README.md").text
-[
-    "deploy/container/Dockerfile",
-    "compose.docker.yaml",
-    "compose.podman.yaml",
-    "compose.nerdctl.yaml",
-    "Jenkinsfile",
-    "PUBLISH_IMAGE"
-].each { token ->
+["deploy/container/Dockerfile", "deploy/kubernetes/README.md", "Jenkinsfile", "PUBLISH_IMAGE"].each { token ->
     assert generatedReadme.contains(token): "Expected generated README to contain ${token}"
 }
 assert generatedReadme.contains("`dev` is the default profile")
@@ -601,7 +500,8 @@ assert applicationYaml.contains("tomcat:")
 assert applicationYaml.contains('${TOMCAT_MAX_CONNECTIONS:8192}')
 assert applicationYaml.contains('port: ${RPC_PORT:50051}')
 assert applicationYaml.contains("default-timeout-ms: 3000")
-assert applicationYaml.contains("max-retries: 0")
+assert applicationYaml.contains("transport: h2c")
+assert !applicationYaml.contains("max-retries:"): "Retired per-profile transport retries must be absent"
 
 def wrapper = assertFile(".mvn/wrapper/maven-wrapper.properties").text
 assert wrapper.contains("apache-maven/3.9.14/apache-maven-3.9.14-bin.zip")
@@ -1368,7 +1268,7 @@ assert readme.contains("adapter        -> application, facade")
 assert readme.contains("infrastructure -> domain")
 assert readme.contains("Domain-First Structure")
 assert readme.contains("Primary Workflows")
-assert readme.contains("RABBITMQ_ENABLED=true")
+assert readme.contains("`RABBITMQ_ENABLED` controls")
 assert readme.contains("ConfigCipherCli")
 ["EgonColaRepository", "SHARDING_READWRITE", "tenant_id", "mix64-v1", "LOCAL", "REBUILD_REQUIRED", "repository-manifest.json"].each { assert readme.contains(it) }
 def lightReadmeZh = assertFile("README.zh-CN.md").text
@@ -1399,8 +1299,7 @@ assert sourceBoundaryFiles.every { candidate ->
 }
 [
     'top.egon.internal.archetype.source',
-    'stellar-enclosure-source-light',
-    '0.0.1'
+    'stellar-enclosure-source-light'
 ].each { forbiddenToken ->
     sourceBoundaryFiles.each { candidate ->
         assert !candidate.getText('UTF-8').contains(forbiddenToken):
@@ -1433,6 +1332,8 @@ true
 
 // Verify the released parent and the actual packaged runtime, separately from BOM management.
 def releasedParent = new XmlSlurper(false, false).parse(new File(generatedProjectDir, 'pom.xml'))
+assert releasedParent.groupId.text() == 'archetype.it'
+assert releasedParent.version.text() == '0.1-SNAPSHOT'
 assert releasedParent.parent.groupId.text() == 'top.egon'
 assert releasedParent.parent.artifactId.text() == 'stellar-enclosure-archetypes-parent'
 assert releasedParent.parent.version.text() == releasedParent.properties.'stellar-enclosure.version'.text()
@@ -1458,11 +1359,12 @@ assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common
 assert releasedLibraries.contains('shardingsphere-jdbc-5.5.3.jar')
 assert releasedLibraries.contains('grpc-core-1.75.0.jar')
 assert releasedLibraries.contains('protobuf-java-4.32.0.jar')
-['stellar-enclosure-component-rpc-starter-', 'stellar-enclosure-component-rpc-tianshu-adapter-',
- 'stellar-enclosure-tianshu-starter-',
- 'stellar-enclosure-tianshu-http-registration-starter-',
+['stellar-enclosure-component-rpc-starter-', 'stellar-enclosure-tianshu-starter-',
  'stellar-enclosure-yuheng-starter-openapi-webmvc-'].each { required ->
     assert releasedLibraries.any { it.startsWith(required) }: "Missing native runtime ${required}"
+}
+['stellar-enclosure-component-rpc-tianshu-adapter-', 'stellar-enclosure-tianshu-http-registration-starter-'].each { retired ->
+    assert !releasedLibraries.any { it.startsWith(retired) }: "Retired native runtime ${retired}"
 }
 assert !releasedLibraries.any { it.startsWith('dubbo-') || it.startsWith('nacos-') || it.startsWith('spring-cloud-starter-alibaba-nacos-') }
 ['bootstrap.yml', 'bootstrap-dev.yml', 'bootstrap-test.yml', 'bootstrap-prod.yml'].each {
@@ -1470,7 +1372,7 @@ assert !releasedLibraries.any { it.startsWith('dubbo-') || it.startsWith('nacos-
 }
 ['application.yml', 'application-dev.yml', 'application-test.yml', 'application-prod.yml'].each { profile ->
     def config = new File(generatedProjectDir, 'src/main/resources/' + profile).text
-    ['rpc:', 'tianshu:', 'provider:', 'consumer:', 'registry:', 'yuheng:', 'openapi:', 'tianquan:', 'shoubing:'].each { token ->
+    ['rpc:', 'tianshu:', 'provider:', 'consumer:', 'transport: h2c', 'delivery:', 'yuheng:', 'openapi:', 'tianquan:', 'shoubing:'].each { token ->
         assert config.contains(token): "Missing native configuration ${token} in ${profile}"
     }
     assert !config.contains('DUBBO_') && !config.contains('NACOS_')
@@ -1492,15 +1394,11 @@ def nativeOperations = nativeProviders.collectMany { provider ->
     (provider.text =~ /public\s+\w*Response\s+(\w+)\(/).collect { it[1] }
 }.sort()
 assert nativeOperations == ["createUser", "assignRole", "getUser", "grantPermission", "getUserPermissions", "createCourse", "getCourse", "createSchoolClass", "scheduleCourse", "getSchoolClass"].sort(): "Native operation inventory changed: ${nativeOperations}"
-['docker', 'podman', 'nerdctl'].each { engine ->
-    ['', '.prod'].each { profile ->
-        def compose = new File(generatedProjectDir, "deploy/compose/compose.${engine}${profile}.yaml").text
-        assert compose.contains('TIANSHU_APP_CODE: ${TIANSHU_APP_CODE:?Set TIANSHU_APP_CODE}')
-        ['${artifactId}', '${rootArtifactId}', '${parentArtifactId}'].each { marker ->
-            assert !compose.contains(marker): "Unexpanded archetype variable in Compose: ${marker}"
-        }
-    }
-}
+def prodProfile = new File(generatedProjectDir, 'src/main/resources/application-prod.yml').text
+def serviceMethods = (prodProfile =~ /(?m)^ +"\[([^]]+Service\/[A-Za-z][A-Za-z0-9]*)\]":$/).collect { it[1] }.sort()
+def routeMethods = (workload =~ /(?m)^ +- method: \{service: ([^,]+), method: ([A-Za-z][A-Za-z0-9]*)\}$/)
+        .collect { it[1] + '/' + it[2] }.sort()
+assert serviceMethods && routeMethods == serviceMethods: 'GAMMA routes must match the complete Light SERVICE policy'
 def nativeReports = []
 generatedProjectDir.traverse(type: FileType.FILES) { candidate ->
     if (candidate.path.replace('\\', '/').contains('/target/surefire-reports/') && candidate.name.endsWith('.xml')) nativeReports << candidate
@@ -1534,17 +1432,19 @@ def repositoryManifests = repositoryContractFiles.findAll { it.name == 'reposito
 assert repositoryManifests.size() == 1
 def repositoryManifest = new groovy.json.JsonSlurper().parse(repositoryManifests.first())
 assert repositoryManifest.family == 'light'
-assert repositoryManifest.scripts*.version == ['20260913_001', '20261015_001']
+assert repositoryManifest.scripts*.version == ['20260913_001', '20261015_001', '20261027_001']
 assert repositoryManifest.scripts*.path == [
         'db/egon-mp/V20260913_001__initialize_repository_schema.sql',
-        'db/egon-mp/V20261015_001__scope_user_uniqueness_to_tenant.sql'
+        'db/egon-mp/V20261015_001__scope_user_uniqueness_to_tenant.sql',
+        'db/egon-mp/V20261027_001__align_readwrite_shard_tables.sql'
 ]
-def initializationSql = new File(repositoryManifests.first().parentFile, 'V20260913_001__initialize_repository_schema.sql')
-assert initializationSql.isFile()
-assert repositoryManifest.scripts.first().sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(initializationSql.bytes).encodeHex().toString()
-def tenantUniquenessSql = new File(repositoryManifests.first().parentFile, 'V20261015_001__scope_user_uniqueness_to_tenant.sql')
-assert tenantUniquenessSql.isFile()
-assert repositoryManifest.scripts.last().sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(tenantUniquenessSql.bytes).encodeHex().toString()
+def migrationDirectory = repositoryManifests.first().parentFile
+repositoryManifest.scripts.each { migration ->
+    def script = new File(migrationDirectory, migration.path.tokenize('/').last())
+    assert script.isFile()
+    assert migration.sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(script.bytes).encodeHex().toString()
+}
+def initializationSql = new File(migrationDirectory, 'V20260913_001__initialize_repository_schema.sql')
 assert initializationSql.text.contains('deleted_at') && initializationSql.text.contains('version BIGINT NOT NULL DEFAULT 0')
 repositoryContractFiles.findAll { it.path.replace('\\', '/').contains('/src/main/resources/mybatis/mapper/') && it.name.endsWith('DAO.xml') }.each {
     assert it.text.contains('selectActiveById') && it.text.contains('selectActiveByIds')

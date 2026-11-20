@@ -13,10 +13,10 @@ NS = {"m": "http://maven.apache.org/POM/4.0.0"}
 FORBIDDEN = re.compile(r"org\.apache\.dubbo|org\.springframework\.cloud|com\.alibaba\.cloud|"
                        r"org\.springdoc|@EnableDubbo|@Dubbo(Service|Reference)|"
                        r"\b(?:NACOS_|DUBBO_|nacos://)|^\s*(?:dubbo|nacos):", re.MULTILINE)
-REQUIRED = {"stellar-enclosure-component-rpc-starter", "stellar-enclosure-component-rpc-tianshu-adapter",
-            "stellar-enclosure-tianshu-starter",
-            "stellar-enclosure-tianshu-http-registration-starter",
+REQUIRED = {"stellar-enclosure-component-rpc-starter", "stellar-enclosure-tianshu-starter",
             "stellar-enclosure-yuheng-starter-openapi-webmvc"}
+RETIRED_DEPENDENCIES = {"stellar-enclosure-component-rpc-tianshu-adapter",
+                        "stellar-enclosure-tianshu-http-registration-starter"}
 # Each native family owns its contract artifact; the shared artifacts and their Java root are retired.
 RETIRED = re.compile(r"top\.egon\.cola\.(?:organization|evaluation)\.facade\b|egon-cola-(?:organization|evaluation)-facade\b")
 FROZEN_WIRE = re.compile(r"^\s*package\s+top\.egon\.cola\.(?:organization|evaluation)\.facade\.rpc\.v1\s*;\s*$",
@@ -101,6 +101,8 @@ def check(family):
                 group = dependency.findtext("m:groupId", "", NS)
                 artifact = dependency.findtext("m:artifactId", "", NS)
                 dependencies.add(artifact)
+                if group == "top.egon" and artifact in RETIRED_DEPENDENCIES:
+                    failures.append(f"{relative}: retired dependency {group}:{artifact}")
                 if group.startswith(("org.apache.dubbo", "org.springframework.cloud", "com.alibaba.cloud", "org.springdoc")):
                     failures.append(f"{relative}: forbidden direct dependency {group}:{artifact}")
             failures.extend(retired_violations(relative, path.read_text(encoding="utf-8")))

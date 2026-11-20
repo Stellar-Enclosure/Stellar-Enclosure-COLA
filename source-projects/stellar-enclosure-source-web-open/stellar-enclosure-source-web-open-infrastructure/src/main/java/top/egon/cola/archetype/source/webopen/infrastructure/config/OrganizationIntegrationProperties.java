@@ -47,7 +47,7 @@ public class OrganizationIntegrationProperties {
     }
 
     public static final class Evaluation {
-        private String grpcTarget = "localhost:50051";
+        private String grpcTarget;
         private Duration grpcDeadline = Duration.ofSeconds(3);
 
         public String getGrpcTarget() { return grpcTarget; }

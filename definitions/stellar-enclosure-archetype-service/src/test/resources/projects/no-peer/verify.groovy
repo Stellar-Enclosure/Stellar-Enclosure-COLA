@@ -4,6 +4,22 @@ import groovy.xml.XmlSlurper
 def artifact = 'student-management-evaluation-standalone'
 def project = [new File(basedir, "project/${artifact}"), new File(basedir, artifact)].find { it.isDirectory() }
 assert project != null
+def kubeWorkload = new File(project, 'deploy/kubernetes/workload.yaml')
+['application.yml', 'application-dev.yml', 'application-test.yml', 'application-prod.yml'].each { profile ->
+    def config = new File(project, "${artifact}-starter/src/main/resources/${profile}").text
+    assert (config =~ /(?m)^        consumer:\n          enabled: false\n          default-timeout-ms: \d+\n          bindings: \{\}$/).find():
+            "Standalone ${profile} must disable and empty native peer transport"
+    assert (config =~ /(?m)^            consumer:\n              enabled: false\n              bindings: \{\}$/).find():
+            "Standalone ${profile} must disable and empty OAuth peer bindings"
+    assert config.contains('transport: h2c') && config.contains('delivery:')
+    assert !config.contains('organization-user-read')
+    if (profile == 'application-prod.yml') {
+        assert config.contains('tianshu-baseline:')
+    }
+}
+assert kubeWorkload.isFile() && kubeWorkload.text.contains('kind: GRPCRoute')
+assert !new File(project, 'deploy/compose').exists()
+assert !new File(project, 'deploy/env').exists()
 // Native code-gen domain POJOs use the existing managed compile-only Lombok dependency.
 def codegenDomainModules = project.listFiles().findAll { it.isDirectory() && it.name.endsWith('-domain') }
 assert codegenDomainModules.size() == 1: 'Expected exactly one generated Domain module'
@@ -56,11 +72,7 @@ new File(project, "${artifact}-domain/src/main/java").eachFileRecurse { file ->
 ['application.yml', 'application-dev.yml', 'application-test.yml', 'application-prod.yml'].each { name ->
     assert !new File(project, "${artifact}-starter/src/main/resources/${name}").text.contains('ORGANIZATION_FACADE_')
 }
-['env', 'compose'].each { directory ->
-    new File(project, "deploy/${directory}").eachFileRecurse { file ->
-        if (file.isFile()) assert !file.text.contains('ORGANIZATION_FACADE_')
-    }
-}
+
 
 // Every application input has an invoked executor in the same business domain.
 def cqersSources = []

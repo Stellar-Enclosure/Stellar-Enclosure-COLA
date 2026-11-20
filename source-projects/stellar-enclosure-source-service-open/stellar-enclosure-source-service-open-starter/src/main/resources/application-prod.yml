@@ -5,12 +5,16 @@ spring:
       write-dates-as-timestamps: false
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      cluster:
+        nodes: ${REDIS_CLUSTER_NODES}
+      username: ${REDIS_USERNAME}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
 app:
   integrations:
     organization:
+      triple-target: tri://${ORGANIZATION_TRIPLE_SERVICE}.${ORGANIZATION_TRIPLE_NAMESPACE}.svc.cluster.local:50051
       enabled: ${ORGANIZATION_FACADE_ENABLED:true}
       group: ${ORGANIZATION_FACADE_GROUP:student-management-organization}
       version: ${ORGANIZATION_FACADE_SERVICE_VERSION:1.0.0}
@@ -31,8 +35,13 @@ egon:
     component:
       id:
         enabled: true
-        machine-id: ${EGON_ID_MACHINE_ID}
         max-clock-backward: PT0.005S
+        redis:
+          enabled: true
+          env: ${EGON_ID_REDIS_ENV}
+          app: ${EGON_ID_REDIS_APP}
+          lease-duration: ${EGON_ID_REDIS_LEASE_DURATION:5m}
+          renew-interval: ${EGON_ID_REDIS_RENEW_INTERVAL:1m}
       cache:
         enabled: true
         node-id: ""

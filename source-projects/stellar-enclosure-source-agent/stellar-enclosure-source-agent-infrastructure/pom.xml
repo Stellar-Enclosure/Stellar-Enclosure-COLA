@@ -26,7 +26,6 @@
         <dependency>
             <groupId>top.egon</groupId>
             <artifactId>stellar-enclosure-component-agent-flow-starter</artifactId>
-            <version>${agent-flow.version}</version>
         </dependency>
         <dependency>
             <groupId>top.egon</groupId>

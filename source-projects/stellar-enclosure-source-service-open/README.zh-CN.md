@@ -48,7 +48,7 @@ java @launch.args -Xmx3g -jar app.jar --server.port=9081
 
 生成测试覆盖 Proto descriptor、Long identity、Common MyBatis-Plus DAO/service、隔离 H2 持久化与 typed ShardingSphere 路由契约、手工 SQL 约定、三个 provider 暴露的 11 个 Triple unary 方法、标准 gRPC unary interop、Organization client 双剖面实现、DTP executor 上下文和 ArchUnit 依赖方向。ArchUnit 取代内部 bytecode Maven plugin，并检查 service-only、无 JPA、无 Flyway、无 Gateway、无 Springdoc 边界。
 
-这些检查只证明源码、生成工程和本地测试；不证明真实 PostgreSQL schema、Redis DTP registry、Nacos 拓扑、RabbitMQ、跨 Project provider、部署网络或生产权限。archetype 生成和上述命令不会自动启动应用，也不会执行数据库 SQL。
+这些检查只证明源码、生成工程和本地测试；不证明真实 PostgreSQL schema、Redis DTP 上报、RabbitMQ、跨 Project provider、部署网络或生产权限。archetype 生成和上述命令不会自动启动应用，也不会执行数据库 SQL。
 
 默认测试不绑定 Triple 监听端口。`EvaluationDubboTripleIntegrationTest` 只有在 `egon.test.triple.enabled=true` 时执行，否则生成明确的跳过报告；生成 verifier 必须找到该报告，并拒绝失败、意外跳过或已启用却未执行的测试。在生成工程根目录手动运行既有 11 个方法的 Triple/gRPC 互操作测试：
 
@@ -96,7 +96,7 @@ Evaluation 的 11 个方法在同一个 Triple 端口按 `course`、`exam`、`sc
 
 ## ID 与持久化
 
-所有技术 ID 都由 Common 的 `LongIdGenerator` 生成，PostgreSQL 中使用 `BIGINT`；Domain、Application、PO、DAO、事件和分片键内部统一使用正 `Long`。每个运行实例必须设置唯一的 `EGON_ID_MACHINE_ID`，没有运行时默认值。本 archetype 不包含 UUID 生成器或 UUID 分片算法。
+所有技术 ID 都由 Common 的 `LongIdGenerator` 生成，PostgreSQL 中使用 `BIGINT`；Domain、Application、PO、DAO、事件和分片键内部统一使用正 `Long`。受管实例从批准的 Redis Cluster 获取机器号租约。本 archetype 不包含 UUID 生成器或 UUID 分片算法。
 
 持久化使用 Common MP Repository 与显式 Mapper XML；Domain Service 不依赖技术 CRUD 类型。
 
@@ -104,19 +104,13 @@ Evaluation 初始拓扑包含 `master_data`、`shard_0`、`shard_1`。逻辑表�
 
 ## 运行 Profile 与集成
 
-`dev` 是本地默认 profile，依赖环境提供的 PostgreSQL、Nacos、RabbitMQ、Redis 和 Dubbo；`prod` 使用同样的契约和由运维持有的密钥；`test` 使用 PostgreSQL 兼容模式 H2、Local Organization client 实现，并关闭在线 Nacos、Redis、RabbitMQ 和外部 provider。
+`dev` 是本地默认 profile，依赖环境提供的 PostgreSQL、RabbitMQ、Redis Cluster 和受管 Triple Service；`prod` 使用同样的契约和由运维持有的密钥；`test` 使用 PostgreSQL 兼容模式 H2、Local Organization client 实现，并关闭在线 Redis、RabbitMQ 和外部 provider。
 
-应用只有一个有界异步执行器 `applicationTaskExecutor`，默认 `core=8`、`max=32`、`queue=1000`、`keep-alive=60s`。`DtpTaskDecorator` 负责传递并清理执行上下文，Dynamic Thread Pool 在 `dev`/`prod` 中通过 Redis 管理同一个执行器；`test` 关闭 DTP 上报和 Nacos。
+应用只有一个有界异步执行器 `applicationTaskExecutor`，默认 `core=8`、`max=32`、`queue=1000`、`keep-alive=60s`。`DtpTaskDecorator` 负责传递并清理执行上下文，Dynamic Thread Pool 在 `dev`/`prod` 中通过 Redis 管理同一个执行器；`test` 关闭 DTP 上报。
 
-所有 Compose 变体都会传入明确的机器号和 DTP Redis/report 参数。Nacos 固定使用 `nacos/nacos-server:v3.0.3`；凭据和密码放在 `deploy/env/.env.example` 或运维持有的生产 env 文件中。
+使用 [Kubernetes 交付输入](deploy/kubernetes/README.md) 和已核验的镜像摘要。启动配置来自不可变 ConfigMap，凭据由独立的 Secret 提供。
 
-常用变量包括：
-
-- Nacos：`NACOS_SERVER_ADDR`、`NACOS_NAMESPACE`、`NACOS_USERNAME`、`NACOS_PASSWORD`、`NACOS_CONFIG_ENABLED`、`NACOS_DISCOVERY_ENABLED`。
-- Dubbo：`DUBBO_REGISTRY_ADDRESS`、`DUBBO_PORT`、`DUBBO_CONSUMER_TIMEOUT`。
-- DTP/身份：`EGON_ID_MACHINE_ID`、`DTP_ENABLED`、`DTP_REPORT_ENABLED`、`DTP_REDIS_HOST`、`DTP_REDIS_PORT`、`DTP_REDIS_PASSWORD`。
-- 数据库：`deploy/env/.env.example` 中的 `EVALUATION_SHARDING_*`。
-- RabbitMQ：`SPRING_RABBITMQ_*`、`RABBITMQ_ENABLED`、`RABBITMQ_LISTENER_AUTO_STARTUP`。
+授权的 Organization 对端使用 `ORGANIZATION_TRIPLE_SERVICE` 与 `ORGANIZATION_TRIPLE_NAMESPACE`。
 
 ## Repository、CQE 与 PostgreSQL
 
@@ -132,7 +126,7 @@ Evaluation 初始拓扑包含 `master_data`、`shard_0`、`shard_1`。逻辑表�
 
 按环境 profile、`readwrite` 的顺序启用，例如 `SPRING_PROFILES_ACTIVE=prod,readwrite`。除现有三个主库 URL 外，还必须提供 `EVALUATION_SHARDING_MASTER_DATA_REPLICA_URL`、`EVALUATION_SHARDING_SHARD_0_REPLICA_URL` 和 `EVALUATION_SHARDING_SHARD_1_REPLICA_URL`；`EVALUATION_SHARDING_REPLICA_USERNAME`、`EVALUATION_SHARDING_REPLICA_PASSWORD` 可单独配置副本账号。每个地址必须是对应分组的真实副本，单独切换模式变量不会补齐数据源。既有库切换拓扑前应规划并核验路由指纹及数据迁移。
 
-每个实例配置唯一 `EGON_ID_MACHINE_ID`，生产使用现有 Common Snowflake。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
+受管实例按 `EGON_ID_REDIS_ENV` 和 `EGON_ID_REDIS_APP` 从 Redis Cluster 获取 Common Snowflake 租约。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
 
 默认测试使用隔离 H2 和受控依赖。本工程不含 PostgreSQL 门控测试：`-Degon.pg.*` 与 `EGON_TEST_PG_*` 不被任何 POM、YAML 或测试读取，也没有测试启动或提供数据库。PG/SS 真实路由、迁移和性能 EXPLAIN 由使用者手动验收，没有失败不等于通过。
 

@@ -468,6 +468,148 @@ test_reactor_cutover_mode() {
     'generated profile must not be active by default'
 }
 
+test_managed_machine_id_profiles() {
+  local family resources profile id_config key
+  local -a lease_settings=(
+    '        redis:'
+    '          enabled: true'
+    '          env: ${EGON_ID_REDIS_ENV}'
+    '          app: ${EGON_ID_REDIS_APP}'
+    '          lease-duration: ${EGON_ID_REDIS_LEASE_DURATION:5m}'
+    '          renew-interval: ${EGON_ID_REDIS_RENEW_INTERVAL:1m}'
+  )
+  for family in light light-open service service-open web web-open agent; do
+    resources="${REPO_ROOT}/source-projects/stellar-enclosure-source-${family}"
+    case "$family" in
+      light|light-open) resources="$resources/src/main/resources" ;;
+      *) resources="$resources/stellar-enclosure-source-${family}-starter/src/main/resources" ;;
+    esac
+    for profile in "$resources/application.yml" "$resources/application-dev.yml" "$resources/application-prod.yml"; do
+      [[ -f "$profile" ]] || fail "Missing managed profile: ${profile#"$REPO_ROOT/"}"
+      if grep -Eq '^[[:space:]]+machine-id[[:space:]]*:|EGON_ID_MACHINE_ID' "$profile"; then
+        fail "Managed machine IDs require the Redis lease path: ${profile#"$REPO_ROOT/"}"
+      fi
+      id_config="$(sed -n '/^      id:$/,/^      [a-z]/p' "$profile")"
+      for key in "${lease_settings[@]}"; do
+        grep -Fxq "$key" <<< "$id_config" || fail "Missing managed ID lease setting in ${profile#"$REPO_ROOT/"}: $key"
+      done
+    done
+    profile="$resources/application-readwrite.yml"
+    if [[ -f "$profile" ]] && grep -Eq '^[[:space:]]+machine-id[[:space:]]*:|EGON_ID_MACHINE_ID' "$profile"; then
+      fail "Read/write overlay overrides the managed ID lease: ${profile#"$REPO_ROOT/"}"
+    fi
+  done
+}
+
+test_native_transport_profiles() {
+  local family resources profile
+  for family in light service web agent; do
+    resources="${REPO_ROOT}/source-projects/stellar-enclosure-source-${family}"
+    if [[ "$family" != light ]]; then
+      resources="$resources/stellar-enclosure-source-${family}-starter"
+    fi
+    for profile in "$resources"/src/main/resources/application{,-dev,-prod,-test}.yml; do
+      grep -Fxq '        transport: h2c' "$profile" || fail "Missing native h2c transport: ${profile#"$REPO_ROOT/"}"
+      if grep -Eq 'NATIVE(_HTTP)?_TLS_|RPC_(TLS|DEVELOPMENT_PLAINTEXT|CERTIFICATE_CHAIN|PRIVATE_KEY|TRUST_CERTIFICATE)|TIANSHU_(RUNTIME_ACCESS_KEY|REGISTRY_ACCESS_KEY)|^[[:space:]]+(registration-fail-fast|publish-to-tianshu):' "$profile"; then
+        fail "Retired native registration or TLS input: ${profile#"$REPO_ROOT/"}"
+      fi
+    done
+  done
+}
+
+test_native_workload_contracts() {
+  local family root workload profile methods source_routes
+  for family in light service web agent; do
+    root="${REPO_ROOT}/source-projects/stellar-enclosure-source-${family}"
+    workload="$root/deploy/kubernetes/workload.yaml"
+    [[ -f "$workload" ]] || fail "Missing native workload manifest: ${family}"
+    assert_file_contains "$workload" 'automountServiceAccountToken: false' "${family} Pod identity"
+    assert_file_contains "$workload" 'audience: tianshu-config' "${family} config token audience"
+    assert_file_contains "$workload" 'fieldPath: metadata.uid' "${family} Pod UID"
+    assert_file_contains "$workload" 'fieldPath: status.podIP' "${family} Pod IP"
+    assert_file_contains "$workload" 'mountPath: /var/run/tianshu/config' "${family} immutable baseline"
+    assert_file_contains "$workload" 'mountPath: /var/run/tianshu/identity' "${family} rotating Pod proof"
+    assert_file_contains "$workload" 'port: management' "${family} protected probes"
+    assert_file_contains "$workload" 'type: ClusterIP' "${family} internal backend"
+    if grep -Eq 'kind: (Ingress|Gateway|HTTPRoute)|type: (LoadBalancer|NodePort)|machine-id|EGON_ID_MACHINE_ID|RPC_(TLS|CERTIFICATE)|hostPort:' "$workload"; then
+      fail "Retired or public transport exposed by the ${family} workload"
+    fi
+    if [[ "$family" == agent ]]; then
+      if grep -q '^kind: GRPCRoute$' "$workload"; then
+        fail 'Agent HTTP template cannot expose a missing RPC provider'
+      fi
+      continue
+    fi
+    assert_file_contains "$workload" 'targetPort: 19099' "${family} GAMMA closed fallback"
+    assert_file_contains "$workload" 'appProtocol: kubernetes.io/h2c' "${family} native gRPC protocol"
+    assert_file_contains "$workload" 'kind: GRPCRoute' "${family} GAMMA method routing"
+    assert_file_contains "$workload" 'kind: CiliumNetworkPolicy' "${family} fallback deny"
+    if [[ "$family" != light ]]; then
+      root="$root/stellar-enclosure-source-${family}-starter"
+    fi
+    profile="$root/src/main/resources/application-prod.yml"
+    methods="$(sed -nE 's/^ +"\[([^]]*Service\/[A-Za-z][A-Za-z0-9]*)\]":$/\1/p' "$profile" | LC_ALL=C sort)"
+    source_routes="$(sed -nE 's/^ +- method: \{service: ([^,]+), method: ([A-Za-z][A-Za-z0-9]*)\}$/\1\/\2/p' "$workload" | LC_ALL=C sort)"
+    [[ -n "$methods" && "$methods" == "$source_routes" ]] || fail "GAMMA method set differs from ${family} SERVICE policy"
+  done
+}
+
+test_open_kubernetes_discovery() {
+  local family module resources profile
+  for family in light-open service-open web-open; do
+    module="${REPO_ROOT}/source-projects/stellar-enclosure-source-${family}"
+    if [[ "$family" != light-open ]]; then
+      module="$module/stellar-enclosure-source-${family}-starter"
+    fi
+    resources="$module/src/main/resources"
+    if compgen -G "$resources/bootstrap*.yml" >/dev/null ||
+       grep -Eq 'nacos|spring-cloud-starter-bootstrap' "$module/pom.xml"; then
+      fail "Legacy discovery or bootstrap is still active in ${family}"
+    fi
+    assert_file_contains "$resources/application.yml" 'name: ${APP_NAME:' "${family} Config Data identity"
+    local workload="${REPO_ROOT}/source-projects/stellar-enclosure-source-${family}/deploy/kubernetes/workload.yaml"
+    assert_file_contains "$workload" 'file:/etc/stellar/runtime/application.yml' "${family} mounted Config Data"
+    assert_file_contains "$workload" 'port: management' "${family} protected probe"
+    if grep -Eq 'kind: (Ingress|Gateway|HTTPRoute)|type: (NodePort|LoadBalancer)|hostPort:|EGON_ID_MACHINE_ID' "$workload"; then
+      fail "Unsafe or retired deployment input in ${family}"
+    fi
+    if [[ -n "$(find "$(dirname "$(dirname "$workload")")" -type f \( -path '*/compose/*' -o -path '*/env/*' \) -print -quit)" ]]; then
+      fail "Legacy deployment bundle is still present in ${family}"
+    fi
+    if [[ "$family" == light-open ]]; then
+      if grep -q 'kind: GRPCRoute' "$workload"; then fail 'Light Open has no Triple provider'; fi
+      continue
+    fi
+    assert_file_contains "$workload" 'targetPort: 19099' "${family} closed Triple front fallback"
+    assert_file_contains "$workload" 'appProtocol: kubernetes.io/h2c' "${family} Triple frontend protocol"
+    python3 - "${REPO_ROOT}/source-projects/stellar-enclosure-source-${family}" "$workload" <<'PYOPEN'
+from pathlib import Path
+import re
+import sys
+project, workload = map(Path, sys.argv[1:])
+declared = set()
+for source in project.glob("**/src/main/proto/**/*.proto"):
+    content = source.read_text()
+    package = re.search(r"(?m)^package ([\w.]+);", content)
+    if package:
+        for service, block in re.findall(r"(?s)\bservice (\w+)\s*\{([^}]*)\}", content):
+            declared.update((package[1] + "." + service, method) for method in re.findall(r"\brpc\s+(\w+)\s*\(", block))
+matches = re.findall(r"(?m)^ +\- method: \{service: ([^,]+), method: (\w+)\}$", workload.read_text())
+assert declared and len(matches) == len(declared) and set(matches) == declared, f"Triple workload differs from {project.name} protobuf"
+PYOPEN
+    assert_file_contains "$resources/application.yml" 'address: N/A' "${family} registry-free Triple"
+    assert_file_contains "$resources/application.yml" 'name: tri' "${family} Triple protocol"
+    assert_file_contains "$resources/application.yml" 'qos-enable: false' "${family} no auxiliary listener"
+    for profile in dev prod; do
+      if [[ "$family" == service-open ]]; then
+        assert_file_contains "$resources/application-$profile.yml" 'triple-target: tri://${ORGANIZATION_TRIPLE_SERVICE}.${ORGANIZATION_TRIPLE_NAMESPACE}.svc.cluster.local:50051' 'Service Open direct Triple URL'
+      else
+        assert_file_contains "$resources/application-$profile.yml" 'grpc-target: dns:///${EVALUATION_TRIPLE_SERVICE}.${EVALUATION_TRIPLE_NAMESPACE}.svc.cluster.local:50051' 'Web Open direct h2c URL'
+      fi
+    done
+  done
+}
+
 test_native_security_verifiers() {
   local family verifier
   for family in light service web agent; do
@@ -489,6 +631,10 @@ PYVERIFY
 }
 
 main() {
+  test_managed_machine_id_profiles
+  test_native_transport_profiles
+  test_native_workload_contracts
+  test_open_kubernetes_discovery
   test_native_security_verifiers
   local mode="${1:-unit}"
   case "$mode" in

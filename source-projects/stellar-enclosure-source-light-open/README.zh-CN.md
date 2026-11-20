@@ -47,7 +47,7 @@ Springdoc 在 `/v3/api-docs` 提供 OpenAPI 文档，在 `/swagger-ui.html` 提�
 ./mvnw -B -ntp -DskipTests package
 ```
 
-`verify` 执行 `OpenArchitectureTest`，它按源码文本检查：`archunit-junit5` 虽在测试 classpath 上，但没有任何测试 import `com.tngtech`，因此分层方向是靠文件内容审查而非字节码分析得出的。`test`/`verify` 是静态和生成工程检查，不代表真实 Nacos、Redis、PostgreSQL、RabbitMQ 或外部服务拓扑已经可用。
+`verify` 执行 `OpenArchitectureTest`，它按源码文本检查：`archunit-junit5` 虽在测试 classpath 上，但没有任何测试 import `com.tngtech`，因此分层方向是靠文件内容审查而非字节码分析得出的。`test`/`verify` 是静态和生成工程检查，不代表真实 Redis、PostgreSQL、RabbitMQ 或外部服务拓扑已经可用。
 
 ## CQERS 架构
 
@@ -60,7 +60,7 @@ MQ/Outbox 实现发布。事务、校验、幂等与投递语义保持原有用�
 
 ## 技术栈
 
-- Java 25、Spring Boot 4.1.2、Spring Cloud 2025.0.3、Spring Cloud Alibaba 2025.0.0.0、Nacos 3.0.3。
+- Java 25、Spring Boot 4.1.2、Kubernetes 与 Cilium。
 - 通过 Stellar Enclosure Common MP starter 使用 MyBatis-Plus，持久化采用 DAO/XML SQL 与 EgonModel PO；ShardingSphere-JDBC 5.5.3 负责分库分表。
 - Stellar Enclosure Common Core、Common ID、Dynamic Thread Pool 组件。
 - Springdoc OpenAPI 2.8.17 提供 HTTP API 文档；Gateway 属于外部平台，不在本工程内生成。
@@ -121,7 +121,7 @@ common         -> no business layer
 
 ## ID 与持久化
 
-技术 ID 由 Common ID 的 `LongIdGenerator` 生成，在 PostgreSQL 中使用 `BIGINT`。Domain、Application、持久化和分片内部统一使用正数 `Long`；HTTP/GraphQL 边界仍使用十进制字符串。每个运行实例必须设置唯一的 `EGON_ID_MACHINE_ID`，运行时没有默认值。
+技术 ID 由 Common ID 的 `LongIdGenerator` 生成，在 PostgreSQL 中使用 `BIGINT`。Domain、Application、持久化和分片内部统一使用正数 `Long`；HTTP/GraphQL 边界仍使用十进制字符串。受管实例从批准的 Redis Cluster 获取机器号租约。
 
 持久化使用 Common MP Repository 与显式 Mapper XML；Domain Service 不依赖技术 CRUD 类型。
 
@@ -133,7 +133,7 @@ ShardingSphere 按正数 `tenant_id` 路由 `light_school_classes` 与 `light_cl
 
 Spring Boot 的 `applicationTaskExecutor` 是唯一的应用异步执行器，环境可覆盖的默认边界为 core `8`、max `32`、queue `1000`、keep-alive `60s`。`DtpTaskDecorator` 负责传递并清理执行上下文，Dynamic Thread Pool 组件在 `dev`/`prod` 中通过 Redis 管理同一个执行器。
 
-`test` profile 设置 `egon.cola.component.dtp.enabled=false`，关闭 DTP 上报和 Nacos，并关闭 RabbitMQ、Redis、外部 HTTP。该 profile 的 `application-test.yml` 仍写着 PostgreSQL 地址，但没有任何测试绑定这套拓扑：持久化测试从 `src/test/java/.../support/PersistenceTestSupport.java` 出发，由它提供隔离的 H2 数据源和受控依赖。因此生成测试不需要在线基础设施。`dev`/`prod` Compose 示例会显式传入机器 ID 和 DTP Redis/上报配置。
+`test` profile 设置 `egon.cola.component.dtp.enabled=false`，关闭 DTP 上报，并关闭 RabbitMQ、Redis、外部 HTTP。该 profile 的 `application-test.yml` 仍写着 PostgreSQL 地址，但没有任何测试绑定这套拓扑：持久化测试从 `src/test/java/.../support/PersistenceTestSupport.java` 出发，由它提供隔离的 H2 数据源和受控依赖。因此生成测试不需要在线基础设施。`dev`/`prod` Compose 示例会显式传入机器 ID 和 DTP Redis/上报配置。
 
 ## Repository、CQE 与 PostgreSQL
 
@@ -149,7 +149,7 @@ Spring Boot 的 `applicationTaskExecutor` 是唯一的应用异步执行器，�
 
 按环境 profile、`readwrite` 的顺序启用，例如 `SPRING_PROFILES_ACTIVE=prod,readwrite`。除现有三个主库 URL 外，还必须提供 `LIGHT_SHARDING_MASTER_DATA_REPLICA_URL`、`LIGHT_SHARDING_SHARD_0_REPLICA_URL` 和 `LIGHT_SHARDING_SHARD_1_REPLICA_URL`；`LIGHT_SHARDING_REPLICA_USERNAME`、`LIGHT_SHARDING_REPLICA_PASSWORD` 可单独配置副本账号。每个地址必须是对应分组的真实副本，单独切换模式变量不会补齐数据源。既有库切换拓扑前应规划并核验路由指纹及数据迁移。
 
-每个实例配置唯一 `EGON_ID_MACHINE_ID`，生产使用现有 Common Snowflake。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
+受管实例按 `EGON_ID_REDIS_ENV` 和 `EGON_ID_REDIS_APP` 从 Redis Cluster 获取 Common Snowflake 租约。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
 
 默认测试使用隔离 H2 和受控依赖。本工程不含 PostgreSQL 门控测试：`-Degon.pg.*` 与 `EGON_TEST_PG_*` 不被任何 POM、YAML 或测试读取，也没有测试启动或提供数据库。PG/SS 真实路由、迁移和性能 EXPLAIN 由使用者手动验收，没有失败不等于通过。
 
@@ -178,13 +178,6 @@ Repository 通过 `@CacheConfig`、`@Cacheable`、`@CacheEvict` 等注解声明�
 
 ## 容器交付
 
-使用环境示例和六个 Compose 变体之一：
-
-```bash
-docker compose --env-file deploy/env/.env.example \
-  -f deploy/compose/compose.docker.yaml up -d --build
-```
-
-开发和生产示例均使用 Nacos `nacos/nacos-server:v3.0.3`。请通过运维持有的环境文件提供数据库、Redis/RabbitMQ、Nacos 凭据及唯一的 `EGON_ID_MACHINE_ID`。archetype 生成过程不会启动应用，也不会执行数据库 SQL。
+使用 [Kubernetes 交付输入](deploy/kubernetes/README.md) 和已核验的镜像摘要。启动配置来自不可变 ConfigMap，凭据由独立的 Secret 提供。
 
 配置加密继续使用 `EGON_CONFIG_DECRYPT_KEY` 或 `EGON_CONFIG_DECRYPT_KEY_FILE` 提供 32 字节密钥；不要提交凭据或密钥。

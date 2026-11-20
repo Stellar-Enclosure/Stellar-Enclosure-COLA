@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: ${APP_NAME:stellar-enclosure-source-service-open}
   http:
     converters:
       preferred-json-mapper: jackson2
@@ -6,9 +8,12 @@ spring:
       preferred-json-mapper: jackson2
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      cluster:
+        nodes: ${REDIS_CLUSTER_NODES}
+      username: ${REDIS_USERNAME}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
   profiles:
     default: dev
   config:
@@ -54,6 +59,8 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 server:
+  ssl:
+    enabled: false
   port: ${MANAGEMENT_SERVER_PORT:8081}
   shutdown: graceful
 
@@ -100,8 +107,13 @@ egon:
     component:
       id:
         enabled: true
-        machine-id: ${EGON_ID_MACHINE_ID}
         max-clock-backward: PT0.005S
+        redis:
+          enabled: true
+          env: ${EGON_ID_REDIS_ENV}
+          app: ${EGON_ID_REDIS_APP}
+          lease-duration: ${EGON_ID_REDIS_LEASE_DURATION:5m}
+          renew-interval: ${EGON_ID_REDIS_RENEW_INTERVAL:1m}
       dtp:
         enabled: ${DTP_ENABLED:true}
         app-name: ${DTP_APP_NAME:${spring.application.name}}
@@ -222,6 +234,7 @@ app:
       max-flush-time: ${LOG_ASYNC_MAX_FLUSH_TIME:5000}
   integrations:
     organization:
+      triple-target: tri://${ORGANIZATION_TRIPLE_SERVICE}.${ORGANIZATION_TRIPLE_NAMESPACE}.svc.cluster.local:50051
       enabled: ${ORGANIZATION_FACADE_ENABLED:false}
       group: ${ORGANIZATION_FACADE_GROUP:student-management-organization}
       version: ${ORGANIZATION_FACADE_SERVICE_VERSION:1.0.0}
@@ -238,12 +251,15 @@ app:
 dubbo:
   application:
     name: ${spring.application.name}
+    qos-enable: false
+    metadata-type: local
   registry:
-    address: ${DUBBO_REGISTRY_ADDRESS:N/A}
+    address: N/A
   protocol:
     name: tri
     port: ${DUBBO_PORT:50051}
   provider:
+    register: false
     timeout: 3000
     retries: 0
   consumer:

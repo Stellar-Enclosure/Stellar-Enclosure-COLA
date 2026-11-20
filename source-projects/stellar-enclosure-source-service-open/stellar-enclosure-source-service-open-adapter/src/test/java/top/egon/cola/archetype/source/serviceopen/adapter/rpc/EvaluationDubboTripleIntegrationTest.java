@@ -47,9 +47,11 @@ import io.grpc.protobuf.ProtoUtils;
 import io.grpc.stub.ClientCalls;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.TimeUnit;
 import org.apache.dubbo.config.ApplicationConfig;
 import org.apache.dubbo.config.ProtocolConfig;
 import org.apache.dubbo.config.ReferenceConfig;
@@ -73,6 +75,8 @@ import static org.mockito.Mockito.when;
 @EnabledIfSystemProperty(named = "egon.test.triple.enabled", matches = "true")
 class EvaluationDubboTripleIntegrationTest {
 
+    // Dubbo 3.3.6 treats 127/8 as an unspecified provider bind host.
+    private static final String LOOPBACK = "::1";
     private static final ValidatorFactory VALIDATORS = Validation.buildDefaultValidatorFactory();
 
     @BeforeAll
@@ -133,10 +137,14 @@ class EvaluationDubboTripleIntegrationTest {
         ReferenceConfig<ExamService> examReference = reference(ExamService.class, "exam", port);
         ReferenceConfig<ScoreService> scoreReference = reference(ScoreService.class, "score", port);
 
+        var application = new ApplicationConfig("evaluation-triple-test");
+        application.setQosEnable(false);
+        var protocol = new ProtocolConfig("tri", port);
+        protocol.setHost(LOOPBACK);
         DubboBootstrap bootstrap = DubboBootstrap.newInstance()
-                .application(new ApplicationConfig("evaluation-triple-test"))
+                .application(application)
                 .registry(new RegistryConfig("N/A"))
-                .protocol(new ProtocolConfig("tri", port))
+                .protocol(protocol)
                 .service(courseService)
                 .service(examService)
                 .service(scoreService)
@@ -183,8 +191,8 @@ class EvaluationDubboTripleIntegrationTest {
     }
 
     private static void assertStandardGrpcCreateCourse(int port) {
-        ManagedChannel channel = ManagedChannelBuilder.forAddress("127.0.0.1", port)
-                .usePlaintext().build();
+        ManagedChannel channel = ManagedChannelBuilder.forAddress(LOOPBACK, port)
+                .usePlaintext().disableRetry().build();
         try {
             MethodDescriptor<CreateCourseRequest, Course> method = MethodDescriptor.<CreateCourseRequest, Course>newBuilder()
                     .setType(MethodDescriptor.MethodType.UNARY)
@@ -193,7 +201,7 @@ class EvaluationDubboTripleIntegrationTest {
                     .setRequestMarshaller(ProtoUtils.marshaller(CreateCourseRequest.getDefaultInstance()))
                     .setResponseMarshaller(ProtoUtils.marshaller(Course.getDefaultInstance()))
                     .build();
-            Course response = ClientCalls.blockingUnaryCall(channel, method, CallOptions.DEFAULT,
+            Course response = ClientCalls.blockingUnaryCall(channel, method, CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
                     CreateCourseRequest.newBuilder().setCode("MATH-101").setName("Math").setCredit(3).build());
             assertNotNull(response);
             assertEquals(1001L, response.getId());
@@ -220,12 +228,14 @@ class EvaluationDubboTripleIntegrationTest {
         reference.setInterface(type);
         reference.setGroup(group);
         reference.setVersion("1.0.0");
-        reference.setUrl("tri://127.0.0.1:" + port);
+        reference.setRetries(0);
+        reference.setTimeout(5000);
+        reference.setUrl("tri://[" + LOOPBACK + "]:" + port);
         return reference;
     }
 
     private static int freePort() throws Exception {
-        try (ServerSocket socket = new ServerSocket(0)) {
+        try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getByName(LOOPBACK))) {
             return socket.getLocalPort();
         }
     }

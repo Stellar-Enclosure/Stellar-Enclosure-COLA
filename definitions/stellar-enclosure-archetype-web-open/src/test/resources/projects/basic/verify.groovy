@@ -8,6 +8,25 @@ def projectDir = [
 ].find { candidate -> new File(candidate, "student-management-organization-starter").isDirectory() }
 assert projectDir != null: "Expected generated Web Open project"
 
+def runtimeProfiles = new File(projectDir, 'student-management-organization-starter/src/main/resources')
+['bootstrap.yml', 'bootstrap-dev.yml', 'bootstrap-prod.yml', 'bootstrap-test.yml'].each { retired ->
+    assert !new File(runtimeProfiles, retired).exists(): "Retired bootstrap remains: ${retired}"
+}
+assert !new File(projectDir, 'deploy/compose').exists()
+assert !new File(projectDir, 'deploy/env').exists()
+def deployedWorkload = new File(projectDir, 'deploy/kubernetes/workload.yaml').text
+assert deployedWorkload.contains('name: student-management-organization-triple')
+assert deployedWorkload.contains('port: management')
+assert deployedWorkload.contains('file:/etc/stellar/runtime/application.yml')
+assert deployedWorkload.contains('automountServiceAccountToken: false')
+assert !deployedWorkload.contains('kind: Ingress') && !deployedWorkload.contains('type: LoadBalancer')
+assert deployedWorkload.contains('kind: GRPCRoute')
+assert deployedWorkload.contains('name: student-management-organization-triple-stable')
+assert deployedWorkload.contains('targetPort: 19099')
+assert deployedWorkload.contains('appProtocol: kubernetes.io/h2c')
+def openRegistryProfile = new File(runtimeProfiles, 'application.yml').text
+assert openRegistryProfile.contains('address: N/A') && openRegistryProfile.contains('qos-enable: false')
+
 // Source layout is checked before build-output assertions; a clean hash or javac pass is insufficient.
 def contractJavaSources = []
 projectDir.eachFileRecurse(FileType.FILES) { source ->
@@ -426,8 +445,7 @@ def boundaryText = { candidate ->
 }
 [
     'top.egon.internal.archetype.source',
-    'stellar-enclosure-source-web-open',
-    '0.0.1'
+    'stellar-enclosure-source-web-open'
 ].each { forbiddenToken ->
     sourceBoundaryFiles.each { candidate ->
         assert !boundaryText(candidate).contains(forbiddenToken):
@@ -460,6 +478,8 @@ true
 
 // Verify the released parent and the actual packaged runtime, separately from BOM management.
 def releasedParent = new XmlSlurper(false, false).parse(new File(projectDir, 'pom.xml'))
+assert releasedParent.groupId.text() == 'archetype.it'
+assert releasedParent.version.text() == '0.1-SNAPSHOT'
 assert releasedParent.parent.groupId.text() == 'top.egon'
 assert releasedParent.parent.artifactId.text() == 'stellar-enclosure-archetypes-parent'
 assert releasedParent.parent.version.text() == releasedParent.properties.'stellar-enclosure.version'.text()
@@ -479,6 +499,7 @@ new java.util.jar.JarFile(releasedArchive).withCloseable { archive ->
         if (entry.name.startsWith('BOOT-INF/lib/')) releasedLibraries << entry.name.substring('BOOT-INF/lib/'.length())
     }
 }
+assert !releasedLibraries.any { it.contains('nacos') || it.startsWith('spring-cloud-starter-bootstrap-') }
 assert releasedLibraries.contains('spring-boot-4.1.2.jar')
 assert releasedLibraries.contains('commons-lang3-3.20.0.jar')
 assert releasedLibraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
@@ -507,10 +528,18 @@ def repositoryManifests = repositoryContractFiles.findAll { it.name == 'reposito
 assert repositoryManifests.size() == 1
 def repositoryManifest = new groovy.json.JsonSlurper().parse(repositoryManifests.first())
 assert repositoryManifest.family == 'web-open'
-assert repositoryManifest.scripts.size() == 1
-def initializationSql = new File(repositoryManifests.first().parentFile, 'V20260913_001__initialize_repository_schema.sql')
-assert initializationSql.isFile()
-assert repositoryManifest.scripts.first().sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(initializationSql.bytes).encodeHex().toString()
+assert repositoryManifest.scripts*.version == ['20260913_001', '20261027_001']
+assert repositoryManifest.scripts*.path == [
+        'db/egon-mp/V20260913_001__initialize_repository_schema.sql',
+        'db/egon-mp/V20261027_001__align_readwrite_shard_tables.sql'
+]
+def migrationDirectory = repositoryManifests.first().parentFile
+repositoryManifest.scripts.each { migration ->
+    def script = new File(migrationDirectory, migration.path.tokenize('/').last())
+    assert script.isFile()
+    assert migration.sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(script.bytes).encodeHex().toString()
+}
+def initializationSql = new File(migrationDirectory, 'V20260913_001__initialize_repository_schema.sql')
 assert initializationSql.text.contains('deleted_at') && initializationSql.text.contains('version BIGINT NOT NULL DEFAULT 0')
 repositoryContractFiles.findAll { it.path.replace('\\', '/').contains('/src/main/resources/mybatis/mapper/') && it.name.endsWith('DAO.xml') }.each {
     assert it.text.contains('selectActiveById') && it.text.contains('selectActiveByIds')

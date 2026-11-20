@@ -144,7 +144,6 @@ The complete `teaching` vertical creates and queries grades and school classes, 
 
 `prod` is reserved for runtime builds and deployments from `main`. If the optional peer was supplied, `dev` and `prod` use the COLA RPC Evaluation Facade client with a 3000 ms timeout, zero retries, and startup reference checks. Each consumed Facade has its own group variable — `EVALUATION_COURSE_FACADE_GROUP` (default `course`), `EVALUATION_EXAM_FACADE_GROUP` (default `exam`), and `EVALUATION_SCORE_FACADE_GROUP` (default `score`) — alongside `EVALUATION_FACADE_SERVICE_VERSION` (default `1.0`).
 
-- Tianshu: configure `TIANSHU_RPC_TARGET`, `TIANSHU_NAMESPACE`, separate runtime/registry HMAC credentials and Tianquan-Shoubing SERVICE tokens. `TIANSHU_ENABLED` and `TIANSHU_REGISTRY_ENABLED` control configuration and registration. See the native RPC/Tianshu section below for connection settings.
 
 ## Integration Ownership
 
@@ -163,23 +162,23 @@ HTTP failures use a stable body containing `code`, `message`, `traceId`, `timest
 
 ## Native RPC and Tianshu
 
-This project exposes 10 organization unary operations from the Protobuf contract published by its own Facade module. Each named `*FacadeImpl` is the single native provider of one contract and delegates to the existing use cases. When the optional Evaluation peer is included, remote queries use its Domain service, MapStruct/BaseConverter and component DIRECT proxy/strategy factories. Configure `organization.integrations.evaluation` with the exact target biz code, app code, group/version and timeout; `EVALUATION_FACADE_APP_CODE` must match the peer's registered Tianshu app code. References use the current process environment, version `1.0.0` by default, a 3000ms default bounded by the component ceiling, zero retries and FAIL_CLOSED.
+This project exposes 10 organization unary operations from the Protobuf contract published by its own Facade module. The optional Evaluation queries use reviewed Service targets, exact methods and matching OAuth bindings.
 
-Supply existing Tianshu RPC/Redis endpoints, registration resource URI, separate runtime/registry HMAC credentials, and an Tianquan-Shoubing SERVICE-token client allowed `tianshu:registration:write`. Complete the `TIANSHU_*`, `TIANQUAN_SHOUBING_*` and advertised-host entries in the environment sample. Compose maps Spring OAuth2 Client registration/provider `tianshuregistration`; direct Java launches must supply the corresponding `spring.security.oauth2.client.registration.tianshuregistration` and `spring.security.oauth2.client.provider.tianshuregistration.token-uri` external properties. Production enables RPC/Tianshu mTLS; configure and mount the certificate-chain, private-key and trust-certificate paths. No Tianshu or Tianquan-Shoubing container is bundled.
+Production imports an immutable `baseline.json` and uses Tianshu's internal HTTP Service for conditional snapshots and receipts. A dedicated SERVICE registration grants `tianshu:config:read` and `tianshu:config:receipt:write`, together with a separate Pod-bound token projected by the kubelet.
 
 The platform OpenAPI MVC starter preserves business HTTP access. Document governance is disabled by default. Enabling it requires the platform document identity, published groups, complete Shoubing SERVICE verification and `yuheng.openapi.read` scope; published handlers also require explicit `@Operation(operationId = "...")` metadata. Tianquan-Shoubing Servlet filter auto-registration is disabled. HTTP registration follows the effective `server.port`.
 
-The `test` profile disables RPC provider/consumer, Tianshu config/registry/Redis, HTTP registration and remote query clients, retaining H2 and local stubs. Stock Redisson auto-configuration is excluded; Tianshu creates only its explicitly configured Redis client. Existing PostgreSQL, Redis, RabbitMQ and their data volumes remain. Configuration decryption runs after Spring Boot Config Data; explicit imports/configtree replace retired bootstrap loading while encryption and key rules remain unchanged. Static, module and in-process RPC tests do not establish live Tianshu/Tianquan-Shoubing, mTLS or container interoperability.
+The `test` profile uses H2 and local fixtures with native RPC and Tianshu delivery disabled. The managed application supplies the Redis Cluster client for cache and ID leases. Protected configuration is decrypted after Spring Boot Config Data loading.
 
 ## Xingyuan Identity and Authorization
 
-The ten REST operations and ten GraphQL roots require an exact-resource verified USER token, the operation's `stellar-enclosure-source-web:<intent>` scope and the separate namespaced RBAC resource/permission. The trusted subject/tenant owns business and MP audit context; actor/role/tenant headers never grant authority. Only liveness/readiness probes are public. REST and GraphQL writes explicitly check the actual submitted field set against current role field rules before the use case; field-definition caps alone do not permit WRITE.
+The ten REST operations and ten GraphQL roots require an exact-resource verified USER token, the operation's `stellar-enclosure-source-web:<intent>` scope and the separate namespaced RBAC resource/permission. The trusted subject/tenant owns business and MP audit context; actor/role/tenant headers never grant authority. Liveness and readiness probes use the protected management listener. REST and GraphQL writes explicitly check the actual submitted field set against current role field rules before the use case; field-definition caps alone do not permit WRITE.
 
 Ten native RPC methods require verified TENANT SERVICE identity, the fixed application audience and their exact method scope. The shared SDK confirms strict usage proof and restores callback tenant/actor/kind in `finally`; facade metadata keeps correlation/idempotency only and no SYSTEM or synthetic USER fallback. GraphQL uses immutable verified identity/scope/proof/trace plus a framework callback Adapter/Decorator; aliases share one confirmed DENY marker and unavailable state/audit cannot become an ordinary authorization denial.
 
-The three evaluation reads use only GetCourse/GetExam/GetScore with the target's published application namespace. Fill `organization.integrations.evaluation.application-namespace`, fixed group/version (default1.0.0), exact target resource URI, independent client registrations and the SDK's trusted tenant-registration maps. Unknown/mismatched bindings deny before outbound proxy creation; no token relay or body-selected target fallback is added.
+For the optional Evaluation facade, `EVALUATION_RPC_NAMESPACE` and `EVALUATION_RPC_SERVICE` identify the stable Kubernetes Service. The approved transport and OAuth bindings allow `CourseService/GetCourse`, `ExamService/GetExam`, `ScoreService/GetScore` with matching versions. A standalone generated project has both sets disabled and empty.
 
-Runtime configuration requires explicit trusted HTTPS issuers/JWKs, strict revocation endpoint/epoch, independent control/tenant client credentials and an exclusive audit spool/HMAC key. SDK servlet auto-registration is disabled because the application owns the observation → IdP → RBAC → authorization → trusted business-context chain. RPC defaults to TLS; local plaintext is an explicit loopback exception. The higher-priority document chain accepts fully verified SERVICE tokens with yuheng.openapi.read when governance is enabled; disabled documents are protected. Deployment catalog registration does not grant permissions. External-off tests provide controlled SDK facts; they do not prove live PG/Redis/TLS/registration/SSO/browser acceptance.
+Runtime configuration requires explicit trusted HTTPS issuers/JWKs, strict revocation endpoint/epoch, independent control/tenant client credentials and an exclusive audit spool/HMAC key. SDK servlet auto-registration is disabled because the application owns the observation → IdP → RBAC → authorization → trusted business-context chain. Internal RPC uses h2c through the managed Service. The higher-priority document chain accepts fully verified SERVICE tokens with yuheng.openapi.read when governance is enabled; disabled documents are protected. Deployment catalog registration does not grant permissions. External-off tests provide controlled SDK facts; they do not prove live database, Redis, Cilium and browser acceptance.
 
 ## Repository, CQE and PostgreSQL
 
@@ -195,7 +194,7 @@ PostgreSQL owns replication. With the `readwrite` profile, ordinary business rea
 
 Activate the environment profile followed by `readwrite` (for example `SPRING_PROFILES_ACTIVE=prod,readwrite`), and provide the three existing primary URLs plus `ORGANIZATION_SHARDING_MASTER_DATA_REPLICA_URL`, `ORGANIZATION_SHARDING_SHARD_0_REPLICA_URL` and `ORGANIZATION_SHARDING_SHARD_1_REPLICA_URL`. Optional `ORGANIZATION_SHARDING_REPLICA_USERNAME` and `ORGANIZATION_SHARDING_REPLICA_PASSWORD` override the shared credentials. Each URL must identify the real replica of its group; switching the mode variable alone does not supply these data sources. Plan and validate any change of topology or historical route fingerprint before migrating existing data.
 
-Set a unique `EGON_ID_MACHINE_ID` for each runtime; production uses the existing Common Snowflake generator. Profiles retain matching MP keys, diagnostics are dev-only and the raw recorder logger is OFF. Dynamic table names require explicit mappings. MybatisBatch runs inside the caller's transaction.
+Managed runtimes acquire their Snowflake lease in Redis Cluster using the approved `EGON_ID_REDIS_ENV` and `EGON_ID_REDIS_APP`. Profiles retain matching MP keys, diagnostics are dev-only and the raw recorder logger is OFF. Dynamic table names require explicit mappings. MybatisBatch runs inside the caller's transaction.
 
 Default tests use isolated H2 and controlled dependencies. This project ships no PostgreSQL-gated test: `-Degon.pg.*` and `EGON_TEST_PG_*` are read by no POM, YAML or test here, and no test starts or provisions a database. Real PG/SS routing, migration and EXPLAIN acceptance remains manual; the absence of a failure is not a pass.
 
@@ -236,34 +235,7 @@ podman build --build-arg CONTAINER_ENGINE=podman -f deploy/container/Dockerfile 
 nerdctl build --build-arg CONTAINER_ENGINE=nerdctl -f deploy/container/Dockerfile -t stellar-enclosure-source-web:local .
 ```
 
-Start the complete Docker development stack with:
-
-```bash
-docker compose --env-file deploy/env/.env.example -f deploy/compose/compose.docker.yaml up -d --build
-```
-
-The bundled Compose stack provisions three PostgreSQL primaries
-(`master_data`, `shard_0`, and `shard_1`) and defaults to
-`APP_DATASOURCE_MODE=SHARDING`. It intentionally does not emulate replicas;
-use an operator-managed topology and the complete read/write variable set for
-`SHARDING_READWRITE`.
-
-Podman and nerdctl use `compose.podman.yaml` and `compose.nerdctl.yaml`. Production
-uses the matching `.prod.yaml` file and an operator-owned `.env.prod`. See
-`deploy/container/README.md` for rootless prerequisites, persistence, production
-boundaries, and data-deletion warnings.
-
-The root `Jenkinsfile` runs tests and can publish immutable images. Set
-`PUBLISH_IMAGE=true` plus registry parameters to publish; it never deploys.
-
-Optional local run:
-
-```bash
-SPRING_PROFILES_ACTIVE=dev bash ./mvnw -pl stellar-enclosure-source-web-starter spring-boot:run
-```
-
-Sensitive values belong in environment variables, mounted files, `config/application-secrets.yml`, or `configtree:/run/secrets/`. Do not commit credentials or decryption keys.
-
+Deploy the approved OCI image digest through the [Kubernetes delivery inputs](deploy/kubernetes/README.md). The platform supplies PostgreSQL, Redis Cluster, RabbitMQ, Pod identity and Tianshu configuration. Yuheng publishes approved public URLs. The root `Jenkinsfile` tests and builds the image, and can publish it with `PUBLISH_IMAGE=true`.
 
 ## Permission manifests and controlled delivery
 

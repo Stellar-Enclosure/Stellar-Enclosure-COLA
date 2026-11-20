@@ -1,10 +1,12 @@
 package top.egon.cola.archetype.source.service.support;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.Validation;
 import org.apache.shardingsphere.driver.yaml.YamlJDBCConfiguration;
 import org.apache.shardingsphere.infra.util.yaml.YamlEngine;
 import org.apache.shardingsphere.readwritesplitting.yaml.config.YamlReadwriteSplittingRuleConfiguration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
@@ -12,6 +14,7 @@ import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import top.egon.cola.component.common.core.validation.ValidationUtils;
 import top.egon.cola.component.common.mybatis.autoconfigure.EgonColaMybatisPlusProperties;
 import top.egon.cola.component.common.mybatis.routing.EgonColaTwoLevelRouteStrategy;
@@ -24,7 +27,13 @@ import top.egon.cola.component.common.mybatis.sharding.strategy.EgonColaSharding
 import top.egon.cola.component.common.mybatis.sharding.strategy.EgonColaSingleTableShardingStrategy;
 import top.egon.cola.component.common.mybatis.sharding.strategy.EgonColaStandardTenantIdShardingStrategy;
 
+import top.egon.cola.component.tianshu.configdata.DdcConfigDataLoader;
+import top.egon.cola.component.tianshu.format.DdcConfigCanonicalJson;
+import top.egon.cola.component.tianshu.model.config.DdcConfigBaselineVO;
+
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,7 +41,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ShardingReadwriteConfigurationTest {
 
     @Test
-    void profileBindsEachPhysicalGroupAndEmitsReadwriteRules() throws Exception {
+    void profileBindsEachPhysicalGroupAndEmitsReadwriteRules(@TempDir Path temporary) throws Exception {
+        Path baseline = writeBaseline(temporary);
         try (var validators = Validation.buildDefaultValidatorFactory()) {
             var validation = new ValidationUtils(validators.getValidator());
             for (String profile : new String[]{"dev", "test", "prod"}) {
@@ -49,7 +59,28 @@ class ShardingReadwriteConfigurationTest {
                             "EVALUATION_SHARDING_SHARD_1_URL=jdbc:postgresql://localhost/shard_1",
                             "EVALUATION_SHARDING_SHARD_1_REPLICA_URL=jdbc:postgresql://localhost/shard_1_replica"
                     ).applyTo(context);
+                    if ("prod".equals(profile)) {
+                        TestPropertyValues.of(
+                                "TIANSHU_CONFIG_ENABLED=false",
+                                "TIANSHU_CONFIG_BASELINE_FILE=" + baseline,
+                                "TIANSHU_TENANT_ID=1001",
+                                "TIANSHU_BIZ_CODE=topology",
+                                "TIANSHU_APP_CODE=topology",
+                                "APP_ENV=prod",
+                                "TIANSHU_CONFIG_TARGET_BINDING_ID=topology-prod",
+                                "TIANSHU_CONFIG_TARGET_BINDING_REVISION=3",
+                                "CLUSTER_ID=test-cluster",
+                                "POD_NAMESPACE=test-namespace",
+                                "WORKLOAD_UID=test-workload",
+                                "CONTAINER_NAME=application"
+                        ).applyTo(context);
+                    }
                     new ConfigDataApplicationContextInitializer().initialize(context);
+                    if ("prod".equals(profile)) {
+                        var loaded = DdcConfigDataLoader.baselineMetadataOrNull(context.getEnvironment());
+                        assertThat(loaded).isNotNull();
+                        assertThat(loaded.targetBinding().getBindingId()).isEqualTo("topology-prod");
+                    }
                     var binder = Binder.get(context.getEnvironment());
                     var sharding = binder.bind(EgonColaShardingProperties.PREFIX, Bindable.of(EgonColaShardingProperties.class)).get();
                     assertThat(sharding.getMode()).as(profile).isEqualTo(EgonColaShardingProperties.ModeEnum.SHARDING_READWRITE);
@@ -98,5 +129,24 @@ class ShardingReadwriteConfigurationTest {
                 }
             }
         }
+    }
+
+    private static Path writeBaseline(Path temporary) throws Exception {
+        var body = (ObjectNode) DdcConfigCanonicalJson.parse("""
+                {"schemaVersion":"1",
+                 "scope":{"tenantId":"1001","bizCode":"topology","env":"prod",
+                          "appCode":"topology","resourceName":"application.yml"},
+                 "source":{"configId":"42","revision":"43"},
+                 "enabled":true,"contentSha256":"sha256:%s","restartDigest":"sha256:%s",
+                 "rules":[],"restartValues":{},"hotSeed":{},"startupDependencies":{},"secretReferences":{},
+                 "targetBindings":[{"bindingId":"topology-prod","bindingRevision":"3","clusterId":"test-cluster",
+                      "kubernetesNamespace":"test-namespace","workloadKind":"Deployment","workloadName":"topology",
+                      "workloadUid":"test-workload","containerName":"application"}]}
+                """.formatted("0".repeat(64), "0".repeat(64)).getBytes(StandardCharsets.UTF_8));
+        var mapper = Jackson2ObjectMapperBuilder.json().build();
+        var draft = mapper.treeToValue(body, DdcConfigBaselineVO.class);
+        body.put("restartDigest", DdcConfigCanonicalJson.restartDigest(draft));
+        body.put("contentSha256", DdcConfigCanonicalJson.contentSha256(mapper.treeToValue(body, DdcConfigBaselineVO.class)));
+        return Files.writeString(temporary.resolve("baseline.json"), body.toString());
     }
 }

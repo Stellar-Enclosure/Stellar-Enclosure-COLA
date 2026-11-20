@@ -1,4 +1,4 @@
-import type {GatewayIdentityResult} from '@stellar-enclosure/stellar-enclosure-web-shared'
+import type {PublicOAuthIdentity} from '@stellar-enclosure/stellar-enclosure-web-shared'
 import {isPermissionSnapshot, snapshotExpiry, type PermissionSnapshot} from '@stellar-enclosure/stellar-enclosure-web-shared/permissions'
 
 export interface ExpectedScope {
@@ -8,7 +8,7 @@ export interface ExpectedScope {
   readonly environment: string
 }
 
-export const matchesCurrentScope = (identity: GatewayIdentityResult, snapshot: PermissionSnapshot,
+export const matchesCurrentScope = (identity: PublicOAuthIdentity, snapshot: PermissionSnapshot,
   expected: ExpectedScope, now = Date.now()): boolean => isPermissionSnapshot(snapshot)
   && snapshot.issuer === identity.issuer && snapshot.subject === identity.subject
   && snapshot.catalogScope.tenantId === identity.tenantId

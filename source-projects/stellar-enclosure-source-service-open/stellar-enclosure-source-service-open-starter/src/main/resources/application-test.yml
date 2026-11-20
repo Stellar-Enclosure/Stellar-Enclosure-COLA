@@ -1,16 +1,28 @@
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
   jackson2:
     time-zone: UTC
     serialization:
       write-dates-as-timestamps: false
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      cluster:
+        nodes: []
+      host: ${REDIS_TEST_HOST:127.0.0.1}
+      port: ${REDIS_TEST_PORT:6379}
+      username: ${REDIS_TEST_USERNAME:}
+      password: ${REDIS_TEST_PASSWORD:}
+      ssl:
+        enabled: false
   sql:
     init:
       mode: never
+
+dubbo:
+  provider:
+    export: false
 
 egon:
   cola:
@@ -115,6 +127,12 @@ egon:
         enabled: true
         machine-id: 0
         max-clock-backward: PT0.005S
+        redis:
+          enabled: false
+          env: test
+          app: fixture
+          lease-duration: 5m
+          renew-interval: 1m
       dtp:
         enabled: false
         report:
@@ -130,6 +148,7 @@ management:
 app:
   integrations:
     organization:
+      triple-target: tri://127.0.0.1:50051
       enabled: false
     rabbitmq:
       enabled: false

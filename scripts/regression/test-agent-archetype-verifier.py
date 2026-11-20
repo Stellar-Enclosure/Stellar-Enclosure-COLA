@@ -43,6 +43,25 @@ class AgentVerifierTest(unittest.TestCase):
         result = self.verify()
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
+    def test_retired_config_registration_library_is_rejected(self):
+        self.add_library("stellar-enclosure-tianshu-http-registration-starter-0.0.1.jar")
+        self.reject("Unapproved Agent RPC/Tianshu runtime library")
+
+    def test_missing_workload_audience_is_rejected(self):
+        path = self.project / "deploy/kubernetes/workload.yaml"
+        path.write_text(path.read_text().replace("audience: tianshu-config", "audience: kubernetes"))
+        self.reject("Missing Agent Kubernetes workload contract audience: tianshu-config")
+
+    def test_management_service_is_rejected(self):
+        path = self.project / "deploy/kubernetes/workload.yaml"
+        path.write_text(path.read_text() + "    - {name: management, port: 9090, targetPort: management}\n")
+        self.reject("Agent management port must stay outside the Service")
+
+    def test_missing_immutable_baseline_import_is_rejected(self):
+        path = self.project / "deep-research-agent-starter/src/main/resources/application-prod.yml"
+        path.write_text(path.read_text().replace("- tianshu-baseline:", "- optional:file:"))
+        self.reject("Missing Agent production configuration - tianshu-baseline:")
+
     def test_package_path_mismatch_is_rejected(self):
         path = self.project / "deep-research-agent-adapter/src/main/java/it/pkg/adapter/knowledge/pojo/dto/CreateKnowledgeBaseDTO.java"
         text = path.read_text()

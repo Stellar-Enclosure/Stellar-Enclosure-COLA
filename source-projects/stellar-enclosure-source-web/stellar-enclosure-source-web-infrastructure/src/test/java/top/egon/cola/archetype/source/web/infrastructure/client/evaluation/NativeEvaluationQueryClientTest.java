@@ -162,7 +162,7 @@ class NativeEvaluationQueryClientTest {
     }
 
     @Test
-    void builds_exact_direct_queries_with_bounded_timeout_and_no_retry_or_fallback() {
+    void binds_only_read_methods_to_the_approved_service_with_bounded_timeout() {
         var strategies = mock(top.egon.cola.component.rpc.consumer.reference.RpcReferenceStrategyFactory.class);
         var proxies = mock(top.egon.cola.component.rpc.consumer.proxy.RpcConsumerProxyFactory.class);
         when(strategies.create(any())).thenReturn(mock(top.egon.cola.component.rpc.consumer.reference.RpcReferenceStrategy.class));
@@ -175,27 +175,21 @@ class NativeEvaluationQueryClientTest {
                 strategies, proxies,
                 new top.egon.cola.component.rpc.context.identity.RpcProcessIdentity("consumer", "test", "localhost", 1L, "consumer-1"),
                 new NativeEvaluationRpcProperties("biz", "evaluation-app", "course", "exam", "score", "1.0", 5000, "evaluation-app"),
-                new top.egon.cola.component.rpc.config.EgonRpcProperties(), validation, evaluationBindings());
+                evaluationServiceReferences(), validation, evaluationBindings());
         config.evaluationCourseFacade();
         config.evaluationExamFacade();
         config.evaluationScoreFacade();
         var definitions = org.mockito.ArgumentCaptor.forClass(top.egon.cola.component.rpc.consumer.reference.RpcReferenceDefinition.class);
         verify(strategies, times(3)).create(definitions.capture());
         for (var definition : definitions.getAllValues()) {
-            assertThat(definition.mode()).isEqualTo(top.egon.cola.component.rpc.consumer.reference.RpcReferenceMode.DIRECT);
-            assertThat(definition.directQuery().bizCode()).isEqualTo("biz");
-            assertThat(definition.directQuery().appCode()).isEqualTo("evaluation-app");
-            assertThat(definition.directQuery().env()).isEqualTo("test");
-            assertThat(definition.directQuery().version()).isEqualTo("1.0");
-            assertThat(definition.directQuery().protocol()).isEqualTo("grpc");
-            assertThat(definition.directQuery().group()).isEqualTo(definition.serviceIdentity().group());
-            assertThat(definition.typedPolicies()).isNotEmpty();
-            for (var policy : definition.typedPolicies().values()) {
+            assertThat(definition.target().authority()).isEqualTo("evaluation-rpc.fixture.svc.cluster.local:50051");
+            assertThat(definition.target().version()).isEqualTo(7L);
+            assertThat(definition.target().methods()).singleElement().asString().contains("/Get");
+            assertThat(definition.serviceIdentity().version()).isEqualTo("1.0");
+            assertThat(definition.typedPolicies().values()).singleElement().satisfies(policy -> {
                 assertThat(policy.timeoutMs()).isEqualTo(3000);
                 assertThat(policy.retries()).isZero();
-                assertThat(policy.failStrategy()).isEqualTo(top.egon.cola.component.rpc.annotation.FailStrategy.FAIL_CLOSED);
-                assertThat(policy.fallbackBean()).isEmpty();
-            }
+            });
         }
     }
     private top.egon.cola.platform.tianquan.shoubing.starter.autoconfigure.IdpStarterProperties evaluationBindings() {
@@ -206,6 +200,8 @@ class NativeEvaluationQueryClientTest {
             var binding = new top.egon.cola.platform.tianquan.shoubing.starter.autoconfigure.IdpStarterProperties.RpcConsumerBindingProperties();
             binding.setServiceName(service); binding.setGroup(entry.getValue().split(":")[0]); binding.setVersion("1.0");
             binding.setFullMethodName(service + "/Get" + entry.getKey().replace("Service", ""));
+            binding.setTransportBindingId(entry.getKey().replace("Service", "").toLowerCase(java.util.Locale.ROOT) + "-read");
+            binding.setTransportBindingVersion(7L);
             binding.setProcessIdentity(java.util.Map.of("applicationName", "consumer", "env", "test"));
             binding.setMode(top.egon.cola.platform.tianquan.shoubing.starter.autoconfigure.IdpStarterProperties.RpcConsumerModeEnum.SERVICE);
             binding.setAppId("organization-app"); binding.setResourceUri(java.net.URI.create("https://evaluation.example.test"));
@@ -215,6 +211,17 @@ class NativeEvaluationQueryClientTest {
             settings.getRpc().getConsumer().getBindings().put(entry.getKey(), binding);
         }
         return settings;
+    }
+
+    private top.egon.cola.component.rpc.consumer.reference.RpcReferenceDefinitionResolver evaluationServiceReferences() {
+        var properties = new top.egon.cola.component.rpc.config.EgonRpcProperties();
+        for (var credential : evaluationBindings().getRpc().getConsumer().getBindings().values()) {
+            var binding = new top.egon.cola.component.rpc.config.EgonRpcProperties.RpcServiceBindingConfig()
+                    .setVersion(7).setNamespace("fixture").setService("evaluation-rpc").setPort(50051)
+                    .setMethods(java.util.Set.of(credential.getFullMethodName()));
+            properties.getConsumer().getBindings().put(credential.getTransportBindingId(), binding);
+        }
+        return new top.egon.cola.component.rpc.consumer.reference.RpcReferenceDefinitionResolver(properties);
     }
 
 }

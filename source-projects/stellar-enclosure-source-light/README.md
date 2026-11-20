@@ -158,14 +158,13 @@ Persistence uses Common MP repositories and explicit Mapper XML; domain service 
 
 `dev` is the default profile for workstation development and `feature/*` branch verification. It uses environment-backed PostgreSQL, Redis, RabbitMQ, COLA RPC, and external HTTP integrations.
 
-`test` is selected automatically by Maven tests and is used by the `dev`, `release/*`, and `hotfix/*` validation pipelines. It uses H2, in-memory adapters, and deterministic stubs; RabbitMQ, Redis, COLA RPC registry access, and external HTTP calls are disabled.
+`test` is selected automatically by Maven tests and is used by the `dev`, `release/*`, and `hotfix/*` validation pipelines. It uses H2, in-memory adapters, and deterministic stubs; RabbitMQ, Redis, RPC providers and consumers, Tianshu delivery, and external HTTP calls are disabled.
 
-`prod` is reserved for runtime builds and deployments from `main`. Configure `dev` and `prod` through environment variables such as `RABBITMQ_ENABLED=true`, `REDIS_ENABLED=true`, `EXTERNAL_HTTP_ENABLED=true`, `TIANSHU_RPC_TARGET=host:19090`, `TIANSHU_ENABLED=true`, `TIANSHU_REGISTRY_ENABLED=true`, and `RPC_ENABLED=true`. Broker credentials use Spring's own names — `SPRING_RABBITMQ_HOST`, `SPRING_RABBITMQ_PORT`, `SPRING_RABBITMQ_USERNAME`, and `SPRING_RABBITMQ_PASSWORD` — while `RABBITMQ_ENABLED` is the application's own switch. The same `RABBITMQ_ENABLED` value also drives
-`@RabbitListener` auto-startup; this project has no separate listener-startup variable.
+`prod` is reserved for runtime builds and deployments from `main`. Supply PostgreSQL, Redis Cluster, RabbitMQ, Service endpoints and credentials through the platform. RabbitMQ uses Spring connection settings. `RABBITMQ_ENABLED` controls the adapter and listener startup.
 
 ## Native RPC and Tianshu
 
-The ten REST operations and four GraphQL root queries require a verified USER Bearer token for this application's exact HTTPS audience. Each entry checks its `stellar-enclosure-source-light:<intent>` OAuth scope and the separate namespaced RBAC resource/permission. `openid` does not grant business access. Identity and tenant come from the verified SDK principal; `X-Tenant-Id` and `X-Operator-Id` have no authority. Only `/actuator/health/liveness` and `/actuator/health/readiness` are public.
+The ten REST operations and four GraphQL root queries require a verified USER Bearer token for this application's exact HTTPS audience. Each entry checks its `stellar-enclosure-source-light:<intent>` OAuth scope and the separate namespaced RBAC resource/permission. `openid` does not grant business access. Identity and tenant come from the verified SDK principal; `X-Tenant-Id` and `X-Operator-Id` have no authority. The protected management listener serves `/actuator/health/liveness` and `/actuator/health/readiness`.
 
 Six REST writes explicitly check the submitted field set before calling the use case: user creation (`externalId`, `name`, `email`), role assignment (`roleCode`), permission grant (`permissionCode`), course creation (`code`, `name`), class creation (`name`, `semester`), and scheduling (`startsAt`, `endsAt`). A field definition's writable cap alone grants nothing: reviewed permission mapping, an effective resource grant and an explicit role field rule must reach the current authorization projection. Missing/READ/NONE policy denies writes. Catalog registration and review/grant are separate operator actions; no endpoint automatically grants access.
 
@@ -175,15 +174,9 @@ The application owns one stateless observation → IdP → RBAC → authorizatio
 
 The optional OpenAPI governance chain owns `/v3/api-docs/**` and accepts only a fully verified SERVICE token with `yuheng.openapi.read`. Disabled governance does not make documents public. Business handlers already declare stable operation IDs, `nativeBearer`, and 401/403/503 `NativeSecurityError` schemas; existing business request/response schemas stay unchanged.
 
-Configure both trusted TENANT issuer/JWK tuples, strict revocation primary/epoch, bounded JWK cache, an exclusive absolute audit spool and HMAC key, and the RBAC endpoint/runtime Redis. Supply an explicit `egon.cola.platform.tianquan.shoubing.service-client.tenant-registration-ids` map through protected deployment configuration: exact positive tenant IDs map to `native-tenant-one`/`native-tenant-two`. There is no default tenant or legacy identity fallback. Client IDs/secrets and HTTPS token URIs use the existing Spring OAuth2 Client properties. `tianshuregistration` is the independent control-plane registration; its deployment scopes must include `tianshu:registration:write`. Missing deployment values fail configuration/readiness or deny business; the external-off `test` profile uses explicit controlled SDK fixtures.
+Deploy the approved TENANT issuer/JWK bindings, revocation primary and epoch, audit spool, Jianshen endpoint and Redis Cluster. Bind exact tenant IDs to their Spring OAuth2 Client registrations through protected deployment configuration. Kubernetes Service and Cilium GAMMA expose internal h2c. The Downward API supplies the Pod UID and IP, and each application applies the exact business scope.
 
-`dev` and `prod` require an existing Tianshu RPC endpoint (`TIANSHU_RPC_TARGET`), Tianshu Redis endpoint, registration resource URI, and separate runtime/registry HMAC credentials. RPC/Tianshu configuration uses `egon.cola.component.rpc` and `egon.cola.component.tianshu`; application identity uses `APP_NAME`, `APP_ENV`, `TIANSHU_BIZ_CODE`, `TIANSHU_APP_CODE`, and `INSTANCE_ID`. Configure advertised hosts reachable by consumers. No Tianshu container is supplied. The `test` profile disables RPC provider/consumer, Tianshu config/registry/Redis, HTTP registration and document publication.
-
-Production enables RPC and Tianshu mTLS: supply certificate-chain, private-key and trust-certificate paths through the corresponding `RPC_*` and `TIANSHU_RPC_*` variables and mount those files in the container at the configured paths. Native RPC defaults to TLS in every runtime profile; local plaintext requires an explicit approved loopback override. Existing Tianshu transport exceptions remain deployment-owned. Configure deployment secrets outside source control; fill the blank values in `deploy/env/.env.prod.example` before deployment. Compose retains PostgreSQL, Redis, RabbitMQ and their data volumes. Static and module tests do not establish live Tianshu registration, TLS interoperability or container readiness.
-
-Tianshu provider and HTTP registration additionally obtain an Tianquan-Shoubing SERVICE token with `tianshu:registration:write`. Fill the `TIANQUAN_SHOUBING_*` entries in the environment sample and configure Spring OAuth2 Client registration/provider `tianshuregistration` (`client_credentials`, `client_secret_basic`, client ID/secret and token URI). Compose maps those values to Spring's standard environment variables. For a direct Java launch, supply the equivalent `spring.security.oauth2.client.registration.tianshuregistration` and `spring.security.oauth2.client.provider.tianshuregistration.token-uri` properties through external configuration. The referenced app ID, resource server ID/URI and registration resource URI must match the existing Tianquan-Shoubing/Tianshu deployment. The automatic SDK Servlet registrations stay disabled because the application's explicit security chain owns business routes; document governance retains its narrower SERVICE chain.
-
-The stock Redisson auto-configuration is excluded; Tianshu owns its explicitly configured Redis client, while existing business Redis configuration remains on Spring's original connection factory. This prevents a disabled Tianshu/test profile from silently creating a Redis connection.
+Tianshu configuration imports an immutable `baseline.json` at startup. The client uses the internal HTTP Service for conditional snapshots and receipts, with a dedicated SERVICE registration scoped to `tianshu:config:read` and `tianshu:config:receipt:write` and a separately projected Pod-bound token. See [Kubernetes delivery](deploy/kubernetes/README.md) for the managed inputs.
 
 ## Repository, CQE and PostgreSQL
 
@@ -199,7 +192,7 @@ PostgreSQL owns replication. With the `readwrite` profile, ordinary business rea
 
 Activate the environment profile followed by `readwrite` (for example `SPRING_PROFILES_ACTIVE=prod,readwrite`), and provide the three existing primary URLs plus `LIGHT_SHARDING_MASTER_DATA_REPLICA_URL`, `LIGHT_SHARDING_SHARD_0_REPLICA_URL` and `LIGHT_SHARDING_SHARD_1_REPLICA_URL`. Optional `LIGHT_SHARDING_REPLICA_USERNAME` and `LIGHT_SHARDING_REPLICA_PASSWORD` override the shared credentials. Each URL must identify the real replica of its group; switching the mode variable alone does not supply these data sources. Plan and validate any change of topology or historical route fingerprint before migrating existing data.
 
-Set a unique `EGON_ID_MACHINE_ID` for each runtime; production uses the existing Common Snowflake generator. Profiles retain matching MP keys, diagnostics are dev-only and the raw recorder logger is OFF. Dynamic table names require explicit mappings. MybatisBatch runs inside the caller's transaction.
+Managed runtimes acquire a Common Snowflake lease in Redis Cluster. Set `EGON_ID_REDIS_ENV` and `EGON_ID_REDIS_APP` to the approved issuance pool. Profiles retain matching MP keys, diagnostics are dev-only and the raw recorder logger is OFF. Dynamic table names require explicit mappings. MybatisBatch runs inside the caller's transaction.
 
 Default tests use isolated H2 and controlled dependencies. This project ships no PostgreSQL-gated test: `-Degon.pg.*` and `EGON_TEST_PG_*` are read by no POM, YAML or test here, and no test starts or provisions a database. Real PG/SS routing, migration and EXPLAIN acceptance remains manual; the absence of a failure is not a pass.
 
@@ -244,22 +237,7 @@ podman build --build-arg CONTAINER_ENGINE=podman -f deploy/container/Dockerfile 
 nerdctl build --build-arg CONTAINER_ENGINE=nerdctl -f deploy/container/Dockerfile -t stellar-enclosure-source-light:local .
 ```
 
-Start the complete Docker development stack with:
-
-```bash
-docker compose --env-file deploy/env/.env.example -f deploy/compose/compose.docker.yaml up -d --build
-```
-
-The bundled Compose stack defaults to `APP_DATASOURCE_MODE=SHARDING` and
-provisions three PostgreSQL primaries: `postgres-master-data`,
-`postgres-shard-0`, and `postgres-shard-1`. It intentionally has no replicas;
-`SHARDING_READWRITE` is a code/configuration capability for environments that
-provide the corresponding primary/replica endpoints.
-
-Podman and nerdctl use `compose.podman.yaml` and `compose.nerdctl.yaml`. Production
-uses the matching `.prod.yaml` file and an operator-owned `.env.prod`. See
-`deploy/container/README.md` for rootless prerequisites, persistence, production
-boundaries, and data-deletion warnings.
+Use the [Kubernetes deployment inputs](deploy/kubernetes/README.md) to deliver a verified image digest. The platform provisions PostgreSQL, Redis Cluster and RabbitMQ separately. Cilium Gateway API and Yuheng manage the public HTTPS entry.
 
 The root `Jenkinsfile` runs tests and can publish immutable images. Set
 `PUBLISH_IMAGE=true` plus registry parameters to publish; it never deploys.

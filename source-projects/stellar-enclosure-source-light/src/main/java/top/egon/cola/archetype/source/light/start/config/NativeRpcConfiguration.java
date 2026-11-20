@@ -4,6 +4,7 @@ import io.grpc.Status;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.mapstruct.factory.Mappers;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +29,17 @@ import java.util.Optional;
 @EnableMethodSecurity
 @Slf4j
 public class NativeRpcConfiguration {
+
+    /** Retains the SDK qualifier while reusing the Boot-managed Jackson 2 mapper. */
+    @Bean(name = "nativeJacksonObjectMapperAlias")
+    public static BeanFactoryPostProcessor nativeJacksonObjectMapperAlias() {
+        return beanFactory -> {
+            if (beanFactory.containsBean("jackson2ObjectMapper") && !beanFactory.containsBean("jacksonObjectMapper")) {
+                beanFactory.registerAlias("jackson2ObjectMapper", "jacksonObjectMapper");
+            }
+        };
+    }
+
     /** Enables the SDK's composed SERVICE-scope annotation on the actual provider proxies. */
     @Bean("annotationTemplateExpressionDefaults")
     static AnnotationTemplateExpressionDefaults annotationTemplateExpressionDefaults() {

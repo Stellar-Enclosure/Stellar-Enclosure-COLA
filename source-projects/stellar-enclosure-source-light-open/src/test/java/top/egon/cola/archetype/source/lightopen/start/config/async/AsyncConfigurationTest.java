@@ -18,9 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "app.integrations.redis.enabled=false",
                 "app.integrations.external-http.enabled=false",
                 "egon.cola.component.id.machine-id=0",
-                "egon.cola.component.dtp.enabled=false",
-                "spring.cloud.nacos.discovery.enabled=false",
-                "spring.cloud.nacos.config.enabled=false"
+                "egon.cola.component.dtp.enabled=false"
         })
 class AsyncConfigurationTest extends top.egon.cola.archetype.source.lightopen.support.PersistenceTestSupport {
 

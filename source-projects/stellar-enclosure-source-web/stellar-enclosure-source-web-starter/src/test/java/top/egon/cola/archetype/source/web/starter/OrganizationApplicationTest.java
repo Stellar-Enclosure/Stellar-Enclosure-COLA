@@ -40,7 +40,8 @@ class OrganizationApplicationTest extends top.egon.cola.archetype.source.web.sup
         assertThat(context.getBeansOfType(ConnectionFactory.class)).isEmpty();
         assertThat(Arrays.stream(context.getBeanDefinitionNames())
                 .filter(name -> name.toLowerCase().contains("nacos"))).isEmpty();
-        assertThat(environment.getProperty("egon.cola.component.tianshu.registry.enabled")).isEqualTo("false");
+        assertThat(environment.getProperty("egon.cola.component.tianshu.registry.enabled")).isNull();
+        assertThat(environment.getProperty("egon.cola.component.tianshu.delivery.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("egon.cola.component.rpc.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("organization.integrations.redis.enabled")).isEqualTo("false");
         assertThat(environment.getProperty("organization.integrations.rabbit.enabled")).isEqualTo("false");

@@ -133,7 +133,6 @@ Maven 测试会自动选择 `test`，`dev`、`release/*` 和 `hotfix/*` 分支�
 
 `prod` 仅用于 `main` 分支的运行时构建和部署。仅在提供可选对端坐标时，`dev` 与 `prod` 才使用 COLA RPC Evaluation Facade client，超时 3000 ms、重试次数为 0，并在启动时检查引用。每个被消费的 Facade 都有各自的 group 变量：`EVALUATION_COURSE_FACADE_GROUP`（默认 `course`）、`EVALUATION_EXAM_FACADE_GROUP`（默认 `exam`）、`EVALUATION_SCORE_FACADE_GROUP`（默认 `score`），版本号为 `EVALUATION_FACADE_SERVICE_VERSION`（默认 `1.0`）。
 
-- Tianshu：使用 `TIANSHU_RPC_TARGET`、`TIANSHU_NAMESPACE`、独立的 runtime/registry HMAC 凭据和 Tianquan-Shoubing SERVICE Token 配置；`TIANSHU_ENABLED` 与 `TIANSHU_REGISTRY_ENABLED` 分别控制配置及服务注册。连接参数详见下方“原生 RPC、Tianshu 与远程查询”。
 
 ## 集成职责
 
@@ -152,13 +151,13 @@ HTTP 失败使用包含 `code`、`message`、`traceId`、`timestamp` 和 `fieldE
 
 ## 原生 RPC 与 Tianshu
 
-本工程发布自有 Facade 模块中的 Protobuf 契约所包含的 10 个 organization unary 操作。每个具名 `*FacadeImpl` 都是一个契约唯一的 native provider，并继续调用既有用例。仅在生成时启用可选的 Evaluation 对端集成后，远程查询才使用对应领域服务、MapStruct/BaseConverter 和组件的 DIRECT proxy/strategy 工厂；此时需要配置 `organization.integrations.evaluation` 下的 biz-code、app-code、group/version 与 timeout-ms，`EVALUATION_FACADE_APP_CODE` 填写对端在 Tianshu 中注册的实际 app code。调用使用当前进程 env，默认版本为 `1.0.0`、最多 3000ms（同时受组件 timeout 上限约束）、retries=0、FAIL_CLOSED，无外部协议回退。
+本工程发布自有 Facade 模块中的 Protobuf 契约所包含的 10 个 organization unary 操作。每个具名 `*FacadeImpl` 继续调用既有用例。可选的 Evaluation 查询使用受管 Service 地址、精确方法及对应 OAuth binding。
 
-`dev`/`prod` 需提供已有 Tianshu RPC/Redis 服务、注册 resource URI、runtime/registry HMAC 凭据，以及具备 `tianshu:registration:write` 的 Tianquan-Shoubing SERVICE Token client。填写 `.env` 样例中的 `TIANSHU_*`、`TIANQUAN_SHOUBING_*`、RPC/HTTP advertised host；Compose 已映射 Spring OAuth2 Client 的 `tianshuregistration` registration/provider。直接 Java 启动时，须通过外部配置提供对应的 `spring.security.oauth2.client.registration.tianshuregistration` 和 `spring.security.oauth2.client.provider.tianshuregistration.token-uri`。生产启用 RPC/Tianshu mTLS，请按环境变量配置并挂载证书链、私钥和信任证书文件。Tianshu/Tianquan-Shoubing 服务不随 Compose 创建。
+生产环境从不可变 `baseline.json` 冷启动，通过天枢内部 HTTP Service 拉取快照并发送回执。使用同时具备 `tianshu:config:read` 与 `tianshu:config:receipt:write` 的 SERVICE 注册，另外挂载 kubelet 投影的 Pod 绑定 token。
 
-文档由 platform OpenAPI MVC starter 提供，现有业务 HTTP 访问保持。文档治理默认关闭；开启前须配置平台身份、发布分组、完整授柄SERVICE验证与 `yuheng.openapi.read` scope，并为已发布 handler 显式补齐 `@Operation(operationId = "...")`。Tianquan-Shoubing Servlet filter 自动注册关闭。HTTP 注册端口跟随实际 `server.port`。
+文档由 platform OpenAPI MVC starter 提供，现有业务 HTTP 访问保持。文档治理默认关闭；开启前须配置平台身份、发布分组、完整授柄SERVICE验证与 `yuheng.openapi.read` scope，并为已发布 handler 显式补齐 `@Operation(operationId = "...")`。Tianquan-Shoubing Servlet filter 自动注册关闭。
 
-`test` 关闭 RPC provider/consumer、Tianshu config/registry/Redis、HTTP 注册和外部查询客户端，保留既有 H2/本地 stub。默认 Redisson 自动配置被排除，由 Tianshu 创建其显式配置的 Redis client。原 PostgreSQL、Redis、RabbitMQ 及数据卷保持。配置解密在 Spring Boot Config Data 加载后执行，使用显式 import/configtree 替代旧 bootstrap；加解密与密钥规则不变。静态、模块和进程内 RPC 测试不能证明真实 Tianshu/Tianquan-Shoubing、TLS 或容器互通。
+`test` 使用 H2 和本地替身，关闭 RPC provider/consumer 与天枢配置投递。生产由应用命名的 Redis Cluster 客户端承接缓存与发号租约。Spring Boot Config Data 加载后解密受保护配置。
 
 ## 星垣身份与授权
 
@@ -166,9 +165,9 @@ HTTP 失败使用包含 `code`、`message`、`traceId`、`timestamp` 和 `fieldE
 
 10个native RPC方法要求已验证TENANT SERVICE身份、固定audience与本方法scope。共同SDK严格确认usage proof并在finally恢复callback tenant/actor/kind；facade metadata仅传递trace/幂等，不构造SYSTEM或伪USER。GraphQL使用immutable身份/scope/proof/trace和框架callback Adapter/Decorator，aliases共用一次已确认DENY marker；依赖/审计Unavailable不降为普通拒绝。
 
-三个evaluation只读调用仅GetCourse/GetExam/GetScore，scope来自目标发布namespace。填写organization.integrations.evaluation.application-namespace、固定group/version（默认1.0.0）、精确目标resource URI、独立client registrations及SDK可信tenant-registration map。未知/错配binding在创建出站proxy前拒绝，不增加USER relay或DTO选target回退。
+带可选 Evaluation Facade 的项目通过 `EVALUATION_RPC_NAMESPACE` 和 `EVALUATION_RPC_SERVICE` 绑定 Kubernetes 稳定 Service。传输和 OAuth binding 只允许 `CourseService/GetCourse`, `ExamService/GetExam`, `ScoreService/GetScore`，且绑定版本必须一致。省略 peer facade 时，两组调用绑定均为空。
 
-运行配置需要明确HTTPS trusted issuer/JWK、严格撤销endpoint/epoch、独立control/tenant client凭据和独占audit spool/HMAC key。SDK Servlet自动注册关闭，由应用持有observation→IdP→RBAC→authorization→可信业务context链。RPC默认TLS，明文仅显式loopback例外；高优先级文档窄链在治理启用时验证完整SERVICE与yuheng.openapi.read，关闭治理也不公开文档。目录登记不自动授权。external-off测试提供明确SDK事实，不代表真实PG/Redis/TLS/注册/SSO/浏览器已验。
+运行配置需要明确HTTPS trusted issuer/JWK、严格撤销endpoint/epoch、独立control/tenant client凭据和独占audit spool/HMAC key。SDK Servlet自动注册关闭，由应用持有observation→IdP→RBAC→authorization→可信业务context链。内部 RPC 通过受管 Service 使用 h2c。高优先级文档窄链在治理启用时验证完整SERVICE与yuheng.openapi.read，关闭治理也不公开文档。目录登记不自动授权。external-off测试提供明确SDK事实，不代表数据库、Redis、Cilium 和浏览器现场验收。
 
 ## Repository、CQE 与 PostgreSQL
 
@@ -184,7 +183,7 @@ HTTP 失败使用包含 `code`、`message`、`traceId`、`timestamp` 和 `fieldE
 
 按环境 profile、`readwrite` 的顺序启用，例如 `SPRING_PROFILES_ACTIVE=prod,readwrite`。除现有三个主库 URL 外，还必须提供 `ORGANIZATION_SHARDING_MASTER_DATA_REPLICA_URL`、`ORGANIZATION_SHARDING_SHARD_0_REPLICA_URL` 和 `ORGANIZATION_SHARDING_SHARD_1_REPLICA_URL`；`ORGANIZATION_SHARDING_REPLICA_USERNAME`、`ORGANIZATION_SHARDING_REPLICA_PASSWORD` 可单独配置副本账号。每个地址必须是对应分组的真实副本，单独切换模式变量不会补齐数据源。既有库切换拓扑前应规划并核验路由指纹及数据迁移。
 
-每个实例配置唯一 `EGON_ID_MACHINE_ID`，生产使用现有 Common Snowflake。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
+受管进程按 `EGON_ID_REDIS_ENV` 与 `EGON_ID_REDIS_APP` 从 Redis Cluster 获取发号租约。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
 
 默认测试使用隔离 H2 和受控依赖。本工程不含 PostgreSQL 门控测试：`-Degon.pg.*` 与 `EGON_TEST_PG_*` 不被任何 POM、YAML 或测试读取，也没有测试启动或提供数据库。PG/SS 真实路由、迁移和性能 EXPLAIN 由使用者手动验收，没有失败不等于通过。
 
@@ -219,28 +218,7 @@ podman build --build-arg CONTAINER_ENGINE=podman -f deploy/container/Dockerfile 
 nerdctl build --build-arg CONTAINER_ENGINE=nerdctl -f deploy/container/Dockerfile -t stellar-enclosure-source-web:local .
 ```
 
-使用以下命令启动完整的 Docker 开发栈：
-
-```bash
-docker compose --env-file deploy/env/.env.example -f deploy/compose/compose.docker.yaml up -d --build
-```
-
-模板自带的 Compose 栈创建三个 PostgreSQL primary（`master_data`、`shard_0`
-和 `shard_1`），默认使用 `APP_DATASOURCE_MODE=SHARDING`。它不会模拟 replica；
-如需 `SHARDING_READWRITE`，应使用运维方管理的读写拓扑并完整配置相应变量。
-
-Podman 和 nerdctl 分别使用 `compose.podman.yaml` 和 `compose.nerdctl.yaml`。生产环境使用匹配的 `.prod.yaml` 文件和由运维方持有的 `.env.prod`。关于 rootless 前置条件、持久化、生产边界和数据删除警告，请参见 `deploy/container/README.md`。
-
-根目录 `Jenkinsfile` 会运行测试，也可以发布不可变镜像。设置 `PUBLISH_IMAGE=true` 并提供 registry 参数即可发布；它不会执行部署。
-
-可选的本地运行：
-
-```bash
-SPRING_PROFILES_ACTIVE=dev bash ./mvnw -pl stellar-enclosure-source-web-starter spring-boot:run
-```
-
-敏感值应放在环境变量、挂载文件、`config/application-secrets.yml` 或 `configtree:/run/secrets/` 中。不要提交凭据或解密密钥。
-
+平台使用 [Kubernetes 交付输入](deploy/kubernetes/README.md) 部署已核验的 OCI 镜像摘要。PostgreSQL、Redis Cluster、RabbitMQ、Pod 身份和天枢配置由批准的发布输入提供。玉衡按应用授权范围发布公网入口。根目录 `Jenkinsfile` 负责测试和镜像构建，`PUBLISH_IMAGE=true` 时可发布镜像。
 
 ## 权限清单与受控交付
 

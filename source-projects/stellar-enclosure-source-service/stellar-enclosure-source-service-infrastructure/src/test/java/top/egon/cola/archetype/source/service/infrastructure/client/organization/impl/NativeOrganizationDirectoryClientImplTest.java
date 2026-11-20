@@ -147,7 +147,7 @@ class NativeOrganizationDirectoryClientImplTest {
     }
 
     @Test
-    void builds_exact_direct_queries_with_bounded_timeout_and_no_retry_or_fallback() {
+    void binds_only_read_methods_to_the_approved_service_with_bounded_timeout() {
         var strategies = mock(top.egon.cola.component.rpc.consumer.reference.RpcReferenceStrategyFactory.class);
         var proxies = mock(top.egon.cola.component.rpc.consumer.proxy.RpcConsumerProxyFactory.class);
         when(strategies.create(any())).thenReturn(mock(top.egon.cola.component.rpc.consumer.reference.RpcReferenceStrategy.class));
@@ -160,26 +160,20 @@ class NativeOrganizationDirectoryClientImplTest {
                 strategies, proxies,
                 new top.egon.cola.component.rpc.context.identity.RpcProcessIdentity("consumer", "test", "localhost", 1L, "consumer-1"),
                 new NativeOrganizationRpcProperties("biz", "organization-app", "student-management-organization", "1.0", 5000, "organization-app"),
-                new top.egon.cola.component.rpc.config.EgonRpcProperties(), validation, organizationBindings());
+                organizationServiceReferences(), validation, organizationBindings());
         config.organizationUserFacade();
         config.organizationSchoolClassFacade();
         var definitions = org.mockito.ArgumentCaptor.forClass(top.egon.cola.component.rpc.consumer.reference.RpcReferenceDefinition.class);
         verify(strategies, times(2)).create(definitions.capture());
         for (var definition : definitions.getAllValues()) {
-            assertThat(definition.mode()).isEqualTo(top.egon.cola.component.rpc.consumer.reference.RpcReferenceMode.DIRECT);
-            assertThat(definition.directQuery().bizCode()).isEqualTo("biz");
-            assertThat(definition.directQuery().appCode()).isEqualTo("organization-app");
-            assertThat(definition.directQuery().env()).isEqualTo("test");
-            assertThat(definition.directQuery().version()).isEqualTo("1.0");
-            assertThat(definition.directQuery().protocol()).isEqualTo("grpc");
-            assertThat(definition.directQuery().group()).isEqualTo(definition.serviceIdentity().group());
-            assertThat(definition.typedPolicies()).isNotEmpty();
-            for (var policy : definition.typedPolicies().values()) {
+            assertThat(definition.target().authority()).isEqualTo("organization-rpc.fixture.svc.cluster.local:50051");
+            assertThat(definition.target().version()).isEqualTo(7L);
+            assertThat(definition.target().methods()).singleElement().asString().contains("/Get");
+            assertThat(definition.serviceIdentity().version()).isEqualTo("1.0");
+            assertThat(definition.typedPolicies().values()).singleElement().satisfies(policy -> {
                 assertThat(policy.timeoutMs()).isEqualTo(3000);
                 assertThat(policy.retries()).isZero();
-                assertThat(policy.failStrategy()).isEqualTo(top.egon.cola.component.rpc.annotation.FailStrategy.FAIL_CLOSED);
-                assertThat(policy.fallbackBean()).isEmpty();
-            }
+            });
         }
     }
 
@@ -195,6 +189,8 @@ class NativeOrganizationDirectoryClientImplTest {
             binding.setGroup("student-management-organization");
             binding.setVersion("1.0");
             binding.setFullMethodName(service + "/" + method);
+            binding.setTransportBindingId(entry.getKey().replace("Service", "").toLowerCase(java.util.Locale.ROOT) + "-read");
+            binding.setTransportBindingVersion(7L);
             binding.setProcessIdentity(Map.of("applicationName", "consumer", "env", "test"));
             binding.setMode(IdpStarterProperties.RpcConsumerModeEnum.SERVICE);
             binding.setAppId("evaluation-app");
@@ -211,21 +207,33 @@ class NativeOrganizationDirectoryClientImplTest {
     void missingDuplicateOrBroaderScopeBindingsNeverCreateAnOutboundProxy() {
         var strategies = mock(top.egon.cola.component.rpc.consumer.reference.RpcReferenceStrategyFactory.class);
         var proxies = mock(top.egon.cola.component.rpc.consumer.proxy.RpcConsumerProxyFactory.class);
-        for (String invalid : List.of("missing", "duplicate", "broader-scope", "user-relay", "wrong-process")) {
+        for (String invalid : List.of("missing", "duplicate", "broader-scope", "user-relay", "wrong-process", "stale-transport")) {
             var settings = organizationBindings();
             var binding = settings.getRpc().getConsumer().getBindings().get("UserService");
             if ("missing".equals(invalid)) { settings.getRpc().getConsumer().getBindings().clear(); }
             if ("duplicate".equals(invalid)) { settings.getRpc().getConsumer().getBindings().put("duplicate", binding); }
             if ("broader-scope".equals(invalid)) { binding.setScopes(Set.of("organization-app:user:read", "organization-app:user:create")); }
             if ("user-relay".equals(invalid)) { binding.setMode(IdpStarterProperties.RpcConsumerModeEnum.USER_RELAY); }
+            if ("stale-transport".equals(invalid)) { binding.setTransportBindingVersion(6L); }
             if ("wrong-process".equals(invalid)) { binding.setProcessIdentity(Map.of("applicationName", "foreign", "env", "test")); }
             var config = new NativeOrganizationRpcConfiguration(
                     new top.egon.cola.component.rpc.contract.validation.RpcContractValidator(validation), strategies, proxies,
                     new top.egon.cola.component.rpc.context.identity.RpcProcessIdentity("consumer", "test", "localhost", 1L, "consumer-1"),
                     new NativeOrganizationRpcProperties("biz", "organization-app", "student-management-organization", "1.0", 5000, "organization-app"),
-                    new top.egon.cola.component.rpc.config.EgonRpcProperties(), validation, settings);
+                    organizationServiceReferences(), validation, settings);
             assertThatThrownBy(config::organizationUserFacade).as(invalid).isInstanceOf(IllegalStateException.class);
         }
         verifyNoInteractions(strategies, proxies);
     }
+    private top.egon.cola.component.rpc.consumer.reference.RpcReferenceDefinitionResolver organizationServiceReferences() {
+        var properties = new top.egon.cola.component.rpc.config.EgonRpcProperties();
+        for (var credential : organizationBindings().getRpc().getConsumer().getBindings().values()) {
+            var binding = new top.egon.cola.component.rpc.config.EgonRpcProperties.RpcServiceBindingConfig()
+                    .setVersion(7).setNamespace("fixture").setService("organization-rpc").setPort(50051)
+                    .setMethods(java.util.Set.of(credential.getFullMethodName()));
+            properties.getConsumer().getBindings().put(credential.getTransportBindingId(), binding);
+        }
+        return new top.egon.cola.component.rpc.consumer.reference.RpcReferenceDefinitionResolver(properties);
+    }
+
 }

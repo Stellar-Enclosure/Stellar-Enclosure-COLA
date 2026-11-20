@@ -1,7 +1,6 @@
 package top.egon.cola.archetype.source.service.infrastructure.client.organization;
 
-import java.lang.reflect.Method;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,16 +12,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import top.egon.cola.component.common.core.validation.ValidationUtils;
-import top.egon.cola.component.rpc.annotation.FailStrategy;
-import top.egon.cola.component.rpc.annotation.LoadBalance;
-import top.egon.cola.component.rpc.config.EgonRpcProperties;
-import top.egon.cola.component.rpc.consumer.provider.RpcProviderQuery;
 import top.egon.cola.component.rpc.consumer.proxy.RpcConsumerProxyFactory;
 import top.egon.cola.component.rpc.consumer.reference.RpcReferenceDefinition;
-import top.egon.cola.component.rpc.consumer.reference.RpcReferenceMode;
+import top.egon.cola.component.rpc.consumer.reference.RpcReferenceDefinitionResolver;
 import top.egon.cola.component.rpc.consumer.reference.RpcReferencePolicy;
 import top.egon.cola.component.rpc.consumer.reference.RpcReferenceStrategyFactory;
 import top.egon.cola.component.rpc.context.identity.RpcProcessIdentity;
+import top.egon.cola.component.rpc.contract.descriptor.RpcContractDescriptor;
 import top.egon.cola.component.rpc.contract.identity.RpcServiceIdentity;
 import top.egon.cola.component.rpc.contract.validation.RpcContractValidator;
 import top.egon.cola.archetype.source.web.facade.teaching.SchoolClassFacade;
@@ -32,7 +28,7 @@ import top.egon.cola.platform.tianquan.shoubing.starter.autoconfigure.IdpStarter
 import top.egon.cola.platform.tianquan.shoubing.starter.autoconfigure.IdpStarterProperties.RpcConsumerModeEnum;
 import java.util.Set;
 
-/** Builds DIRECT references through the existing RPC descriptor, strategy and proxy factories. */
+/** Binds only the authorized unary reads to the deployment Service and the matching OAuth identity. */
 @Configuration(value = "nativeOrganizationRpcConfiguration", proxyBeanMethods = false)
 @Profile({"dev", "prod"})
 @EnableConfigurationProperties(NativeOrganizationRpcProperties.class)
@@ -49,8 +45,8 @@ public class NativeOrganizationRpcConfiguration {
     private final RpcProcessIdentity processIdentity;
     @Qualifier("app.integrations.organization-top.egon.cola.archetype.source.service.infrastructure.client.organization.NativeOrganizationRpcProperties")
     private final NativeOrganizationRpcProperties target;
-    @Qualifier("egon.cola.component.rpc-top.egon.cola.component.rpc.config.EgonRpcProperties")
-    private final EgonRpcProperties runtimeProperties;
+    @Qualifier("rpcReferenceDefinitionResolver")
+    private final RpcReferenceDefinitionResolver definitions;
     @Qualifier("nativeRpcValidation")
     private final ValidationUtils validation;
     @Qualifier("idpStarterProperties")
@@ -92,14 +88,15 @@ public class NativeOrganizationRpcConfiguration {
             throw new IllegalStateException("ORGANIZATION_RPC_BINDING_INVALID");
         }
         var identity = new RpcServiceIdentity(descriptor.serviceName(), group, target.version());
-        var query = new RpcProviderQuery(target.bizCode(), target.appCode(), processIdentity.env(),
-                descriptor.serviceName(), group, target.version(), "grpc");
-        var policy = new RpcReferencePolicy(
-                Math.min(target.timeoutMs(), runtimeProperties.getConsumer().getDefaultTimeoutMs()),
-                0, LoadBalance.ROUND_ROBIN, FailStrategy.FAIL_CLOSED, "", null);
-        Map<Method, RpcReferencePolicy> policies = new LinkedHashMap<>();
-        descriptor.methods().forEach(method -> policies.put(method.javaMethod(), policy));
-        var definition = new RpcReferenceDefinition(RpcReferenceMode.DIRECT, identity, query, policies);
-        return proxies.create(descriptor, definition, strategies.create(definition));
+        var service = definitions.resolve(binding.getTransportBindingId(), identity, Set.of(fullMethod)).target();
+        if (!Long.valueOf(service.version()).equals(binding.getTransportBindingVersion())
+                || !service.methods().equals(Set.of(fullMethod))) {
+            throw new IllegalStateException("ORGANIZATION_RPC_BINDING_INVALID");
+        }
+        var method = descriptor.methodByFullMethodName(fullMethod);
+        var authorized = new RpcContractDescriptor(contractType, descriptor.serviceName(), group, target.version(), List.of(method));
+        var policy = new RpcReferencePolicy(Math.min(target.timeoutMs(), definitions.defaultTimeoutMs()));
+        var definition = new RpcReferenceDefinition(service, identity, Map.of(method.javaMethod(), policy));
+        return proxies.create(authorized, definition, strategies.create(definition));
     }
 }

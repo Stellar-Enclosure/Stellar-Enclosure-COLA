@@ -4,6 +4,20 @@ import groovy.xml.XmlSlurper
 def projectDir = new File(basedir, "project/basic")
 assert projectDir.isDirectory(): "Expected generated Light Open project"
 
+def runtimeProfiles = new File(projectDir, 'src/main/resources')
+['bootstrap.yml', 'bootstrap-dev.yml', 'bootstrap-prod.yml', 'bootstrap-test.yml'].each { retired ->
+    assert !new File(runtimeProfiles, retired).exists(): "Retired bootstrap remains: ${retired}"
+}
+assert !new File(projectDir, 'deploy/compose').exists()
+assert !new File(projectDir, 'deploy/env').exists()
+def deployedWorkload = new File(projectDir, 'deploy/kubernetes/workload.yaml').text
+assert deployedWorkload.contains('name: basic-http')
+assert deployedWorkload.contains('port: management')
+assert deployedWorkload.contains('file:/etc/stellar/runtime/application.yml')
+assert deployedWorkload.contains('automountServiceAccountToken: false')
+assert !deployedWorkload.contains('kind: Ingress') && !deployedWorkload.contains('type: LoadBalancer')
+assert !deployedWorkload.contains('kind: GRPCRoute')
+
 // Source layout is checked before build-output assertions; a clean hash or javac pass is insufficient.
 def contractJavaSources = []
 projectDir.eachFileRecurse(FileType.FILES) { source ->
@@ -157,7 +171,7 @@ missing("src/main/java/it/pkg/infrastructure/teaching/repo/jpa")
 missing("target/egon-cola-architecture")
 
 def application = file("src/main/resources/application.yml").text
-assert application.contains("machine-id: \${EGON_ID_MACHINE_ID}")
+assert application.contains("env: \${EGON_ID_REDIS_ENV}")
 assert application.contains("queue-capacity: \${ASYNC_QUEUE_CAPACITY:1000}")
 assert application.contains("keep-alive: \${ASYNC_KEEP_ALIVE:60s}")
 assert application.contains("egon-cola-component") || pomText.contains("dynamic-thread-pool-starter")
@@ -166,19 +180,7 @@ def testApplication = file("src/main/resources/application-test.yml").text
 assert testApplication.contains("machine-id: 0")
 assert testApplication.contains("enabled: false")
 assert testApplication.contains("report:")
-assert file("deploy/env/.env.example").text.contains("NACOS_IMAGE=nacos/nacos-server:v3.0.3")
-assert file("deploy/env/.env.example").text.contains("EGON_ID_MACHINE_ID=0")
-assert file("deploy/env/.env.prod.example").text.contains("EGON_ID_MACHINE_ID=")
-[
-        "compose.docker.yaml", "compose.podman.yaml", "compose.nerdctl.yaml",
-        "compose.docker.prod.yaml", "compose.podman.prod.yaml", "compose.nerdctl.prod.yaml"
-].each { name ->
-    def compose = file("deploy/compose/${name}").text
-    assert compose.contains("EGON_ID_MACHINE_ID")
-    assert compose.contains("DTP_ENABLED")
-    assert compose.contains("NACOS_SERVER_ADDR: nacos:8848")
-    assert compose.contains("nacos:")
-}
+
 
 def reportFiles = filesUnder("target") { it.path.replace('\\', '/').contains('/surefire-reports/') && it.name.endsWith('.xml') }
 [
@@ -211,8 +213,7 @@ assert sourceBoundaryFiles.every { candidate ->
 }
 [
         'top.egon.internal.archetype.source',
-        'stellar-enclosure-source-light-open',
-        '0.0.1'
+        'stellar-enclosure-source-light-open'
 ].each { forbiddenToken ->
     sourceBoundaryFiles.each { candidate ->
         assert !candidate.getText('UTF-8').contains(forbiddenToken):
@@ -244,6 +245,8 @@ true
 
 // Verify the released parent and the actual packaged runtime, separately from BOM management.
 def releasedParent = new XmlSlurper(false, false).parse(new File(projectDir, 'pom.xml'))
+assert releasedParent.groupId.text() == 'archetype.it'
+assert releasedParent.version.text() == '0.1-SNAPSHOT'
 assert releasedParent.parent.groupId.text() == 'top.egon'
 assert releasedParent.parent.artifactId.text() == 'stellar-enclosure-archetypes-parent'
 assert releasedParent.parent.version.text() == releasedParent.properties.'stellar-enclosure.version'.text()
@@ -293,10 +296,18 @@ def repositoryManifests = repositoryContractFiles.findAll { it.name == 'reposito
 assert repositoryManifests.size() == 1
 def repositoryManifest = new groovy.json.JsonSlurper().parse(repositoryManifests.first())
 assert repositoryManifest.family == 'light-open'
-assert repositoryManifest.scripts.size() == 1
-def initializationSql = new File(repositoryManifests.first().parentFile, 'V20260913_001__initialize_repository_schema.sql')
-assert initializationSql.isFile()
-assert repositoryManifest.scripts.first().sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(initializationSql.bytes).encodeHex().toString()
+assert repositoryManifest.scripts*.version == ['20260913_001', '20261027_001']
+assert repositoryManifest.scripts*.path == [
+        'db/egon-mp/V20260913_001__initialize_repository_schema.sql',
+        'db/egon-mp/V20261027_001__align_readwrite_shard_tables.sql'
+]
+def migrationDirectory = repositoryManifests.first().parentFile
+repositoryManifest.scripts.each { migration ->
+    def script = new File(migrationDirectory, migration.path.tokenize('/').last())
+    assert script.isFile()
+    assert migration.sha256 == java.security.MessageDigest.getInstance('SHA-256').digest(script.bytes).encodeHex().toString()
+}
+def initializationSql = new File(migrationDirectory, 'V20260913_001__initialize_repository_schema.sql')
 assert initializationSql.text.contains('deleted_at') && initializationSql.text.contains('version BIGINT NOT NULL DEFAULT 0')
 repositoryContractFiles.findAll { it.path.replace('\\', '/').contains('/src/main/resources/mybatis/mapper/') && it.name.endsWith('DAO.xml') }.each {
     assert it.text.contains('selectActiveById') && it.text.contains('selectActiveByIds')

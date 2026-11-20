@@ -38,9 +38,12 @@ spring:
             token-uri: ${NATIVE_TENANT_TWO_TOKEN_URI:}
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      cluster:
+        nodes: ${REDIS_CLUSTER_NODES}
+      username: ${REDIS_USERNAME}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
   autoconfigure:
     exclude:
       - org.redisson.spring.starter.RedissonAutoConfigurationV4
@@ -92,10 +95,7 @@ spring:
 
 server:
   ssl:
-    enabled: true
-    key-store: ${NATIVE_TLS_KEY_STORE:}
-    key-store-password: ${NATIVE_TLS_KEY_STORE_PASSWORD:}
-    key-store-type: PKCS12
+    enabled: false
   port: ${SERVER_PORT:8080}
   shutdown: graceful
   tomcat:
@@ -288,78 +288,65 @@ egon:
               sharding-column: tenant_id
       id:
         enabled: true
-        machine-id: ${EGON_ID_MACHINE_ID}
         max-clock-backward: PT0.005S
+        redis:
+          enabled: true
+          env: ${EGON_ID_REDIS_ENV}
+          app: ${EGON_ID_REDIS_APP}
+          lease-duration: ${EGON_ID_REDIS_LEASE_DURATION:5m}
+          renew-interval: ${EGON_ID_REDIS_RENEW_INTERVAL:1m}
       rpc:
-        enabled: true
+        enabled: ${RPC_ENABLED:true}
+        transport: h2c
         identity:
           env: ${APP_ENV:dev}
-          host: ${RPC_ADVERTISED_HOST:localhost}
-          instance-id: ${INSTANCE_ID:${HOSTNAME:local}}
+          host: ${POD_IP:${HOSTNAME:local}}
+          instance-id: ${POD_UID:${HOSTNAME:local}}
         provider:
-          enabled: true
+          enabled: ${RPC_ENABLED:true}
+          bind-address: ${RPC_BIND_ADDRESS:0.0.0.0}
           port: ${RPC_PORT:50051}
-          advertised-host: ${RPC_ADVERTISED_HOST:localhost}
-          registration-fail-fast: true
         consumer:
           enabled: false
           default-timeout-ms: 3000
-          max-retries: 0
-        tls:
-          enabled: ${RPC_TLS_ENABLED:false}
-          development-plaintext: ${RPC_DEVELOPMENT_PLAINTEXT:true}
-          certificate-chain-path: ${RPC_CERTIFICATE_CHAIN_PATH:}
-          private-key-path: ${RPC_PRIVATE_KEY_PATH:}
-          trust-certificate-collection-path: ${RPC_TRUST_CERTIFICATE_COLLECTION_PATH:}
+          bindings: {}
       tianshu:
         tenant-id: ${TIANSHU_TENANT_ID:}
-        enabled: false
-        biz-code: ${TIANSHU_BIZ_CODE:student-management}
-        app-code: ${TIANSHU_APP_CODE:${spring.application.name}}
-        env: ${APP_ENV:dev}
-        namespace: ${TIANSHU_NAMESPACE:default}
-        registration-resource-uri: ${TIANSHU_REGISTRATION_RESOURCE_URI:}
-        redis:
-          username: ${TIANSHU_REDIS_USERNAME:}
-          enabled: false
-          host: ${TIANSHU_REDIS_HOST:localhost}
-          port: ${TIANSHU_REDIS_PORT:6379}
-          password: ${TIANSHU_REDIS_PASSWORD:}
-          database: ${TIANSHU_REDIS_DATABASE:0}
-        consistency:
-          fail-fast: true
-        registry:
-          enabled: false
-          http:
-            enabled: false
+        enabled: ${TIANSHU_CONFIG_ENABLED:false}
+        baseline:
+          file: ${TIANSHU_CONFIG_BASELINE_FILE:/var/run/tianshu/config/baseline.json}
+          scope:
+            tenant-id: ${TIANSHU_TENANT_ID:}
+            biz-code: ${TIANSHU_BIZ_CODE:student-management}
             env: ${APP_ENV:dev}
-            namespace: ${TIANSHU_NAMESPACE:default}
-            instance-id: ${INSTANCE_ID:${HOSTNAME:local}}
-            service-name: ${spring.application.name}
-            version: 1.0.0
-            advertised-host: ${HTTP_ADVERTISED_HOST:localhost}
-            port: ${server.port:8080}
-            fail-fast: true
-        rpc:
-          target: ${TIANSHU_RPC_TARGET:}
-          tls:
-            enabled: ${TIANSHU_RPC_TLS_ENABLED:false}
-            development-plaintext: ${TIANSHU_RPC_DEVELOPMENT_PLAINTEXT:true}
-            certificate-chain-path: ${TIANSHU_RPC_CERTIFICATE_CHAIN_PATH:}
-            private-key-path: ${TIANSHU_RPC_PRIVATE_KEY_PATH:}
-            trust-certificate-collection-path: ${TIANSHU_RPC_TRUST_CERTIFICATE_COLLECTION_PATH:}
-          auth:
-            enabled: ${TIANSHU_RPC_AUTH_ENABLED:true}
-            runtime:
-              access-key: ${TIANSHU_RUNTIME_ACCESS_KEY:}
-              secret-key: ${TIANSHU_RUNTIME_SECRET_KEY:}
-            registry:
-              access-key: ${TIANSHU_REGISTRY_ACCESS_KEY:}
-              secret-key: ${TIANSHU_REGISTRY_SECRET_KEY:}
+            app-code: ${TIANSHU_APP_CODE:${spring.application.name}}
+            resource-name: application.yml
+          target:
+            binding-id: ${TIANSHU_CONFIG_TARGET_BINDING_ID:}
+            binding-revision: ${TIANSHU_CONFIG_TARGET_BINDING_REVISION:}
+            cluster-id: ${CLUSTER_ID:}
+            kubernetes-namespace: ${POD_NAMESPACE:}
+            workload-uid: ${WORKLOAD_UID:}
+            container-name: ${CONTAINER_NAME:application}
+        delivery:
+          enabled: ${TIANSHU_CONFIG_ENABLED:false}
+          service-origin: ${TIANSHU_CONFIG_SERVICE_ORIGIN:http://tianshu-config.platform-system.svc.cluster.local}
+          workload-token-file: ${TIANSHU_WORKLOAD_TOKEN_FILE:/var/run/tianshu/identity/workload-token}
+          state-directory: ${TIANSHU_CONFIG_STATE_DIRECTORY:/var/run/tianshu/state}
+          pod-uid: ${POD_UID:}
+          registration-id: ${TIANSHU_CONFIG_REGISTRATION_ID:}
+          app-id: ${TIANSHU_CONFIG_APP_ID:}
+          identity-tenant-id: ${TIANSHU_CONFIG_IDENTITY_TENANT_ID:}
+          expected-issuer: ${TIANSHU_CONFIG_ISSUER:}
+          canonical-audience: ${TIANSHU_CONFIG_RESOURCE_URI:}
+          request-timeout: ${TIANSHU_CONFIG_REQUEST_TIMEOUT:15s}
+          poll-interval: ${TIANSHU_CONFIG_POLL_INTERVAL:30s}
+          max-stale: ${TIANSHU_CONFIG_MAX_STALE:5m}
+          allow-offline-start: false
+          baseline-valid-until: ${TIANSHU_CONFIG_BASELINE_VALID_UNTIL:}
       yuheng:
         openapi:
           enabled: ${OPENAPI_GOVERNANCE_ENABLED:false}
-          publish-to-tianshu: ${OPENAPI_PUBLISH_TO_TIANSHU:false}
     platform:
       tianquan:
         shoubing:

@@ -145,13 +145,13 @@ common         -> no business layer
 
 `dev` 是本地工作站开发和 `feature/*` 分支验证的默认 profile，使用由环境变量提供的 PostgreSQL、Redis、RabbitMQ、COLA RPC 和外部 HTTP 集成。
 
-Maven 测试会自动选择 `test`，`dev`、`release/*` 和 `hotfix/*` 分支的测试流水线也使用该 profile。它使用 H2、内存 adapter 和确定性 stub，并关闭 RabbitMQ、Redis、COLA RPC registry 和外部 HTTP 调用。
+Maven 测试会自动选择 `test`，`dev`、`release/*` 和 `hotfix/*` 分支的测试流水线也使用该 profile。它使用 H2、内存 adapter 和确定性 stub，并关闭 RabbitMQ、Redis、RPC provider/consumer、天枢配置交付和外部 HTTP 调用。
 
-`prod` 仅用于 `main` 分支的运行时构建和部署。`dev` 与 `prod` 通过 `RABBITMQ_ENABLED=true`、`REDIS_ENABLED=true`、`EXTERNAL_HTTP_ENABLED=true`、`TIANSHU_RPC_TARGET=host:19090`、`TIANSHU_ENABLED=true`、`TIANSHU_REGISTRY_ENABLED=true` 和 `RPC_ENABLED=true` 等环境变量配置真实 adapter。消息代理凭据使用 Spring 自身的变量名 `SPRING_RABBITMQ_HOST`、`SPRING_RABBITMQ_PORT`、`SPRING_RABBITMQ_USERNAME`、`SPRING_RABBITMQ_PASSWORD`，而 `RABBITMQ_ENABLED` 是应用自身的开关；同一个 `RABBITMQ_ENABLED` 取值也驱动 `@RabbitListener` 的 auto-startup，本工程没有独立的监听启动开关。
+`prod` 用于 `main` 的运行时部署。平台分别提供 PostgreSQL、Redis Cluster、RabbitMQ、服务端点和凭据。RabbitMQ 使用标准 Spring 连接配置，`RABBITMQ_ENABLED` 同时控制 adapter 和监听器启动。
 
 ## 原生 RPC 与 Tianshu
 
-10 个 REST 方法和 4 个 GraphQL 根查询要求本应用精确 HTTPS audience 的已验证 USER Bearer。每个入口同时校验 `stellar-enclosure-source-light:<intent>` OAuth scope 与独立的资源/细权限；`openid` 不授予业务访问。身份和租户来自 SDK 验证后的主体，`X-Tenant-Id`、`X-Operator-Id` 不具有身份权威。仅 `/actuator/health/liveness`、`/actuator/health/readiness` 公共。
+10 个 REST 方法和 4 个 GraphQL 根查询要求本应用精确 HTTPS audience 的已验证 USER Bearer。每个入口同时校验 `stellar-enclosure-source-light:<intent>` OAuth scope 与独立的资源/细权限；`openid` 不授予业务访问。身份和租户来自 SDK 验证后的主体，`X-Tenant-Id`、`X-Operator-Id` 不具有身份权威。`/actuator/health/liveness` 与 `/actuator/health/readiness` 走受保护的管理监听端口。
 
 6 个 REST 写操作在业务调用前显式检查字段集合：用户创建 externalId/name/email、角色分配 roleCode、权限授予 permissionCode、课程创建 code/name、班级创建 name/semester、排课 startsAt/endsAt。字段定义的 writable 只是上限；真实权限审核、资源映射/角色授予和显式字段规则必须进入当前授权投影。缺规则、READ、NONE 均拒绝写入；目录登记与审核/授权是独立操作者步骤，不自动授予权限。
 
@@ -161,15 +161,9 @@ Maven 测试会自动选择 `test`，`dev`、`release/*` 和 `hotfix/*` 分支�
 
 可选文档治理链独立拥有 `/v3/api-docs/**`，只接受完整验证且包含 `yuheng.openapi.read` 的 SERVICE。治理关闭不意味着文档公开。业务 handler 已有稳定 operationId、nativeBearer 与 401/403/503 NativeSecurityError 声明，既有请求/成功响应 schema 保留。
 
-部署需显式提供两个 TENANT issuer/JWK 信任条目、严格撤销 primary/epoch、有界 JWK 缓存、独占绝对审计 spool/HMAC key 和 RBAC endpoint/runtime Redis。受保护配置里的 `egon.cola.platform.tianquan.shoubing.service-client.tenant-registration-ids` 必须将真实正整数租户 ID 映射到 native-tenant-one/native-tenant-two；没有默认租户或旧身份回退。各 registration 的 client ID/secret 与 HTTPS token URI 沿 Spring OAuth2 Client 配置。独立控制面 tianshuregistration 的部署 scope 必须包含 tianshu:registration:write。缺配置不得放行业务；test 的外部关闭仅配合明确的受控 SDK fixture。
+部署需提供两个 TENANT issuer/JWK 信任条目、撤权 primary/epoch、审计 spool、鉴身端点和 Redis Cluster。受保护配置将授权租户映射到对应的 Spring OAuth2 Client registration。生产环境通过 K8s Service 和 Cilium GAMMA 提供内部 h2c。Pod UID 和 IP 由 Downward API 注入，访问 scope 仍由应用校验。
 
-`dev` 和 `prod` 使用部署方已有的 Tianshu RPC 服务（`TIANSHU_RPC_TARGET`）和 Tianshu Redis 服务，还需提供注册 resource URI 及独立的 runtime/registry HMAC 凭据。RPC/Tianshu 配置前缀分别为 `egon.cola.component.rpc`、`egon.cola.component.tianshu`；应用身份由 `APP_NAME`、`APP_ENV`、`TIANSHU_BIZ_CODE`、`TIANSHU_APP_CODE`、`INSTANCE_ID` 指定。advertised host 必须能被消费者访问。本工程不附带 Tianshu 容器。`test` 关闭 RPC provider/consumer、Tianshu config/registry/Redis、HTTP 注册及文档发布。
-
-生产环境启用 RPC 和 Tianshu mTLS：通过对应的 `RPC_*`、`TIANSHU_RPC_*` 变量传入证书链、私钥和信任证书路径，并将证书文件挂载到容器中的相同路径。原生 RPC 运行环境默认 TLS；本地明文需明确批准的 loopback override，既有 Tianshu 传输例外仍由部署配置明确拥有。部署前填写 `deploy/env/.env.prod.example` 中的空白项，真实凭据通过环境变量或挂载文件提供。Compose 保留 PostgreSQL、Redis、RabbitMQ 及原有数据卷。静态和模块测试不能证明真实 Tianshu 注册、TLS 互通或容器就绪。
-
-Tianshu Provider 和 HTTP 注册还需获取带 `tianshu:registration:write` 的 Tianquan-Shoubing SERVICE Token。填写 `.env` 样例中的 `TIANQUAN_SHOUBING_*` 字段，并配置 Spring OAuth2 Client 的 `tianshuregistration` registration/provider，使用 `client_credentials`、`client_secret_basic`、client ID/secret 和 token URI。Compose 已映射标准 Spring 环境变量；直接 Java 启动时，请通过外部配置提供 `spring.security.oauth2.client.registration.tianshuregistration` 及 `spring.security.oauth2.client.provider.tianshuregistration.token-uri`。app ID、resource server ID/URI、registration resource URI 必须与部署方的 Tianquan-Shoubing/Tianshu 保持一致。SDK Servlet 自动注册关闭，由宿主显式链保护业务路由；文档治理保留更窄的 SERVICE 链。
-
-排除默认 Redisson 自动配置，由 Tianshu 管理显式配置的 Redis client；业务 Redis 保持 Spring 原有 connection factory。关闭 Tianshu 的测试环境不会因此自动建立 Redis 连接。
+天枢配置使用不可变 `baseline.json` 冷启动，经内部 HTTP Service 拉取条件快照并发送回执。独立 SERVICE 凭据需要 `tianshu:config:read` 和 `tianshu:config:receipt:write`，另一份凭据由 kubelet 投影为 Pod 绑定 token。受管启动输入见 [Kubernetes 交付](deploy/kubernetes/README.md)。
 
 ## Repository、CQE 与 PostgreSQL
 
@@ -185,7 +179,7 @@ Tianshu Provider 和 HTTP 注册还需获取带 `tianshu:registration:write` 的
 
 按环境 profile、`readwrite` 的顺序启用，例如 `SPRING_PROFILES_ACTIVE=prod,readwrite`。除现有三个主库 URL 外，还必须提供 `LIGHT_SHARDING_MASTER_DATA_REPLICA_URL`、`LIGHT_SHARDING_SHARD_0_REPLICA_URL` 和 `LIGHT_SHARDING_SHARD_1_REPLICA_URL`；`LIGHT_SHARDING_REPLICA_USERNAME`、`LIGHT_SHARDING_REPLICA_PASSWORD` 可单独配置副本账号。每个地址必须是对应分组的真实副本，单独切换模式变量不会补齐数据源。既有库切换拓扑前应规划并核验路由指纹及数据迁移。
 
-每个实例配置唯一 `EGON_ID_MACHINE_ID`，生产使用现有 Common Snowflake。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
+受管进程从 Redis Cluster 获取 Common Snowflake 租约，使用 `EGON_ID_REDIS_ENV` 和 `EGON_ID_REDIS_APP` 标识池。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
 
 默认测试使用隔离 H2 和受控依赖。本工程不含 PostgreSQL 门控测试：`-Degon.pg.*` 与 `EGON_TEST_PG_*` 不被任何 POM、YAML 或测试读取，也没有测试启动或提供数据库。PG/SS 真实路由、迁移和性能 EXPLAIN 由使用者手动验收，没有失败不等于通过。
 
@@ -224,18 +218,7 @@ podman build --build-arg CONTAINER_ENGINE=podman -f deploy/container/Dockerfile 
 nerdctl build --build-arg CONTAINER_ENGINE=nerdctl -f deploy/container/Dockerfile -t stellar-enclosure-source-light:local .
 ```
 
-使用以下命令启动完整的 Docker 开发栈：
-
-```bash
-docker compose --env-file deploy/env/.env.example -f deploy/compose/compose.docker.yaml up -d --build
-```
-
-模板自带的 Compose 栈默认使用 `APP_DATASOURCE_MODE=SHARDING`，创建
-`postgres-master-data`、`postgres-shard-0`、`postgres-shard-1` 三个 PostgreSQL
-primary。模板不创建 replica；`SHARDING_READWRITE` 是为具备对应 primary/replica
-端点的环境提供的代码与配置能力。
-
-Podman 和 nerdctl 分别使用 `compose.podman.yaml` 和 `compose.nerdctl.yaml`。生产环境使用匹配的 `.prod.yaml` 文件和由运维方持有的 `.env.prod`。关于 rootless 前置条件、持久化、生产边界和数据删除警告，请参见 `deploy/container/README.md`。
+平台使用 [Kubernetes 部署输入](deploy/kubernetes/README.md) 交付已核验的镜像摘要。PostgreSQL、Redis Cluster 和 RabbitMQ 分别由获准的基础设施提供，公共 HTTPS 入口由 Cilium Gateway API 和玉衡管理。
 
 根目录 `Jenkinsfile` 会运行测试，也可以发布不可变镜像。设置 `PUBLISH_IMAGE=true` 并提供 registry 参数即可发布；它不会执行部署。
 

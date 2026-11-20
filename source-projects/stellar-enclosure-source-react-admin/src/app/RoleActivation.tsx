@@ -1,9 +1,9 @@
 import {useRbac3Authorization} from '@stellar-enclosure/stellar-enclosure-tianquan-jianshen-react-sdk'
 import {Alert, Button, Card, Checkbox, Space, Typography} from 'antd'
 import {useState} from 'react'
-import {auth} from './api'
+import type {ApplicationAuthorization} from './api'
 
-export const RoleActivation = () => {
+export const RoleActivation = ({auth}: {readonly auth: ApplicationAuthorization}) => {
   const authorization = useRbac3Authorization()
   const initial = authorization.activeRoles?.activeRoles.flatMap(value => value.rootRoleIds) ?? []
   const [selection, setSelection] = useState<readonly string[] | null>(null)
@@ -36,7 +36,11 @@ export const RoleActivation = () => {
       </Checkbox>)}</Space>
     </Card>)}
     {error && <Alert type="error" showIcon message={error} />}
-    {authorization.errorCode === 'STEP_UP_REQUIRED' && <Button onClick={() => auth.login(undefined, {reauthenticate: true})}>重新认证</Button>}
+    {authorization.errorCode === 'STEP_UP_REQUIRED' && (auth.standaloneUrl
+      ? <Button href={auth.standaloneUrl} target="_blank" rel="noopener noreferrer">打开应用重新认证</Button>
+      : <Button onClick={() => {
+        void auth.login(true).catch(() => setError('重新认证未完成，请重试'))
+      }}>重新认证</Button>)}
     <Button type="primary" disabled={!authorization.activeRoles || hasConflict || (authorization.candidates?.configurationErrors.length ?? 0) > 0}
       loading={authorization.status === 'REPLACING_ACTIVE_ROLES'} onClick={() => void submit()}>激活所选角色</Button>
   </Card>

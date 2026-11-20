@@ -103,7 +103,7 @@ assert dependencyIds(poms.domain).contains("stellar-enclosure-component-common-m
 assert dependencyIds(poms.infrastructure).contains("stellar-enclosure-component-rag-starter")
 assert dependencyIds(poms.infrastructure).contains("stellar-enclosure-component-transactional-outbox-starter")
 assert dependencyIds(poms.infrastructure).contains("spring-ai-pgvector-store")
-assert dependencyIds(poms.infrastructure).contains("flyway-core")
+assert dependencyIds(poms.infrastructure).contains("spring-boot-starter-flyway")
 assert dependencyIds(poms.infrastructure).contains("postgresql")
 modules.each { module ->
     assert !dependencyIds(poms[module]).contains("spring-boot-starter-jdbc"):
@@ -159,8 +159,7 @@ new java.util.jar.JarFile(agentArchive).withCloseable { archive ->
 def technicalArtifacts = [
     'stellar-enclosure-component-rpc-api', 'stellar-enclosure-component-rpc-common',
     'stellar-enclosure-component-rpc-provider-starter', 'stellar-enclosure-component-rpc-consumer-starter',
-    'stellar-enclosure-component-rpc-starter', 'stellar-enclosure-component-rpc-tianshu-adapter',
-    'stellar-enclosure-tianshu-starter', 'stellar-enclosure-tianshu-http-registration-starter'
+    'stellar-enclosure-component-rpc-starter', 'stellar-enclosure-tianshu-starter'
 ]
 def technicalLibraries = technicalArtifacts.collect { it + '-' + rootPom.properties.'stellar-enclosure.version'.text() + '.jar' } as Set
 agentLibraries.findAll { it.startsWith('stellar-enclosure-component-rpc-') || it.startsWith('stellar-enclosure-tianshu') }.each { library ->
@@ -168,10 +167,9 @@ agentLibraries.findAll { it.startsWith('stellar-enclosure-component-rpc-') || it
 }
 modules.each { module ->
     def ids = dependencyIds(poms[module])
-    assert !ids.any { it.startsWith('stellar-enclosure-component-rpc-') && it != 'stellar-enclosure-component-rpc-tianshu-adapter' }:
+    assert !ids.any { it.startsWith('stellar-enclosure-component-rpc-') }:
             "Agent RPC transport must stay transitive in ${module}"
-    ['stellar-enclosure-component-rpc-tianshu-adapter', 'stellar-enclosure-tianshu-starter',
-     'stellar-enclosure-tianshu-http-registration-starter', 'stellar-enclosure-yuheng-starter-openapi-webmvc'].each { sdk ->
+    ['stellar-enclosure-tianshu-starter', 'stellar-enclosure-yuheng-starter-openapi-webmvc'].each { sdk ->
         assert module == 'starter' || !ids.contains(sdk): "Technical SDK ${sdk} belongs in starter"
     }
 }
@@ -244,6 +242,26 @@ profiles.each { profile ->
     assert !(text =~ /(?m)^\s{4}security:/): 'Retired Deep Research API-key configuration must be absent'
 
 }
+
+def workload = file('deploy/kubernetes/workload.yaml').getText('UTF-8')
+['kind: Deployment', 'type: ClusterIP', 'automountServiceAccountToken: false',
+ 'containerPort: 9090', 'port: management', 'targetPort: http',
+ 'fieldPath: metadata.uid', 'audience: tianshu-config', 'expirationSeconds: 600',
+ 'mountPath: /var/run/tianshu/config', 'mountPath: /var/run/tianshu/identity',
+ 'mountPath: /var/run/tianshu/state'].each { required ->
+    assert workload.contains(required): "Missing Agent Kubernetes workload contract ${required}"
+}
+assert !(workload =~ /(?m)^kind:\s+(?:Gateway|HTTPRoute|GRPCRoute)\s*$/):
+        'Agent workload cannot publish Gateway or mesh routes'
+assert !workload.contains('targetPort: management'): 'Agent management port must stay outside the Service'
+def production = file("${prefix}-starter/src/main/resources/application-prod.yml").getText('UTF-8')
+['- tianshu-baseline:${TIANSHU_CONFIG_BASELINE_FILE:', 'http://tianshu-config.',
+ '/var/run/tianshu/identity/workload-token', 'TIANSHU_CONFIG_RESOURCE_URI',
+ 'TIANSHU_CONFIG_REGISTRATION_ID', 'allow-offline-start: false',
+ '${EGON_ID_REDIS_ENV}', '${EGON_ID_REDIS_APP}'].each { required ->
+    assert production.contains(required): "Missing Agent production configuration ${required}"
+}
+assert !(production =~ /(?m)^\s*machine-id:/): 'Agent production requires a Redis-issued machine ID'
 
 def readme = file("README.md").text
 assert readme.contains("Deep Research")
@@ -403,7 +421,7 @@ nativeProfiles.each { assert it.text.contains('system-code: ' + nativeNamespace)
 assert !nativeProfiles.any { it.text.contains('agent.knowledge.tenant.default-id') }
 
 ["stellar-enclosure-tianquan-jianshen-starter-", "stellar-enclosure-tianquan-shoubing-starter-", "stellar-enclosure-tianshu-starter-",
- "stellar-enclosure-tianshu-http-registration-starter-", "stellar-enclosure-component-rpc-tianshu-adapter-", "stellar-enclosure-yuheng-starter-openapi-webmvc-"].each { required ->
+ "stellar-enclosure-yuheng-starter-openapi-webmvc-"].each { required ->
     assert agentLibraries.any { it.startsWith(required) }: "Missing approved native library ${required}"
 }
 assert dependencyIds(poms.adapter).contains('stellar-enclosure-tianquan-jianshen-starter')

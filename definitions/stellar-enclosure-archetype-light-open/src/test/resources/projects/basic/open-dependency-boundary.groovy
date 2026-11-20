@@ -11,13 +11,12 @@ def verifyOpenDependencyBoundary = { File projectDir ->
     def ids = dependencies.artifactId*.text() as Set
     ['stellar-enclosure-component-common-core', 'stellar-enclosure-component-common-id-starter',
      'stellar-enclosure-component-common-mybatis-plus-sharding-jdbc-ext-spring-boot-starter',
-     'stellar-enclosure-component-dynamic-thread-pool-starter', 'spring-cloud-starter-bootstrap',
-     'spring-cloud-starter-alibaba-nacos-config', 'spring-cloud-starter-alibaba-nacos-discovery',
+     'stellar-enclosure-component-dynamic-thread-pool-starter',
      'springdoc-openapi-starter-webmvc-ui'].each { required ->
         assert ids.contains(required): "Missing Light Open dependency ${required}"
     }
     def forbidden = ['stellar-enclosure-component-rpc-', 'stellar-enclosure-tianshu', 'dubbo-']
-    assert !ids.any { id -> forbidden.any { id.startsWith(it) } }
+    assert !ids.any { id -> forbidden.any { id.startsWith(it) } || id.contains('nacos') || id == 'spring-cloud-starter-bootstrap' }
     def packaged = new File(projectDir, 'target').listFiles()?.find {
         it.name.endsWith('.jar') && !it.name.endsWith('-sources.jar') && !it.name.endsWith('-javadoc.jar')
     }
@@ -29,7 +28,7 @@ def verifyOpenDependencyBoundary = { File projectDir ->
         }
     }
     assert libraries.any { it.startsWith('stellar-enclosure-component-common-core-') }
-    assert libraries.any { it.startsWith('nacos-client-') }
+    assert !libraries.any { it.contains('nacos') || it.startsWith('spring-cloud-starter-bootstrap-') }
     assert libraries.any { it.startsWith('springdoc-openapi-starter-webmvc-ui-') }
     assert !libraries.any { library -> forbidden.any { library.startsWith(it) } }
     true

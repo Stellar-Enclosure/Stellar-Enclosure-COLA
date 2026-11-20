@@ -10,6 +10,22 @@ def manifest = json('permission-manifest.config.json')
 assert pkg.name == 'example-admin' && pkg.version == '0.1.0-SNAPSHOT'
 assert lock.name == pkg.name && lock.version == pkg.version
 assert lock.packages[''].name == pkg.name && lock.packages[''].version == pkg.version
+['stellar-enclosure-web-shared', 'stellar-enclosure-tianquan-jianshen-react-sdk'].each { module ->
+    def name = '@stellar-enclosure/' + module
+    assert pkg.dependencies[name] == '0.1.0'
+    assert lock.packages[''].dependencies[name] == '0.1.0'
+    assert lock.packages['node_modules/' + name].version == '0.1.0'
+    assert lock.packages['node_modules/' + name].integrity.startsWith('sha512-')
+}
+def authSource = new File(root, 'src/app/api.ts').getText('UTF-8')
+def publicEnv = new File(root, '.env.example').getText('UTF-8')
+assert authSource.contains('createPublicOAuthClient')
+assert authSource.contains('oauth/callback')
+assert authSource.contains('oauth/popup-callback')
+assert !authSource.contains('createGatewayAuthClient')
+assert publicEnv.contains('VITE_OAUTH_API_BASE_URL=https://')
+assert !publicEnv.contains('VITE_OAUTH_APP_ALIAS')
+assert new File(root, 'src/app/api.test.ts').isFile()
 assert manifest.application.applicationCode == pkg.name && manifest.producerId == 'example-admin-web'
 assert new File(root, 'src/permissions/resources.ts').text.contains("applicationCode: 'example-admin'")
 assert new File(root, '.gitignore').isFile()

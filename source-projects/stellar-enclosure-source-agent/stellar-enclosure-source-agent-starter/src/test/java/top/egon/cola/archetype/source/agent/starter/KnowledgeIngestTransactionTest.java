@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -96,7 +97,7 @@ class KnowledgeIngestTransactionTest {
         @Bean
         KnowledgeDocumentRepository knowledgeDocumentRepository(JdbcTemplate jdbc) {
             KnowledgeDocumentRepository repository = mock(KnowledgeDocumentRepository.class);
-            when(repository.insert(any())).thenAnswer(invocation -> {
+            when(repository.insertForIngest(any(), anyString())).thenAnswer(invocation -> {
                 KnowledgeDocumentBO document = invocation.getArgument(0);
                 jdbc.update("INSERT INTO documents (id) VALUES (?)", document.documentId());
                 return document;

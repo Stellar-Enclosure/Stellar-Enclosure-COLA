@@ -44,12 +44,10 @@ java @launch.args -Xmx3g -jar app.jar --server.port=9080
 ```bash
 bash ./mvnw -B -ntp clean verify
 bash ./mvnw -pl stellar-enclosure-source-web-open-starter -am spring-boot:run
-docker compose --env-file deploy/env/.env.example \
-  --file deploy/compose/compose.docker.yaml up -d --build
 ```
 
 第一条命令会运行模块测试、Proto/Triple 测试、OpenAPI/DTP context 测试和 ArchUnit。
-这些测试不等价于真实 Nacos、Redis、PostgreSQL、RabbitMQ、跨 JVM RPC 或外部 Gateway
+这些测试不等价于真实 Redis、PostgreSQL、RabbitMQ、跨 JVM RPC 或外部 Gateway
 拓扑证明；dev/prod 的运维服务和密钥由操作者提供。
 
 ## CQERS 架构
@@ -63,8 +61,7 @@ MQ/Outbox 实现发布。事务、校验、幂等与投递语义保持原有用�
 
 ## 技术栈
 
-技术矩阵为 Spring Boot 4.1.2、Spring Cloud 2025.0.3、Spring Cloud Alibaba
-2025.0.0.0、Dubbo 3.3.6、Nacos 3.0.3（Compose 镜像）、gRPC 1.73.0、Protobuf 3.x、
+技术矩阵为 Spring Boot 4.1.2、Kubernetes、Cilium、Dubbo 3.3.6、gRPC 1.73.0、Protobuf 3.x、
 MyBatis-Plus 3.5.16、ShardingSphere 5.5.3、Springdoc 3.1.1。直接使用的 Egon
 组件为 Common core/ID、Common MyBatis-Plus starter、Common 二级缓存 starter 与 Dynamic
 Thread Pool starter。
@@ -114,12 +111,7 @@ facade/src/main/proto/google/protobuf/empty.proto
 导出的 group 与 version 硬编码在 `adapter/teaching/rpc/SchoolClassRpcProvider` 与
 `adapter/user/rpc/UserRpcProvider` 构造的 `ServiceBean` 定义中，任何环境变量都不会改变它们。
 出站方向只有 `app.integrations.evaluation.grpc-target` 与 `.grpc-deadline` 被读取，因此
-`EVALUATION_GRPC_TARGET`（默认 `localhost:50051`）与 `EVALUATION_GRPC_DEADLINE`（默认 `PT3S`）
-才是真正生效的部署覆盖项。客户端由激活的 Spring profile 选择（`dev`/`prod` 使用 gRPC 客户端，
-`test` 使用 `LocalEvaluationQueryClientImpl`），因此 `EVALUATION_FACADE_ENABLED`、
-`EVALUATION_COURSE_FACADE_GROUP`、`EVALUATION_EXAM_FACADE_GROUP`、
-`EVALUATION_SCORE_FACADE_GROUP` 与 `EVALUATION_FACADE_SERVICE_VERSION` 只是绑定了没有生产代码
-读取的配置，改值不产生任何效果。
+Evaluation 的受管调用从 `EVALUATION_TRIPLE_SERVICE` 和 `EVALUATION_TRIPLE_NAMESPACE` 组成稳定 Service DNS，并使用 `EVALUATION_GRPC_DEADLINE` 配置截止时间。测试使用本地替身。
 
 ## API 端点
 
@@ -133,12 +125,12 @@ Controller 和 GraphQL Resolver 只位于 Adapter：
 ```
 
 Starter 提供 Springdoc 文档与 UI。test profile 使用 H2、本地 cache、本地事件发布和
-确定性的 Evaluation stub，不打开 Nacos、Redis、RabbitMQ 或远程 gRPC socket。
+确定性的 Evaluation stub，不打开 Redis、RabbitMQ 或远程 gRPC socket。
 
 ## ID 与持久化
 
 业务 ID 统一为 `Long`，由 Common Snowflake `LongIdGenerator` 生成。每个运行实例必须
-设置唯一 `EGON_ID_MACHINE_ID`；test profile 使用机器号 `0`。HTTP 与 GraphQL 在 wire 边界保持十进制字符串 ID。
+受管实例从 Redis Cluster 获取租约，test profile 使用机器号 `0`。HTTP 与 GraphQL 在 wire 边界保持十进制字符串 ID。
 
 持久化使用 Common MP Repository 与显式 Mapper XML；Domain Service 不依赖技术 CRUD 类型。
 
@@ -155,8 +147,7 @@ core=8，max=32，queue=1000，keep-alive=60s
 ```
 
 dev/prod 启用 Dynamic Thread Pool Redis registry/report；test 关闭 DTP 外部连接但仍
-验证 executor、decorator 和 ID generator。Compose 示例使用
-`nacos/nacos-server:v3.0.3`，并要求显式机器号。
+使用 [Kubernetes 交付输入](deploy/kubernetes/README.md) 和已核验的镜像摘要。启动配置来自不可变 ConfigMap，凭据由独立的 Secret 提供。
 
 ## Repository、CQE 与 PostgreSQL
 
@@ -172,7 +163,7 @@ dev/prod 启用 Dynamic Thread Pool Redis registry/report；test 关闭 DTP 外�
 
 按环境 profile、`readwrite` 的顺序启用，例如 `SPRING_PROFILES_ACTIVE=prod,readwrite`。除现有三个主库 URL 外，还必须提供 `ORGANIZATION_SHARDING_MASTER_DATA_REPLICA_URL`、`ORGANIZATION_SHARDING_SHARD_0_REPLICA_URL` 和 `ORGANIZATION_SHARDING_SHARD_1_REPLICA_URL`；`ORGANIZATION_SHARDING_REPLICA_USERNAME`、`ORGANIZATION_SHARDING_REPLICA_PASSWORD` 可单独配置副本账号。每个地址必须是对应分组的真实副本，单独切换模式变量不会补齐数据源。既有库切换拓扑前应规划并核验路由指纹及数据迁移。
 
-每个实例配置唯一 `EGON_ID_MACHINE_ID`，生产使用现有 Common Snowflake。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
+受管实例按 `EGON_ID_REDIS_ENV` 和 `EGON_ID_REDIS_APP` 从 Redis Cluster 获取 Common Snowflake 租约。各 profile 保持同一 MP 配置键；dev 才开启诊断，原始 recorder logger 为 OFF。动态表名默认关闭，只接受明确映射；MybatisBatch 在调用方事务中执行。
 
 默认测试使用隔离 H2 和受控依赖。本工程不含 PostgreSQL 门控测试：`-Degon.pg.*` 与 `EGON_TEST_PG_*` 不被任何 POM、YAML 或测试读取，也没有测试启动或提供数据库。PG/SS 真实路由、迁移和性能 EXPLAIN 由使用者手动验收，没有失败不等于通过。
 

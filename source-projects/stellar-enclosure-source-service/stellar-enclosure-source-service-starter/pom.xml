@@ -67,15 +67,7 @@
         </dependency>
         <dependency>
             <groupId>top.egon</groupId>
-            <artifactId>stellar-enclosure-component-rpc-tianshu-adapter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>top.egon</groupId>
             <artifactId>stellar-enclosure-tianshu-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>top.egon</groupId>
-            <artifactId>stellar-enclosure-tianshu-http-registration-starter</artifactId>
         </dependency>
         <dependency>
             <groupId>top.egon</groupId>
