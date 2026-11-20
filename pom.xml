@@ -190,11 +190,6 @@
             </dependency>
             <dependency>
                 <groupId>top.egon</groupId>
-                <artifactId>stellar-enclosure-tianshu-http-registration-starter</artifactId>
-                <version>${stellar-enclosure.tianshu.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>top.egon</groupId>
                 <artifactId>stellar-enclosure-yuheng-starter-openapi</artifactId>
                 <version>${stellar-enclosure.version}</version>
             </dependency>
